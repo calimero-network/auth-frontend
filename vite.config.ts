@@ -7,6 +7,7 @@ export default defineConfig({
   base: '/public/',
   build: {
     // Generate a single HTML file with inlined assets where possible
+    outDir: 'build',
     assetsInlineLimit: 100000, // 100kb
     rollupOptions: {
       output: {
