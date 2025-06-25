@@ -4,19 +4,15 @@ A React TypeScript frontend application for authentication and context managemen
 
 ## Features
 
-- 🔐 **Authentication System** - User login and session management
-- 🌐 **NEAR Wallet Integration** - Support for NEAR Protocol wallets
-- 🎛️ **Context Management** - Create and select application contexts
-- 👥 **Provider Selection** - Choose between different service providers
+- 🔐 **Authentication System** - User login frontend logic implementation
+- 🎛️ **Context Management** - Create and/or select contexts
 - 🛡️ **Permissions Management** - Handle user permissions and access control
-- 💅 **Modern UI** - Built with Emotion/Styled Components for a polished interface
 
 ## Tech Stack
 
 - **Frontend**: React 19, TypeScript
 - **Build Tool**: Vite
 - **Styling**: Emotion, Styled Components
-- **Blockchain**: NEAR Protocol, Calimero Network
 - **Package Manager**: pnpm
 - **Routing**: React Router DOM
 
