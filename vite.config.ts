@@ -4,7 +4,7 @@ import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [react()],
-  base: '/public/',
+  base: '/auth/',
   build: {
     // Generate a single HTML file with inlined assets where possible
     outDir: 'build',
