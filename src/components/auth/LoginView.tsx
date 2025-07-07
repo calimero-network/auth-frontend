@@ -84,19 +84,18 @@ const LoginView: React.FC = () => {
     setLoading(false);
   };
   
-  useEffect(() => {    
-    checkExistingSession();
-  }, [loadProviders]);
-  
-
   useEffect(() => {
+    // Always handle URL params first before any API calls
     handleUrlParams();
     
     const callback = getStoredUrlParam('callback-url');
     if (!callback) {
       setError('Missing required callback URL parameter');
       setLoading(false);
+      return;
     }
+    
+    // Now that URL params are processed, check existing session
     checkExistingSession();
   }, []);
   
