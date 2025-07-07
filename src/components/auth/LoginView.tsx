@@ -24,6 +24,8 @@ const LoginView: React.FC = () => {
   const [showProviders, setShowProviders] = useState(false);
   const [showContextSelector, setShowContextSelector] = useState(false);
 
+  console.log('LoginView');
+
   // Load providers
   const loadProviders = useCallback(async () => {
     try {
