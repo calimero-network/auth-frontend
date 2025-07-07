@@ -85,6 +85,7 @@ const LoginView: React.FC = () => {
   };
   
   useEffect(() => {
+    console.log('checkExistingSession');
     // Always handle URL params first before any API calls
     handleUrlParams();
     
