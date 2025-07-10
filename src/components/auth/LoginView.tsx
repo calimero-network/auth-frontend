@@ -10,6 +10,7 @@ import { Provider } from '@calimero-network/calimero-client/lib/api/authApi';
 import { ErrorView } from '../common/ErrorView';
 import { SessionPrompt } from '../session/SessionPrompt';
 import Loader from '../common/Loader';
+import { PermissionsView } from '../permissions/PermissionsView';
 
 interface SignedMessage {
   accountId: string;
@@ -23,6 +24,7 @@ const LoginView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showProviders, setShowProviders] = useState(false);
   const [showContextSelector, setShowContextSelector] = useState(false);
+  const [showPermissionsView, setShowPermissionsView] = useState(false);
 
   console.log('LoginView');
 
@@ -169,7 +171,17 @@ const LoginView: React.FC = () => {
         if (tokenResponse.data.access_token && tokenResponse.data.refresh_token) {
           setAccessToken(tokenResponse.data.access_token);
           setRefreshToken(tokenResponse.data.refresh_token);
-          setShowContextSelector(true);
+          
+          // Check if admin permissions are requested
+          const permissionsParam = getStoredUrlParam('permissions');
+          const permissions = permissionsParam ? permissionsParam.split(',') : [];
+          const hasAdminPermissions = permissions.includes('admin');
+          
+          if (hasAdminPermissions) {
+            setShowPermissionsView(true);
+          } else {
+            setShowContextSelector(true);
+          }
         } else {
           throw new Error('Failed to get access token');
         }
@@ -181,6 +193,38 @@ const LoginView: React.FC = () => {
       setError(err instanceof Error ? err.message : 'Authentication failed');
     }
   };  
+
+  const handleAdminClientKeyGeneration = async (permissions: string[]) => {
+    try {
+      const response = await apiClient.auth().generateClientKey({
+        context_id: '', // Admin permissions don't require specific context
+        context_identity: '', // Admin permissions don't require specific identity
+        permissions
+      });
+
+      if (response.error) {
+        setError(response.error.message);
+        return;
+      }
+
+      if (response.data.access_token && response.data.refresh_token) {
+        const callback = getStoredUrlParam('callback-url');
+        if (callback) {
+          const returnUrl = new URL(callback);
+          returnUrl.searchParams.set('access_token', response.data.access_token);
+          returnUrl.searchParams.set('refresh_token', response.data.refresh_token);
+          
+          clearStoredUrlParams();
+          window.location.href = returnUrl.toString();
+        }
+      } else {
+        throw new Error('Failed to generate client key');
+      }
+    } catch (err) {
+      console.error('Failed to generate admin client key:', err);
+      setError(err instanceof Error ? err.message : 'Failed to generate admin client key');
+    }
+  };
 
   const handleContextAndIdentitySelect = async (contextId: string, identity: string) => {
 
@@ -278,6 +322,23 @@ const LoginView: React.FC = () => {
         <ContextSelector
           onComplete={(contextId, identity) => handleContextAndIdentitySelect(contextId, identity)}
           onBack={handleBack}
+        />
+      )}
+
+      {showPermissionsView && (
+        <PermissionsView
+          permissions={getStoredUrlParam('permissions')?.split(',') || []}
+          selectedContext="admin"
+          selectedIdentity="admin"
+          onComplete={async () => {
+            const permissionsParam = getStoredUrlParam('permissions');
+            const permissions = permissionsParam ? permissionsParam.split(',') : [];
+            await handleAdminClientKeyGeneration(permissions);
+          }}
+          onBack={() => {
+            setShowPermissionsView(false);
+            checkExistingSession();
+          }}
         />
       )}
     </>
