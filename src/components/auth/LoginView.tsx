@@ -105,7 +105,17 @@ const LoginView: React.FC = () => {
   }, []);
   
   const handleContinueSession = () => {
-    setShowContextSelector(true);
+    console.log('handleContinueSession');
+    // Check if admin permissions are requested
+    const permissionsParam = getStoredUrlParam('permissions');
+    const permissions = permissionsParam ? permissionsParam.split(',') : [];
+    const hasAdminPermissions = permissions.includes('admin');
+    
+    if (hasAdminPermissions) {
+      setShowPermissionsView(true);
+    } else {
+      setShowContextSelector(true);
+    }
   };
 
   const handleNewLogin = async () => {
@@ -176,6 +186,8 @@ const LoginView: React.FC = () => {
           const permissionsParam = getStoredUrlParam('permissions');
           const permissions = permissionsParam ? permissionsParam.split(',') : [];
           const hasAdminPermissions = permissions.includes('admin');
+
+          console.log('hasAdminPermissions', hasAdminPermissions);
           
           if (hasAdminPermissions) {
             setShowPermissionsView(true);
