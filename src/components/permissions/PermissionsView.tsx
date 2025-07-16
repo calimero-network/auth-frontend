@@ -23,6 +23,7 @@ export function PermissionsView({
   onComplete,
   onBack
 }: PermissionsViewProps) {
+  console.log('PermissionsView props:', { selectedContext, selectedIdentity });
   return (
     <PermissionsContainer>
       <PermissionsInfo>
