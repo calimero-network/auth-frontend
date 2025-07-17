@@ -67,7 +67,7 @@ export function useContextSelection() {
     }, [fetchIdentities]);
 
     // Handle identity selection
-    const handleIdentitySelect = useCallback((identity: string | null) => {
+    const handleIdentitySelect = useCallback((contextId: string | null, identity: string) => {
         setSelectedIdentity(identity);
     }, []);
 

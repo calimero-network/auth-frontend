@@ -98,7 +98,7 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                 const contextData = await handleContextCreation();
                 if (contextData) {
                   handleContextSelect(contextData.contextId);
-                  handleIdentitySelect(contextData.memberPublicKey);
+                  handleIdentitySelect(contextData.contextId, contextData.memberPublicKey);
                 }
               }}
               disabled={loading}
@@ -213,7 +213,7 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
         <PermissionsView
           permissions={permissions}
           onComplete={(contextId, identity) => onComplete(contextId, identity)}
-          onBack={() => handleIdentitySelect(null)}
+          onBack={() => handleIdentitySelect(null, '')}
           selectedContext={selectedContext}
           selectedIdentity={selectedIdentity}
         />

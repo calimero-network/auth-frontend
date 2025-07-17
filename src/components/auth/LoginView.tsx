@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import ProviderSelector from '../providers/ProviderSelector';
 import { ContextSelector } from '../context/ContextSelector';
+import { UsernamePasswordForm } from './UsernamePasswordForm';
 import { NetworkId, setupWalletSelector } from '@near-wallet-selector/core';
 import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet';
 import { Buffer } from 'buffer';
@@ -25,8 +26,9 @@ const LoginView: React.FC = () => {
   const [showProviders, setShowProviders] = useState(false);
   const [showContextSelector, setShowContextSelector] = useState(false);
   const [showPermissionsView, setShowPermissionsView] = useState(false);
-
-  console.log('LoginView');
+  const [showUsernamePasswordForm, setShowUsernamePasswordForm] = useState(false);
+  const [usernamePasswordLoading, setUsernamePasswordLoading] = useState(false);
+  const [cameFromUsernamePassword, setCameFromUsernamePassword] = useState(false);
 
   // Load providers
   const loadProviders = useCallback(async () => {
@@ -89,8 +91,6 @@ const LoginView: React.FC = () => {
   };
   
   useEffect(() => {
-    console.log('checkExistingSession');
-    // Always handle URL params first before any API calls
     handleUrlParams();
     
     const callback = getStoredUrlParam('callback-url');
@@ -100,7 +100,6 @@ const LoginView: React.FC = () => {
       return;
     }
     
-    // Now that URL params are processed, check existing session
     checkExistingSession();
   }, []);
   
@@ -121,6 +120,59 @@ const LoginView: React.FC = () => {
   const handleNewLogin = async () => {
     await loadProviders();
     setShowProviders(true);
+  };
+
+  const handleUsernamePasswordAuth = async (username: string, password: string) => {
+    try {
+      setUsernamePasswordLoading(true);
+      setError(null);
+
+      const tokenPayload = {
+        auth_method: 'user_password',
+        public_key: username, // Use username as public key for user_password provider
+        client_name: 'Calimero Auth Server',
+        timestamp: Date.now(),
+        permissions: [],
+        provider_data: {
+          username: username,
+          password: password
+        }
+      };
+
+      const tokenResponse = await apiClient.auth().requestToken(tokenPayload);
+
+      if (tokenResponse.error) {
+        setError(tokenResponse.error.message);
+        return;
+      }
+
+      if (tokenResponse.data.access_token && tokenResponse.data.refresh_token) {
+        setAccessToken(tokenResponse.data.access_token);
+        setRefreshToken(tokenResponse.data.refresh_token);
+        
+        // Check if admin permissions are requested
+        const permissionsParam = getStoredUrlParam('permissions');
+        const permissions = permissionsParam ? permissionsParam.split(',') : [];
+        const hasAdminPermissions = permissions.includes('admin');
+
+        if (hasAdminPermissions) {
+          setShowPermissionsView(true);
+          setShowUsernamePasswordForm(false);
+          setCameFromUsernamePassword(true);
+        } else {
+          setShowContextSelector(true);
+          setShowUsernamePasswordForm(false);
+          setCameFromUsernamePassword(true);
+        }
+      } else {
+        throw new Error('Failed to get access token');
+      }
+    } catch (err) {
+      console.error('Authentication error:', err);
+      setError(err instanceof Error ? err.message : 'Authentication failed');
+    } finally {
+      setUsernamePasswordLoading(false);
+    }
   };
 
   const handleProviderSelect = async (provider: Provider) => {
@@ -197,6 +249,9 @@ const LoginView: React.FC = () => {
         } else {
           throw new Error('Failed to get access token');
         }
+      } else if (provider.name === 'user_password') {
+        setShowProviders(false);
+        setShowUsernamePasswordForm(true);
       } else {
         setError(`Provider ${provider.name} is not implemented yet`);
       }
@@ -305,12 +360,17 @@ const LoginView: React.FC = () => {
 
   const handleBack = () => {
     setShowContextSelector(false);
-    checkExistingSession();
+    if (cameFromUsernamePassword) {
+      setShowUsernamePasswordForm(true);
+      setCameFromUsernamePassword(false);
+    } else {
+      checkExistingSession();
+    }
   };
 
   return (
     <>
-      {!loading && !showProviders && !showContextSelector && getAccessToken() && getRefreshToken() && (
+      {!loading && !showProviders && !showContextSelector && !showPermissionsView && !showUsernamePasswordForm && getAccessToken() && getRefreshToken() && (
         <SessionPrompt
           onContinueSession={handleContinueSession}
           onStartNewSession={handleNewLogin}
@@ -349,8 +409,28 @@ const LoginView: React.FC = () => {
           }}
           onBack={() => {
             setShowPermissionsView(false);
-            checkExistingSession();
+            if (cameFromUsernamePassword) {
+              setShowUsernamePasswordForm(true);
+              setCameFromUsernamePassword(false);
+            } else {
+              checkExistingSession();
+            }
           }}
+        />
+      )}
+
+      {showUsernamePasswordForm && (
+        <UsernamePasswordForm
+          onBack={() => {
+            setShowUsernamePasswordForm(false);
+            setShowProviders(true);
+            setError(null);
+            setUsernamePasswordLoading(false);
+            setCameFromUsernamePassword(false);
+          }}
+          onSubmit={handleUsernamePasswordAuth}
+          loading={usernamePasswordLoading}
+          error={error}
         />
       )}
     </>
