@@ -30,7 +30,7 @@ export const clearStoredUrlParams = () => {
   // Get all localStorage keys
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key !== 'access-token' && key !== 'refresh-token') {
+    if (key !== 'access-token' && key !== 'refresh-token' && key !== 'app-url') {
       localStorage.removeItem(key!);
     }
   }
