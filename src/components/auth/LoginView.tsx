@@ -290,11 +290,14 @@ const LoginView: React.FC = () => {
         const callback = getStoredUrlParam('callback-url');
         if (callback) {
           const returnUrl = new URL(callback);
-          returnUrl.searchParams.set('access_token', response.data.access_token);
-          returnUrl.searchParams.set('refresh_token', response.data.refresh_token);
+          // Create fragment params for tokens
+          const fragmentParams = new URLSearchParams();
+          fragmentParams.set('access_token', response.data.access_token);
+          fragmentParams.set('refresh_token', response.data.refresh_token);
           
           clearStoredUrlParams();
-          window.location.href = returnUrl.toString();
+          // Combine the base URL with the fragment
+          window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;
         }
       } else {
         throw new Error('Failed to generate client key');
@@ -335,11 +338,14 @@ const LoginView: React.FC = () => {
         const callback = getStoredUrlParam('callback-url');
         if (callback) {
           const returnUrl = new URL(callback);
-          returnUrl.searchParams.set('access_token', response.data.access_token);
-          returnUrl.searchParams.set('refresh_token', response.data.refresh_token);
+          // Create fragment params for tokens
+          const fragmentParams = new URLSearchParams();
+          fragmentParams.set('access_token', response.data.access_token);
+          fragmentParams.set('refresh_token', response.data.refresh_token);
           
           clearStoredUrlParams();
-          window.location.href = returnUrl.toString();
+          // Combine the base URL with the fragment
+          window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;
         }
       } else {
         throw new Error('Failed to generate client key');
