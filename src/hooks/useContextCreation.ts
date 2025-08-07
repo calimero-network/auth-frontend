@@ -86,8 +86,7 @@ export function useContextCreation(): UseContextCreationReturn {
       const newApplicationId = installResponse.data.applicationId;
       localStorage.setItem('application-id', JSON.stringify(newApplicationId));
       // Create context
-      const createContextResponse = await apiClient.node().createContext(newApplicationId, selectedProtocol);
-      console.log('createContextResponse', createContextResponse);
+      const createContextResponse = await apiClient.node().createContext(newApplicationId, '{}', selectedProtocol);
       if (createContextResponse.error) {
         setError(createContextResponse.error.message);
         return;
