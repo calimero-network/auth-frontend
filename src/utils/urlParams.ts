@@ -48,9 +48,6 @@ export const getStoredUrlParam = (key: string): string | null => {
 };
 
 export const clearStoredUrlParams = () => {
-  // Clear SDK-related storage using SDK functions
-  clearAppEndpoint();
-  clearAccessToken(); // This also clears refresh token
   
   // Clear auth-frontend specific keys (non-SDK keys)
   const keysToRemove = [
