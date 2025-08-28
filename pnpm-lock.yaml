@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@calimero-network/calimero-client':
-        specifier: github:calimero-network/calimero-client-js#feat/auth-url
-        version: https://codeload.github.com/calimero-network/calimero-client-js/tar.gz/557a0186b8103782d099baf76a33699b6c5c67cb(@near-wallet-selector/modal-ui@9.0.2(near-api-js@5.1.1))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(styled-components@6.1.19(react-dom@19.1.0(react@19.1.0))(react@19.1.0))
+        specifier: 1.15.0
+        version: 1.15.0(@near-wallet-selector/modal-ui@9.0.2(near-api-js@5.1.1))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(styled-components@6.1.19(react-dom@19.1.0(react@19.1.0))(react@19.1.0))
       '@emotion/react':
         specifier: ^11.14.0
         version: 11.14.0(@types/react@19.1.8)(react@19.1.0)
@@ -171,9 +171,8 @@ packages:
     resolution: {integrity: sha512-ETyHEk2VHHvl9b9jZP5IHPavHYk57EhanlRRuae9XCpb/j5bDCbPPMOBfCWhnl/7EDJz0jEMCi/RhccCE8r1+Q==}
     engines: {node: '>=6.9.0'}
 
-  '@calimero-network/calimero-client@https://codeload.github.com/calimero-network/calimero-client-js/tar.gz/557a0186b8103782d099baf76a33699b6c5c67cb':
-    resolution: {tarball: https://codeload.github.com/calimero-network/calimero-client-js/tar.gz/557a0186b8103782d099baf76a33699b6c5c67cb}
-    version: 0.1.12
+  '@calimero-network/calimero-client@1.15.0':
+    resolution: {integrity: sha512-/YJPAZGISC5ylYggCDgweZPZF1y6mxOB8JrJdAhO+3sF0kO4gCQpvFzuV30Tg2IG4hYnDxAf4Q33qc+lKkVhXA==}
     peerDependencies:
       '@near-wallet-selector/modal-ui': ^8.9.7
       react: ^18.3.0
@@ -1768,7 +1767,7 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.27.1
 
-  '@calimero-network/calimero-client@https://codeload.github.com/calimero-network/calimero-client-js/tar.gz/557a0186b8103782d099baf76a33699b6c5c67cb(@near-wallet-selector/modal-ui@9.0.2(near-api-js@5.1.1))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(styled-components@6.1.19(react-dom@19.1.0(react@19.1.0))(react@19.1.0))':
+  '@calimero-network/calimero-client@1.15.0(@near-wallet-selector/modal-ui@9.0.2(near-api-js@5.1.1))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(styled-components@6.1.19(react-dom@19.1.0(react@19.1.0))(react@19.1.0))':
     dependencies:
       '@near-wallet-selector/modal-ui': 9.0.2(near-api-js@5.1.1)
       axios: 1.11.0
