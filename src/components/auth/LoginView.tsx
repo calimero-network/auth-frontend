@@ -1,7 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import ProviderSelector from '../providers/ProviderSelector';
-import { ContextSelector } from '../context/ContextSelector';
-import { UsernamePasswordForm } from './UsernamePasswordForm';
 import { NetworkId, setupWalletSelector } from '@near-wallet-selector/core';
 import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet';
 import { Buffer } from 'buffer';
@@ -9,9 +7,10 @@ import { handleUrlParams, getStoredUrlParam, clearStoredUrlParams } from '../../
 import { apiClient, clearAccessToken, clearRefreshToken, getAccessToken, getAppEndpointKey, getRefreshToken, setAccessToken, setRefreshToken } from '@calimero-network/calimero-client';
 import { Provider } from '@calimero-network/calimero-client/lib/api/authApi';
 import { ErrorView } from '../common/ErrorView';
-import { SessionPrompt } from '../session/SessionPrompt';
 import Loader from '../common/Loader';
 import { PermissionsView } from '../permissions/PermissionsView';
+import { UsernamePasswordForm } from './UsernamePasswordForm';
+import { ApplicationInstallCheck } from '../applications/ApplicationInstallCheck';
 
 interface SignedMessage {
   accountId: string;
@@ -24,11 +23,12 @@ const LoginView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showProviders, setShowProviders] = useState(false);
-  const [showContextSelector, setShowContextSelector] = useState(false);
+  const [showApplicationInstallCheck, setShowApplicationInstallCheck] = useState(false);
   const [showPermissionsView, setShowPermissionsView] = useState(false);
   const [showUsernamePasswordForm, setShowUsernamePasswordForm] = useState(false);
   const [usernamePasswordLoading, setUsernamePasswordLoading] = useState(false);
   const [cameFromUsernamePassword, setCameFromUsernamePassword] = useState(false);
+  const [cameFromApplicationCheck, setCameFromApplicationCheck] = useState(false);
 
   // Load providers
   const loadProviders = useCallback(async () => {
@@ -82,7 +82,22 @@ const LoginView: React.FC = () => {
     const existingRefreshToken = getRefreshToken();
     
     if (existingAccessToken && existingRefreshToken) {
-      checkIfTokenIsValid(existingAccessToken, existingRefreshToken);
+      const isValid = await checkIfTokenIsValid(existingAccessToken, existingRefreshToken);
+      if (isValid) {
+        // Automatically continue session and check permissions
+        const permissionsParam = getStoredUrlParam('permissions');
+        const permissions = permissionsParam ? permissionsParam.split(',') : [];
+        const hasAdminPermissions = permissions.includes('admin');
+        
+        if (hasAdminPermissions) {
+          setShowPermissionsView(true);
+        } else {
+          setShowApplicationInstallCheck(true);
+        }
+      } else {
+        setShowProviders(true);
+        await loadProviders();
+      }
     } else {
       setShowProviders(true);
       await loadProviders();
@@ -113,7 +128,7 @@ const LoginView: React.FC = () => {
     if (hasAdminPermissions) {
       setShowPermissionsView(true);
     } else {
-      setShowContextSelector(true);
+      setShowApplicationInstallCheck(true);
     }
   };
 
@@ -160,7 +175,7 @@ const LoginView: React.FC = () => {
           setShowUsernamePasswordForm(false);
           setCameFromUsernamePassword(true);
         } else {
-          setShowContextSelector(true);
+          setShowApplicationInstallCheck(true);
           setShowUsernamePasswordForm(false);
           setCameFromUsernamePassword(true);
         }
@@ -234,17 +249,14 @@ const LoginView: React.FC = () => {
           setAccessToken(tokenResponse.data.access_token);
           setRefreshToken(tokenResponse.data.refresh_token);
           
-          // Check if admin permissions are requested
           const permissionsParam = getStoredUrlParam('permissions');
           const permissions = permissionsParam ? permissionsParam.split(',') : [];
           const hasAdminPermissions = permissions.includes('admin');
-
-          console.log('hasAdminPermissions', hasAdminPermissions);
           
           if (hasAdminPermissions) {
             setShowPermissionsView(true);
           } else {
-            setShowContextSelector(true);
+            setShowApplicationInstallCheck(true);
           }
         } else {
           throw new Error('Failed to get access token');
@@ -297,7 +309,13 @@ const LoginView: React.FC = () => {
     }
   };
 
-  const handleContextAndIdentitySelect = async (contextId: string, identity: string) => {
+  const handleApplicationInstallComplete = () => {
+    setShowApplicationInstallCheck(false);
+    setShowPermissionsView(true);
+    setCameFromApplicationCheck(true);
+  };
+
+  const handleContextAndIdentitySelect = async (contextId?: string, identity?: string) => {
 
     try {
       let permissions: string[] = [];
@@ -367,7 +385,7 @@ const LoginView: React.FC = () => {
   }
 
   const handleBack = () => {
-    setShowContextSelector(false);
+    setShowApplicationInstallCheck(false);
     if (cameFromUsernamePassword) {
       setShowUsernamePasswordForm(true);
       setCameFromUsernamePassword(false);
@@ -378,14 +396,9 @@ const LoginView: React.FC = () => {
 
   return (
     <>
-      {!loading && !showProviders && !showContextSelector && !showPermissionsView && !showUsernamePasswordForm && getAccessToken() && getRefreshToken() && (
-        <SessionPrompt
-          onContinueSession={handleContinueSession}
-          onStartNewSession={handleNewLogin}
-        />
-      )}
+      {loading && <Loader />}
 
-      {showProviders && !showContextSelector && (
+      {showProviders && !showApplicationInstallCheck && !showPermissionsView && (
         <ProviderSelector
           providers={providers}
           onProviderSelect={handleProviderSelect}
@@ -398,25 +411,11 @@ const LoginView: React.FC = () => {
         />
       )}
 
-      {showContextSelector && (
-        <ContextSelector
-          onComplete={(contextId, identity) => handleContextAndIdentitySelect(contextId, identity)}
-          onBack={handleBack}
-        />
-      )}
-
-      {showPermissionsView && (
-        <PermissionsView
-          permissions={getStoredUrlParam('permissions')?.split(',') || []}
-          selectedContext="admin"
-          selectedIdentity="admin"
-          onComplete={async () => {
-            const permissionsParam = getStoredUrlParam('permissions');
-            const permissions = permissionsParam ? permissionsParam.split(',') : [];
-            await handleAdminClientKeyGeneration(permissions);
-          }}
+      {showApplicationInstallCheck && !showPermissionsView && (
+        <ApplicationInstallCheck
+          onComplete={handleApplicationInstallComplete}
           onBack={() => {
-            setShowPermissionsView(false);
+            setShowApplicationInstallCheck(false);
             if (cameFromUsernamePassword) {
               setShowUsernamePasswordForm(true);
               setCameFromUsernamePassword(false);
@@ -427,7 +426,28 @@ const LoginView: React.FC = () => {
         />
       )}
 
-      {showUsernamePasswordForm && (
+      {showPermissionsView && (
+        <PermissionsView
+          permissions={getStoredUrlParam('permissions')?.split(',') || []}
+          selectedContext=""
+          selectedIdentity=""
+          onComplete={handleContextAndIdentitySelect}
+          onBack={() => {
+            setShowPermissionsView(false);
+            if (cameFromApplicationCheck) {
+              setShowApplicationInstallCheck(true);
+              setCameFromApplicationCheck(false);
+            } else if (cameFromUsernamePassword) {
+              setShowUsernamePasswordForm(true);
+              setCameFromUsernamePassword(false);
+            } else {
+              checkExistingSession();
+            }
+          }}
+        />
+      )}
+
+      {showUsernamePasswordForm && !showPermissionsView && !showApplicationInstallCheck && (
         <UsernamePasswordForm
           onBack={() => {
             setShowUsernamePasswordForm(false);

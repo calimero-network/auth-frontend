@@ -33,7 +33,7 @@ export function useContextCreation(): UseContextCreationReturn {
 
   const checkAndInstallApplication = async (applicationId: string, applicationPath: string) => {
     try {
-      if (!applicationId || !applicationPath || !selectedProtocol) {
+      if (!applicationId || !applicationPath) {
         throw new Error('Missing required parameters');
       }
 
