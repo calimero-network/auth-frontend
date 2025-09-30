@@ -4,7 +4,7 @@ import { NetworkId, setupWalletSelector } from '@near-wallet-selector/core';
 import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet';
 import { Buffer } from 'buffer';
 import { handleUrlParams, getStoredUrlParam, clearStoredUrlParams } from '../../utils/urlParams';
-import { apiClient, clearAccessToken, clearRefreshToken, getAccessToken, getRefreshToken, setAccessToken, setRefreshToken } from '@calimero-network/calimero-client';
+import { apiClient, clearAccessToken, clearRefreshToken, getAccessToken, getAppEndpointKey, getRefreshToken, setAccessToken, setRefreshToken } from '@calimero-network/calimero-client';
 import { Provider } from '@calimero-network/calimero-client/lib/api/authApi';
 import { ErrorView } from '../common/ErrorView';
 import Loader from '../common/Loader';
@@ -145,7 +145,7 @@ const LoginView: React.FC = () => {
       const tokenPayload = {
         auth_method: 'user_password',
         public_key: username, // Use username as public key for user_password provider
-        client_name: 'Calimero Auth Server',
+        client_name: window.location.href,
         timestamp: Date.now(),
         permissions: [],
         provider_data: {
@@ -227,7 +227,7 @@ const LoginView: React.FC = () => {
         const tokenPayload = {
           auth_method: provider.name,
           public_key: signature.publicKey,
-          client_name: 'Calimero Auth Server',
+          client_name: window.location.href,
           timestamp: Date.now(),
           permissions: [],
           provider_data: {
@@ -278,7 +278,8 @@ const LoginView: React.FC = () => {
       const response = await apiClient.auth().generateClientKey({
         context_id: '', // Admin permissions don't require specific context
         context_identity: '', // Admin permissions don't require specific identity
-        permissions
+        permissions,
+        target_node_url: getAppEndpointKey() || ''
       });
 
       if (response.error) {
@@ -326,7 +327,8 @@ const LoginView: React.FC = () => {
       const response = await apiClient.auth().generateClientKey({
         context_id: contextId || '',
         context_identity: identity || '',
-        permissions
+        permissions,
+        target_node_url: getAppEndpointKey() || ''
       });
 
       if (response.error) {
