@@ -30,7 +30,10 @@ const LoginView: React.FC = () => {
   const [cameFromUsernamePassword, setCameFromUsernamePassword] = useState(false);
   const [cameFromApplicationCheck, setCameFromApplicationCheck] = useState(false);
 
-  // Load providers
+  /**
+   * Load available authentication providers from the auth service and update UI state.
+   * Used when showing the provider selector or after an invalid/cleared session.
+   */
   const loadProviders = useCallback(async () => {
     try {
       const availableProviders = await apiClient.auth().getProviders();
@@ -47,6 +50,13 @@ const LoginView: React.FC = () => {
     }
   }, []);
 
+  /**
+   * Validate or refresh an existing root token pair.
+   *
+   * @param accessToken - Current access token
+   * @param refreshToken - Current refresh token
+   * @returns Promise resolving to true when session remains valid (possibly rotated), false otherwise
+   */
   const checkIfTokenIsValid = async (accessToken: string, refreshToken: string) => {
     try {
       const response = await apiClient.auth().refreshToken({
@@ -77,6 +87,11 @@ const LoginView: React.FC = () => {
     }
   };
 
+  /**
+   * Auto-continue flow bootstrap.
+   * If a valid root token exists, skip providers and show next screen (permissions/install) based on URL permissions.
+   * Otherwise, show providers and load provider list.
+   */
   const checkExistingSession = async () => {
     const existingAccessToken = getAccessToken();
     const existingRefreshToken = getRefreshToken();
@@ -118,6 +133,10 @@ const LoginView: React.FC = () => {
     checkExistingSession();
   }, []);
   
+  /**
+   * Explicit continue handler when returning from nested views.
+   * Decides whether to show permissions or application install check based on requested permissions.
+   */
   const handleContinueSession = () => {
     console.log('handleContinueSession');
     // Check if admin permissions are requested
@@ -132,11 +151,21 @@ const LoginView: React.FC = () => {
     }
   };
 
+  /**
+   * Force showing providers and reloading available providers (used when restarting login).
+   */
   const handleNewLogin = async () => {
     await loadProviders();
     setShowProviders(true);
   };
 
+  /**
+   * Handle username/password authentication flow.
+   * Exchanges credentials for a root token, then routes to permissions or install check.
+   *
+   * @param username - Provided username
+   * @param password - Provided password
+   */
   const handleUsernamePasswordAuth = async (username: string, password: string) => {
     try {
       setUsernamePasswordLoading(true);
@@ -190,6 +219,13 @@ const LoginView: React.FC = () => {
     }
   };
 
+  /**
+   * Handle provider selection.
+   * For near_wallet, performs challenge → sign → token exchange; for user_password, shows the credential form.
+   * Routes to permissions or application install check after a successful root token exchange.
+   *
+   * @param provider - Selected auth provider metadata
+   */
   const handleProviderSelect = async (provider: Provider) => {
     try {
       if (provider.name === 'near_wallet') {
@@ -273,6 +309,11 @@ const LoginView: React.FC = () => {
     }
   };  
 
+  /**
+   * Generate an admin-scoped client key and redirect back to callback with tokens in the URL fragment.
+   *
+   * @param permissions - Requested permissions set (includes 'admin')
+   */
   const handleAdminClientKeyGeneration = async (permissions: string[]) => {
     try {
       const response = await apiClient.auth().generateClientKey({
@@ -309,12 +350,21 @@ const LoginView: React.FC = () => {
     }
   };
 
+  /**
+   * Transition handler after application install flow completes; advances to permissions view.
+   */
   const handleApplicationInstallComplete = () => {
     setShowApplicationInstallCheck(false);
     setShowPermissionsView(true);
     setCameFromApplicationCheck(true);
   };
 
+  /**
+   * Generate a context/application-scoped client key and redirect back to callback with tokens.
+   *
+   * @param contextId - Selected context ID (empty for application token)
+   * @param identity - Selected identity/public key within the context (optional)
+   */
   const handleContextAndIdentitySelect = async (contextId?: string, identity?: string) => {
 
     try {
@@ -384,6 +434,9 @@ const LoginView: React.FC = () => {
     );
   }
 
+  /**
+   * Generic back navigation handler restoring prior subview or re-evaluating session to determine the next screen.
+   */
   const handleBack = () => {
     setShowApplicationInstallCheck(false);
     if (cameFromUsernamePassword) {

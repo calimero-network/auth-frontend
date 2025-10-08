@@ -51,6 +51,66 @@ async function proceedToApprove(page: import('@playwright/test').Page) {
   await expect(approve).toBeVisible({ timeout: 15000 });
 }
 
+async function clickApproveAndAssertTokens(page: import('@playwright/test').Page) {
+  // Observe the client key generation API when it happens
+  const maybeClientKey = page
+    .waitForResponse(
+      (res) => res.url().includes('/admin/client-key') && res.ok(),
+      { timeout: 30000 }
+    )
+    .catch(() => null);
+
+  await page.getByRole('button', { name: 'Approve' }).click();
+
+  // Wait until both tokens are present in the URL fragment
+  await page.waitForFunction(
+    () =>
+      (location.hash || '').includes('access_token=') &&
+      (location.hash || '').includes('refresh_token='),
+    { timeout: 30000 }
+  );
+
+  // Assert full URL and token shape
+  expect(page.url()).toMatch(/#access_token=.+&refresh_token=.+/);
+
+  const tokens = await page.evaluate(() => {
+    const params = new URLSearchParams((location.hash || '').slice(1));
+    return {
+      access: params.get('access_token') || '',
+      refresh: params.get('refresh_token') || ''
+    };
+  });
+  expect(tokens.access.length).toBeGreaterThan(20);
+  expect(tokens.refresh.length).toBeGreaterThan(20);
+
+  await maybeClientKey;
+}
+
+async function createContextIfPrompted(page: import('@playwright/test').Page) {
+  // Handles the create context flow if the UI prompts for it
+  const createNewBtn = page.getByRole('button', { name: /Create New Context/ });
+  if (await createNewBtn.isVisible().catch(() => false)) {
+    await createNewBtn.click();
+
+    // Pick any available protocol button (first enabled non-Back button)
+    const protocolButtons = page.locator('button:not([disabled])');
+    const count = await protocolButtons.count();
+    for (let i = 0; i < count; i++) {
+      const btn = protocolButtons.nth(i);
+      const name = (await btn.innerText().catch(() => '')).trim();
+      if (!/Back|Create New Context|Install Application|Approve|Cancel/i.test(name)) {
+        await btn.click();
+        break;
+      }
+    }
+
+    // Now create the context
+    const createBtn = page.getByRole('button', { name: /^Create Context$/ });
+    await expect(createBtn).toBeEnabled({ timeout: 15000 });
+    await createBtn.click();
+  }
+}
+
 function buildAuthUrl(params: Record<string, string>): string {
   const base = process.env.PW_BASE_URL || 'http://localhost:3001';
   const url = new URL('/auth/login', base);
@@ -73,9 +133,7 @@ test.describe('Auth frontend flows', () => {
 
     await loginIfNeeded(page);
     await proceedToApprove(page);
-    await page.getByRole('button', { name: 'Approve' }).click();
-
-    await expect(page).toHaveURL(/#access_token=.+&refresh_token=.+/);
+    await clickApproveAndAssertTokens(page);
   });
 
   test('application token flow without context', async ({ page }) => {
@@ -93,8 +151,7 @@ test.describe('Auth frontend flows', () => {
 
     await loginIfNeeded(page);
     await proceedToApprove(page);
-    await page.getByRole('button', { name: 'Approve' }).click();
-    await expect(page).toHaveURL(/#access_token=.+&refresh_token=.+/);
+    await clickApproveAndAssertTokens(page);
   });
 
   test('context token flow by selecting context and identity', async ({ page }) => {
@@ -113,10 +170,7 @@ test.describe('Auth frontend flows', () => {
     await loginIfNeeded(page);
 
     // If we are prompted to install or create a context, accept flow
-    const createContext = page.getByRole('button', { name: /Create Context/ });
-    if (await createContext.isVisible().catch(() => false)) {
-      await createContext.click();
-    }
+    await createContextIfPrompted(page);
 
     // Select first context then first identity (using SDK UI selectors)
     const firstContext = page.locator('[data-testid="context-item"]').first();
@@ -129,8 +183,7 @@ test.describe('Auth frontend flows', () => {
     }
 
     await proceedToApprove(page);
-    await page.getByRole('button', { name: 'Approve' }).click();
-    await expect(page).toHaveURL(/#access_token=.+&refresh_token=.+/);
+    await clickApproveAndAssertTokens(page);
   });
 });
 
