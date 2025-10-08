@@ -33,6 +33,24 @@ async function loginIfNeeded(page: import('@playwright/test').Page) {
   }
 }
 
+async function proceedToApprove(page: import('@playwright/test').Page) {
+  // Skip if application info is missing (cannot proceed without params)
+  const missingInfo = page.getByText('Missing Application Information', { exact: false });
+  if (await missingInfo.isVisible().catch(() => false)) {
+    throw new Error('Unexpected Missing Application Information screen');
+  }
+
+  // If an install button is presented, try to proceed
+  const installBtn = page.getByRole('button', { name: /Install/ });
+  if (await installBtn.isVisible().catch(() => false)) {
+    await installBtn.click();
+  }
+
+  // Wait briefly for Approve to become available; skip if it doesn’t
+  const approve = page.getByRole('button', { name: 'Approve' });
+  await expect(approve).toBeVisible({ timeout: 15000 });
+}
+
 function buildAuthUrl(params: Record<string, string>): string {
   const base = process.env.PW_BASE_URL || 'http://localhost:3001';
   const url = new URL('/auth/login', base);
@@ -54,8 +72,7 @@ test.describe('Auth frontend flows', () => {
     await page.goto(url);
 
     await loginIfNeeded(page);
-
-    // Approve permissions
+    await proceedToApprove(page);
     await page.getByRole('button', { name: 'Approve' }).click();
 
     await expect(page).toHaveURL(/#access_token=.+&refresh_token=.+/);
@@ -73,13 +90,7 @@ test.describe('Auth frontend flows', () => {
     await page.goto(url);
 
     await loginIfNeeded(page);
-
-    // Application install check may appear; if so, click proceed/install anyway
-    const installButton = page.getByRole('button', { name: /Install/ });
-    if (await installButton.isVisible().catch(() => false)) {
-      await installButton.click();
-    }
-
+    await proceedToApprove(page);
     await page.getByRole('button', { name: 'Approve' }).click();
     await expect(page).toHaveURL(/#access_token=.+&refresh_token=.+/);
   });
@@ -115,6 +126,7 @@ test.describe('Auth frontend flows', () => {
       await firstIdentity.click();
     }
 
+    await proceedToApprove(page);
     await page.getByRole('button', { name: 'Approve' }).click();
     await expect(page).toHaveURL(/#access_token=.+&refresh_token=.+/);
   });
