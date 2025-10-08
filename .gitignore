@@ -100,4 +100,4 @@ Thumbs.db
 
 # Misc
 *.log
-.vercel
+.vercelfrontend-build/

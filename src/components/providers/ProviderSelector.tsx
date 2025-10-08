@@ -17,17 +17,13 @@ import {
 interface ProviderSelectorProps {
   providers: Provider[];
   onProviderSelect: (provider: Provider) => void;
-  onBack?: () => void;
   loading: boolean;
-  hasExistingSession?: boolean;
 }
 
 const ProviderSelector: React.FC<ProviderSelectorProps> = ({ 
   providers, 
   onProviderSelect,
-  onBack,
-  loading,
-  hasExistingSession
+  loading
 }) => {
 
 
@@ -59,13 +55,6 @@ const ProviderSelector: React.FC<ProviderSelectorProps> = ({
           </ProviderCard>
         ))}
       </ProviderGrid>
-      {hasExistingSession && onBack && (
-        <ButtonContainer>
-          <Button onClick={onBack} size="md">
-            Back to Session
-          </Button>
-        </ButtonContainer>
-      )}
     </ProviderContainer>
   );
 };
