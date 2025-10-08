@@ -403,11 +403,6 @@ const LoginView: React.FC = () => {
           providers={providers}
           onProviderSelect={handleProviderSelect}
           loading={loading}
-          hasExistingSession={!!(getAccessToken() && getRefreshToken())}
-          onBack={() => {
-            setShowProviders(false);
-            checkExistingSession();
-          }}
         />
       )}
 
