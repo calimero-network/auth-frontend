@@ -13,6 +13,11 @@ COPY build/ /usr/share/calimero/auth-frontend/
 # Ensure permissions
 RUN chown -R 10001:10001 /usr/share/calimero/auth-frontend
 
+# Enable additional auth providers and settings via env overrides
+ENV AUTH_PROVIDERS__USER_PASSWORD=true \
+    AUTH_USER_PASSWORD__MIN_PASSWORD_LENGTH=8 \
+    AUTH_USER_PASSWORD__MAX_PASSWORD_LENGTH=128
+
 # Back to runtime user
 USER 10001
 
