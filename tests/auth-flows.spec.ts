@@ -85,6 +85,8 @@ test.describe('Auth frontend flows', () => {
     const url = buildAuthUrl({
       'callback-url': callback,
       'app-url': targetApp,
+      'application-id': 'demo-app',
+      'application-path': 'apps/demo-app',
     });
 
     await page.goto(url);
