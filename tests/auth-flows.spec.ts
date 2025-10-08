@@ -1,5 +1,38 @@
 import { test, expect } from '@playwright/test';
 
+async function loginIfNeeded(page: import('@playwright/test').Page) {
+  // If provider selector shows user_password, pick it
+  const userPasswordProvider = page.getByText('user_password', { exact: true });
+  if (await userPasswordProvider.isVisible().catch(() => false)) {
+    await userPasswordProvider.click();
+  }
+
+  // If username/password form is visible, fill and submit
+  const usernameByPh = page.getByPlaceholder('Username');
+  const passwordByPh = page.getByPlaceholder('Password');
+  const usernameByLabel = page.getByLabel('Username');
+  const passwordByLabel = page.getByLabel('Password');
+
+  const usernameVisible = (await usernameByPh.isVisible().catch(() => false))
+    || (await usernameByLabel.isVisible().catch(() => false));
+
+  if (usernameVisible) {
+    if (await usernameByPh.isVisible().catch(() => false)) {
+      await usernameByPh.fill('dev');
+    } else {
+      await usernameByLabel.fill('dev');
+    }
+
+    if (await passwordByPh.isVisible().catch(() => false)) {
+      await passwordByPh.fill('dev');
+    } else {
+      await passwordByLabel.fill('dev');
+    }
+
+    await page.getByRole('button', { name: /Sign in/i }).click();
+  }
+}
+
 function buildAuthUrl(params: Record<string, string>): string {
   const base = process.env.PW_BASE_URL || 'http://localhost:3001';
   const url = new URL('/auth/login', base);
@@ -20,14 +53,7 @@ test.describe('Auth frontend flows', () => {
 
     await page.goto(url);
 
-    // For dev: providers may include user_password; select it and submit dummy creds
-    // Select user_password provider if present; otherwise this test will be skipped
-    const up = page.getByText('user_password');
-    if (!(await up.isVisible().catch(() => false))) test.skip();
-    await up.click();
-    await page.getByPlaceholder('Username').fill('dev');
-    await page.getByPlaceholder('Password').fill('dev');
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await loginIfNeeded(page);
 
     // Approve permissions
     await page.getByRole('button', { name: 'Approve' }).click();
@@ -46,12 +72,7 @@ test.describe('Auth frontend flows', () => {
 
     await page.goto(url);
 
-    const up2 = page.getByText('user_password');
-    if (!(await up2.isVisible().catch(() => false))) test.skip();
-    await up2.click();
-    await page.getByPlaceholder('Username').fill('dev');
-    await page.getByPlaceholder('Password').fill('dev');
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await loginIfNeeded(page);
 
     // Application install check may appear; if so, click proceed/install anyway
     const installButton = page.getByRole('button', { name: /Install/ });
@@ -76,12 +97,7 @@ test.describe('Auth frontend flows', () => {
 
     await page.goto(url);
 
-    const up3 = page.getByText('user_password');
-    if (!(await up3.isVisible().catch(() => false))) test.skip();
-    await up3.click();
-    await page.getByPlaceholder('Username').fill('dev');
-    await page.getByPlaceholder('Password').fill('dev');
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await loginIfNeeded(page);
 
     // If we are prompted to install or create a context, accept flow
     const createContext = page.getByRole('button', { name: /Create Context/ });
