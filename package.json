@@ -4,10 +4,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "echo \"Use: pnpm e2e\" && exit 0",
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "e2e:install": "playwright install",
+    "e2e:start-auth": "bash ../core/scripts/auth-dev.sh $(pwd)/build",
+    "e2e:stop-auth": "docker-compose -f ../core/docker-compose.auth.dev.yml down || true",
+    "e2e": "pnpm build && pnpm e2e:install && pnpm -r --silent e2e:start-auth && playwright test || (pnpm -r --silent e2e:stop-auth && exit 1)",
+    "e2e:ci": "pnpm build && pnpm e2e:install && playwright test"
   },
   "keywords": [],
   "author": "",
@@ -33,10 +38,13 @@
     "vm-browserify": "^1.1.2"
   },
   "devDependencies": {
+    "@calimero-network/merobox-js": "0.0.3",
+    "@playwright/test": "^1.48.2",
     "@types/node": "^22.15.18",
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",
     "@vitejs/plugin-react": "^4.4.1",
+    "execa": "8.0.1",
     "typescript": "^5.8.3",
     "vite": "^6.3.6"
   }
