@@ -85,8 +85,8 @@ test.describe('Auth frontend flows', () => {
     const url = buildAuthUrl({
       'callback-url': callback,
       'app-url': targetApp,
-      'application-id': 'demo-app',
-      'application-path': 'apps/demo-app',
+      'application-id': 'kv_store',
+      'application-path': 'kv_store',
     });
 
     await page.goto(url);
@@ -104,8 +104,8 @@ test.describe('Auth frontend flows', () => {
     const url = buildAuthUrl({
       'callback-url': callback,
       'app-url': targetApp,
-      'application-id': 'demo-app',
-      'application-path': 'apps/demo-app',
+      'application-id': 'kv_store',
+      'application-path': 'kv_store',
     });
 
     await page.goto(url);

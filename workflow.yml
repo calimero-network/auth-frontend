@@ -18,5 +18,10 @@ steps:
     type: "wait"
     seconds: 5
     message: "Waiting for node to fully start with auth service..."
+  - name: "Install demo application"
+    type: "install_application"
+    node: "calimero-node-1"
+    path: "tests/assets/kv_store.wasm"
+    dev: true
 
 
