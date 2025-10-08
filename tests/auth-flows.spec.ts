@@ -85,7 +85,7 @@ test.describe('Auth frontend flows', () => {
     const url = buildAuthUrl({
       'callback-url': callback,
       'app-url': targetApp,
-      'application-id': 'kv_store',
+      'application-id': '5PMPWDv1k9x2AQpgPxteRYrUbMyPWm7Nk7ETWjcLmstH',
       'application-path': 'kv_store',
     });
 
@@ -104,7 +104,7 @@ test.describe('Auth frontend flows', () => {
     const url = buildAuthUrl({
       'callback-url': callback,
       'app-url': targetApp,
-      'application-id': 'kv_store',
+      'application-id': '5PMPWDv1k9x2AQpgPxteRYrUbMyPWm7Nk7ETWjcLmstH',
       'application-path': 'kv_store',
     });
 
