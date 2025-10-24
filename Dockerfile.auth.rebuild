@@ -1,0 +1,75 @@
+# syntax=docker/dockerfile:1
+# Rebuild the auth service with our frontend embedded using the proper build process
+
+ARG RUST_VERSION=1.88.0
+ARG APP_NAME=mero-auth
+
+################################################################################
+FROM rust:${RUST_VERSION}-slim-bookworm AS build
+ARG APP_NAME
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    clang \
+    pkg-config \
+    libssl-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Clone the core repository to get the source code
+RUN git clone https://github.com/calimero-network/core.git . && \
+    git checkout cbe7175
+
+# Copy our built frontend
+COPY build/ /app/frontend/
+
+# Set the frontend source to our local build
+ARG CALIMERO_AUTH_FRONTEND_SRC=/app/frontend
+
+RUN --mount=type=cache,target=/app/target \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/usr/local/cargo/registry \
+    echo "Building auth service with frontend from: $CALIMERO_AUTH_FRONTEND_SRC" && \
+    ls -la /app/frontend/ && \
+    cargo build --locked --release -p ${APP_NAME} && \
+    cp target/release/${APP_NAME} /usr/local/bin/
+
+################################################################################
+FROM debian:bookworm-slim AS runtime
+ARG APP_NAME
+
+LABEL org.opencontainers.image.description="Calimero Authentication Service with Custom Frontend" \
+    org.opencontainers.image.licenses="MIT OR Apache-2.0" \
+    org.opencontainers.image.authors="Calimero Limited <info@calimero.network>" \
+    org.opencontainers.image.source="https://github.com/calimero-network/core" \
+    org.opencontainers.image.url="https://calimero.network"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG UID=10001
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home "/user" \
+    --shell "/sbin/nologin" \
+    --uid "${UID}" \
+    user
+
+COPY --from=build \
+    /usr/local/bin/${APP_NAME} \
+    /usr/local/bin/
+# Copy our custom config with CSP disabled
+COPY auth-custom.toml /etc/calimero/auth.toml
+
+USER user
+WORKDIR /data
+
+VOLUME /data
+EXPOSE 3001
+
+ENV APP_NAME=${APP_NAME}
+ENTRYPOINT ${APP_NAME} --config /etc/calimero/auth.toml --verbose

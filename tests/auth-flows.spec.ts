@@ -185,6 +185,151 @@ test.describe('Auth frontend flows', () => {
     await proceedToApprove(page);
     await clickApproveAndAssertTokens(page);
   });
+
+  test('package-based manifest flow with automatic installation', async ({ page }) => {
+    const base = process.env.PW_BASE_URL || 'http://localhost:3001';
+    const callback = `${base}/callback`;
+    const targetApp = base;
+    const manifestUrl = 'http://localhost:8082/apps/com.example.real.test/1.0.0';
+    
+    const url = buildAuthUrl({
+      'callback-url': callback,
+      'app-url': targetApp,
+      'manifest-url': manifestUrl,
+      'permissions': 'admin',
+    });
+
+    await page.goto(url);
+
+    await loginIfNeeded(page);
+
+    // Wait for manifest to be fetched and processed
+    await page.waitForFunction(
+      () => {
+        // Check if manifest info is displayed (app name, version, etc.)
+        const manifestInfo = document.querySelector('[data-testid="manifest-info"]');
+        return manifestInfo && manifestInfo.textContent?.includes('Real Test App');
+      },
+      { timeout: 10000 }
+    );
+
+    // Verify manifest details are shown
+    await expect(page.getByText('Real Test App')).toBeVisible();
+    await expect(page.getByText('1.0.0')).toBeVisible();
+    await expect(page.getByText('com.example.real.test')).toBeVisible();
+
+    // If application needs to be installed, wait for installation
+    const installButton = page.getByRole('button', { name: /Install Application/i });
+    if (await installButton.isVisible().catch(() => false)) {
+      await installButton.click();
+      
+      // Wait for installation to complete
+      await page.waitForFunction(
+        () => {
+          const status = document.querySelector('[data-testid="install-status"]');
+          return status && status.textContent?.includes('Installed');
+        },
+        { timeout: 30000 }
+      );
+    }
+
+    // Proceed with context selection if needed
+    await createContextIfPrompted(page);
+
+    // Select first context then first identity
+    const firstContext = page.locator('[data-testid="context-item"]').first();
+    if (await firstContext.isVisible().catch(() => false)) {
+      await firstContext.click();
+    }
+    const firstIdentity = page.locator('[data-testid="context-identity-item"]').first();
+    if (await firstIdentity.isVisible().catch(() => false)) {
+      await firstIdentity.click();
+    }
+
+    await proceedToApprove(page);
+    await clickApproveAndAssertTokens(page);
+  });
+
+  test('package discovery and version selection flow', async ({ page }) => {
+    const base = process.env.PW_BASE_URL || 'http://localhost:3001';
+    const callback = `${base}/callback`;
+    const targetApp = base;
+    const registryUrl = 'http://localhost:8082/registry';
+    
+    const url = buildAuthUrl({
+      'callback-url': callback,
+      'app-url': targetApp,
+      'registry-url': registryUrl,
+    });
+
+    await page.goto(url);
+
+    await loginIfNeeded(page);
+
+    // Wait for package discovery
+    await page.waitForFunction(
+      () => {
+        const packageList = document.querySelector('[data-testid="package-list"]');
+        return packageList && packageList.children.length > 0;
+      },
+      { timeout: 10000 }
+    );
+
+    // Select a package from the list
+    const firstPackage = page.locator('[data-testid="package-item"]').first();
+    await firstPackage.click();
+
+    // Wait for version selection
+    await page.waitForFunction(
+      () => {
+        const versionList = document.querySelector('[data-testid="version-list"]');
+        return versionList && versionList.children.length > 0;
+      },
+      { timeout: 5000 }
+    );
+
+    // Select latest version
+    const latestVersion = page.locator('[data-testid="version-item"]').first();
+    await latestVersion.click();
+
+    // Wait for manifest to be processed
+    await page.waitForFunction(
+      () => {
+        const manifestInfo = document.querySelector('[data-testid="manifest-info"]');
+        return manifestInfo && manifestInfo.textContent?.includes('App');
+      },
+      { timeout: 10000 }
+    );
+
+    // Install application if needed
+    const installButton = page.getByRole('button', { name: /Install Application/i });
+    if (await installButton.isVisible().catch(() => false)) {
+      await installButton.click();
+      
+      await page.waitForFunction(
+        () => {
+          const status = document.querySelector('[data-testid="install-status"]');
+          return status && status.textContent?.includes('Installed');
+        },
+        { timeout: 30000 }
+      );
+    }
+
+    // Proceed with context selection
+    await createContextIfPrompted(page);
+
+    const firstContext = page.locator('[data-testid="context-item"]').first();
+    if (await firstContext.isVisible().catch(() => false)) {
+      await firstContext.click();
+    }
+    const firstIdentity = page.locator('[data-testid="context-identity-item"]').first();
+    if (await firstIdentity.isVisible().catch(() => false)) {
+      await firstIdentity.click();
+    }
+
+    await proceedToApprove(page);
+    await clickApproveAndAssertTokens(page);
+  });
 });
 
 

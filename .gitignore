@@ -97,6 +97,11 @@ Thumbs.db
 
 # Testing
 /coverage
+test-results/
+test-results/.last-run.json
+
+# Data directories
+data/
 
 # Misc
 *.log

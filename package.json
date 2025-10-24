@@ -18,7 +18,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@calimero-network/calimero-client": "1.19.2",
+    "@calimero-network/calimero-client": "file:/Users/xilosada/dev/calimero/calimero-client-js/calimero-network-calimero-client-0.0.0.tgz",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@near-wallet-selector/core": "^9.0.1",
