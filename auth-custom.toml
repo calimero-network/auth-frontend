@@ -1,0 +1,72 @@
+# Calimero Authentication Service Configuration
+
+# Server configuration
+listen_addr = "0.0.0.0:3001"
+
+# JWT token settings
+[jwt]
+issuer = "calimero-auth"
+access_token_expiry = 1800          # 30 minutes
+refresh_token_expiry = 2592000    # 30 days
+
+# Storage configuration
+[storage]
+type = "rocksdb"
+path = "./data/auth_db_local"
+
+# CORS configuration
+[cors]
+allow_all_origins = true
+allowed_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+allowed_headers = ["Authorization", "Content-Type", "Accept", "X-CSRF-Token"]
+exposed_headers = ["X-Auth-Error"]
+max_age = 100  # Match the accesscontrolmaxage from docker-compose
+vary_header = true  # Match addvaryheader from docker-compose
+
+# Security configuration
+[security]
+# Request size limits (in bytes)
+max_body_size = 1048576          # 1MB default request body size limit
+
+# Rate limiting settings
+[security.rate_limit]
+rate_limit_rpm = 300             # Requests per minute (increased from 50)
+rate_limit_burst = 50            # Burst size for rate limiting (increased from 20)
+
+# Security headers configuration
+[security.headers]
+enabled = true
+hsts_max_age = 31536000         # 1 year in seconds
+hsts_include_subdomains = true
+frame_options = "DENY"          # DENY, SAMEORIGIN, or ALLOW-FROM
+content_type_options = "nosniff"
+referrer_policy = "strict-origin-when-cross-origin"
+
+# Content Security Policy
+[security.headers.csp]
+enabled = false
+
+# Authentication providers configuration
+[providers]
+near_wallet = true
+user_password = true
+
+# NEAR wallet configuration
+[near]
+network = "testnet"
+rpc_url = "https://rpc.testnet.near.org"
+wallet_url = "https://wallet.testnet.near.org" 
+
+# Username/password configuration
+[user_password]
+min_password_length = 8
+max_password_length = 128
+
+# Development/testing configuration
+[development]
+# Enable mock token endpoint for CI/testing (SECURITY: disabled by default)
+enable_mock_auth = true
+# Require authorization header for mock endpoint
+mock_auth_require_header = true
+# Authorization header value required for mock endpoint (set to enable)
+mock_auth_header_value = "Bearer test-auth-token" 

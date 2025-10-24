@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@calimero-network/calimero-client':
-        specifier: 1.19.2
-        version: 1.19.2(@near-wallet-selector/modal-ui@9.0.2(near-api-js@5.1.1))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(styled-components@6.1.19(react-dom@19.1.0(react@19.1.0))(react@19.1.0))
+        specifier: file:/Users/xilosada/dev/calimero/calimero-client-js/calimero-network-calimero-client-0.0.0.tgz
+        version: file:../calimero-client-js/calimero-network-calimero-client-0.0.0.tgz(@near-wallet-selector/modal-ui@9.0.2(near-api-js@5.1.1))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(styled-components@6.1.19(react-dom@19.1.0(react@19.1.0))(react@19.1.0))
       '@emotion/react':
         specifier: ^11.14.0
         version: 11.14.0(@types/react@19.1.8)(react@19.1.0)
@@ -180,8 +180,9 @@ packages:
     resolution: {integrity: sha512-ETyHEk2VHHvl9b9jZP5IHPavHYk57EhanlRRuae9XCpb/j5bDCbPPMOBfCWhnl/7EDJz0jEMCi/RhccCE8r1+Q==}
     engines: {node: '>=6.9.0'}
 
-  '@calimero-network/calimero-client@1.19.2':
-    resolution: {integrity: sha512-KX6gCrT0tz5jHTXjd/yGbQkUtBRS6hSD+oIYLzRU0OTlqpVDhuKM0U0IBKxVo9ticw5e1/3CIyIGtD+igq4uUg==}
+  '@calimero-network/calimero-client@file:../calimero-client-js/calimero-network-calimero-client-0.0.0.tgz':
+    resolution: {integrity: sha512-IXenoNGXpZWdDErtghe6I/W9AJk4IWBEnfgK95uOGM4/lNOw23nBr1TNnP8wKuoarzyixNXYR3bRcZuGy8IyIg==, tarball: file:../calimero-client-js/calimero-network-calimero-client-0.0.0.tgz}
+    version: 0.0.0
     peerDependencies:
       '@near-wallet-selector/modal-ui': ^8.9.7
       react: ^18.3.0
@@ -1880,7 +1881,7 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.27.1
 
-  '@calimero-network/calimero-client@1.19.2(@near-wallet-selector/modal-ui@9.0.2(near-api-js@5.1.1))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(styled-components@6.1.19(react-dom@19.1.0(react@19.1.0))(react@19.1.0))':
+  '@calimero-network/calimero-client@file:../calimero-client-js/calimero-network-calimero-client-0.0.0.tgz(@near-wallet-selector/modal-ui@9.0.2(near-api-js@5.1.1))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(styled-components@6.1.19(react-dom@19.1.0(react@19.1.0))(react@19.1.0))':
     dependencies:
       '@near-wallet-selector/modal-ui': 9.0.2(near-api-js@5.1.1)
       axios: 1.11.0

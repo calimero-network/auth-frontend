@@ -3,7 +3,8 @@ description: "Single node with authentication service enabled"
 
 # Enable auth service managed by Merobox
 auth_service: true
-
+auth_service_image: "ghcr.io/calimero-network/mero-auth:frontend-csp-fixed"
+force_pull_image: true 
 # Node configuration
 nodes:
   count: 1
@@ -11,7 +12,7 @@ nodes:
   base_rpc_port: 2528
   chain_id: "testnet-1"
   prefix: "calimero-node"
-  image: "ghcr.io/calimero-network/merod:edge"
+  image: "ghcr.io/calimero-network/merod:cbe7175"
 
 steps:
   - name: "Wait for node startup"

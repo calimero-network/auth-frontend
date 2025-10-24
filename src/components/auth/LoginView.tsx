@@ -11,6 +11,7 @@ import Loader from '../common/Loader';
 import { PermissionsView } from '../permissions/PermissionsView';
 import { UsernamePasswordForm } from './UsernamePasswordForm';
 import { ApplicationInstallCheck } from '../applications/ApplicationInstallCheck';
+import { ManifestProcessor, PackageDiscovery, PackageInstallFlow } from '../manifest';
 
 interface SignedMessage {
   accountId: string;
@@ -29,6 +30,9 @@ const LoginView: React.FC = () => {
   const [usernamePasswordLoading, setUsernamePasswordLoading] = useState(false);
   const [cameFromUsernamePassword, setCameFromUsernamePassword] = useState(false);
   const [cameFromApplicationCheck, setCameFromApplicationCheck] = useState(false);
+  const [showManifestProcessor, setShowManifestProcessor] = useState(false);
+  const [showPackageDiscovery, setShowPackageDiscovery] = useState(false);
+  const [showPackageInstallFlow, setShowPackageInstallFlow] = useState(false);
 
   /**
    * Load available authentication providers from the auth service and update UI state.
@@ -93,6 +97,20 @@ const LoginView: React.FC = () => {
    * Otherwise, show providers and load provider list.
    */
   const checkExistingSession = async () => {
+    // Check for manifest-based flows first
+    const manifestUrl = getStoredUrlParam('manifest-url');
+    const registryUrl = getStoredUrlParam('registry-url');
+    
+    console.log('DEBUG: manifestUrl =', manifestUrl);
+    console.log('DEBUG: registryUrl =', registryUrl);
+    console.log('DEBUG: window.location.search =', window.location.search);
+    console.log('DEBUG: showManifestProcessor state =', showManifestProcessor);
+    console.log('DEBUG: showPackageDiscovery state =', showPackageDiscovery);
+    console.log('DEBUG: showPackageInstallFlow state =', showPackageInstallFlow);
+    
+    // Don't bypass authentication for manifest flows - let user authenticate first
+    // The manifest processing will happen after authentication
+    
     const existingAccessToken = getAccessToken();
     const existingRefreshToken = getRefreshToken();
     
@@ -104,11 +122,19 @@ const LoginView: React.FC = () => {
         const permissions = permissionsParam ? permissionsParam.split(',') : [];
         const hasAdminPermissions = permissions.includes('admin');
         
-        if (hasAdminPermissions) {
-          setShowPermissionsView(true);
-        } else {
-          setShowApplicationInstallCheck(true);
-        }
+            // Check for manifest flows after authentication
+            const manifestUrl = getStoredUrlParam('manifest-url');
+            const registryUrl = getStoredUrlParam('registry-url');
+            
+            // For manifest flows, we need admin permissions, so show PermissionsView first
+            if ((manifestUrl || registryUrl) && hasAdminPermissions) {
+              console.log('DEBUG: After auth, showing PermissionsView for manifest flow');
+              setShowPermissionsView(true);
+            } else if (hasAdminPermissions) {
+              setShowPermissionsView(true);
+            } else {
+              setShowApplicationInstallCheck(true);
+            }
       } else {
         setShowProviders(true);
         await loadProviders();
@@ -121,15 +147,18 @@ const LoginView: React.FC = () => {
   };
   
   useEffect(() => {
+    console.log('DEBUG: LoginView useEffect starting');
     handleUrlParams();
     
     const callback = getStoredUrlParam('callback-url');
+    console.log('DEBUG: callback =', callback);
     if (!callback) {
       setError('Missing required callback URL parameter');
       setLoading(false);
       return;
     }
     
+    console.log('DEBUG: About to call checkExistingSession');
     checkExistingSession();
   }, []);
   
@@ -199,7 +228,17 @@ const LoginView: React.FC = () => {
         const permissions = permissionsParam ? permissionsParam.split(',') : [];
         const hasAdminPermissions = permissions.includes('admin');
 
-        if (hasAdminPermissions) {
+        // Check for manifest flows after authentication
+        const manifestUrl = getStoredUrlParam('manifest-url');
+        const registryUrl = getStoredUrlParam('registry-url');
+        
+        // For manifest flows, we need admin permissions, so show PermissionsView first
+        if ((manifestUrl || registryUrl) && hasAdminPermissions) {
+          console.log('DEBUG: After auth, showing PermissionsView for manifest flow');
+          setShowPermissionsView(true);
+          setShowUsernamePasswordForm(false);
+          setCameFromUsernamePassword(true);
+        } else if (hasAdminPermissions) {
           setShowPermissionsView(true);
           setShowUsernamePasswordForm(false);
           setCameFromUsernamePassword(true);
@@ -289,11 +328,19 @@ const LoginView: React.FC = () => {
           const permissions = permissionsParam ? permissionsParam.split(',') : [];
           const hasAdminPermissions = permissions.includes('admin');
           
-          if (hasAdminPermissions) {
-            setShowPermissionsView(true);
-          } else {
-            setShowApplicationInstallCheck(true);
-          }
+        // Check for manifest flows after authentication
+        const manifestUrl = getStoredUrlParam('manifest-url');
+        const registryUrl = getStoredUrlParam('registry-url');
+        
+        // For manifest flows, we need admin permissions, so show PermissionsView first
+        if ((manifestUrl || registryUrl) && hasAdminPermissions) {
+          console.log('DEBUG: After provider auth, showing PermissionsView for manifest flow');
+          setShowPermissionsView(true);
+        } else if (hasAdminPermissions) {
+          setShowPermissionsView(true);
+        } else {
+          setShowApplicationInstallCheck(true);
+        }
         } else {
           throw new Error('Failed to get access token');
         }
@@ -356,6 +403,26 @@ const LoginView: React.FC = () => {
   const handleApplicationInstallComplete = () => {
     setShowApplicationInstallCheck(false);
     setShowPermissionsView(true);
+    setCameFromApplicationCheck(true);
+  };
+
+  /**
+   * Handle manifest processing completion.
+   * After manifest is processed, proceed to package install flow.
+   */
+  const handleManifestComplete = (manifest: any) => {
+    setShowManifestProcessor(false);
+    setShowPackageInstallFlow(true);
+    setCameFromApplicationCheck(true);
+  };
+
+  /**
+   * Handle package discovery completion.
+   * After package is selected and manifest is processed, proceed to package install flow.
+   */
+  const handlePackageDiscoveryComplete = (manifest: any) => {
+    setShowPackageDiscovery(false);
+    setShowPackageInstallFlow(true);
     setCameFromApplicationCheck(true);
   };
 
@@ -439,6 +506,9 @@ const LoginView: React.FC = () => {
    */
   const handleBack = () => {
     setShowApplicationInstallCheck(false);
+    setShowManifestProcessor(false);
+    setShowPackageDiscovery(false);
+    setShowPackageInstallFlow(false);
     if (cameFromUsernamePassword) {
       setShowUsernamePasswordForm(true);
       setCameFromUsernamePassword(false);
@@ -507,6 +577,30 @@ const LoginView: React.FC = () => {
           onSubmit={handleUsernamePasswordAuth}
           loading={usernamePasswordLoading}
           error={error}
+        />
+      )}
+
+      {showManifestProcessor && !showPermissionsView && !showApplicationInstallCheck && (
+        <>
+          {console.log('DEBUG: Rendering ManifestProcessor')}
+          <ManifestProcessor
+            onComplete={handleManifestComplete}
+            onBack={handleBack}
+          />
+        </>
+      )}
+
+      {showPackageDiscovery && !showPermissionsView && !showApplicationInstallCheck && (
+        <PackageDiscovery
+          onComplete={handlePackageDiscoveryComplete}
+          onBack={handleBack}
+        />
+      )}
+
+      {showPackageInstallFlow && !showPermissionsView && !showApplicationInstallCheck && (
+        <PackageInstallFlow
+          onComplete={handleContextAndIdentitySelect}
+          onBack={handleBack}
         />
       )}
     </>
