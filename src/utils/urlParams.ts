@@ -61,7 +61,6 @@ export const clearStoredUrlParams = () => {
     'application-id',
     'application-path',
     'manifest-url',
-    'registry-url',
     'isWhitelist'
   ];
   
