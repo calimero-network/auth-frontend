@@ -17,7 +17,7 @@ export function ErrorView({ message, onRetry, buttonText }: ErrorViewProps) {
   };
 
   return (
-    <ErrorContainer>
+    <ErrorContainer data-testid="error-view">
       <ErrorMessage>{message}</ErrorMessage>
       <Button onClick={handleRefresh} size="md">
         {buttonText || 'Try Again'}

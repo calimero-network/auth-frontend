@@ -37,42 +37,29 @@ export function PackageInstallFlow({ onComplete, onBack }: PackageInstallFlowPro
   const registryUrl = getStoredUrlParam('registry-url');
 
   useEffect(() => {
-    const fetchManifest = async () => {
-      if (!manifestUrl && !registryUrl) {
-        setError('No manifest URL or registry URL provided');
-        setLoading(false);
-        return;
-      }
-
+    // Get manifest data from localStorage (set by ManifestProcessor)
+    const storedManifest = localStorage.getItem('manifest-data');
+    if (storedManifest) {
       try {
-        if (manifestUrl) {
-          // Direct manifest URL provided
-          const response = await fetch(manifestUrl);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch manifest: ${response.statusText}`);
-          }
-          const manifestData = await response.json();
-          setManifest(manifestData);
-        } else if (registryUrl) {
-          // Registry URL provided - need to discover packages
-          setError('Package discovery not yet implemented');
-          setLoading(false);
-          return;
-        }
+        const manifestData = JSON.parse(storedManifest);
+        setManifest(manifestData);
+        setLoading(false);
+        console.log('DEBUG: Using stored manifest data:', manifestData);
       } catch (err) {
-        console.error('Failed to fetch manifest:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch manifest');
-      } finally {
+        console.error('Failed to parse stored manifest:', err);
+        setError('Failed to parse stored manifest data');
         setLoading(false);
       }
-    };
-
-    fetchManifest();
-  }, [manifestUrl, registryUrl]);
+    } else {
+      setError('No manifest data found in localStorage');
+      setLoading(false);
+    }
+  }, []);
 
   const handlePackageInstall = async () => {
     if (!manifest) return;
 
+    console.log('DEBUG: Starting package installation for manifest:', manifest);
     setInstalling(true);
     setInstallStatus('Starting package installation...');
     
@@ -179,19 +166,26 @@ export function PackageInstallFlow({ onComplete, onBack }: PackageInstallFlowPro
         console.log('Contexts with executors:', executorsData.contexts);
       }
       
-      if (contexts.length === 0) {
-        // No contexts exist, we need to create one
-        setInstallStatus('No contexts found, proceeding to context creation...');
-        onComplete('', '');
-        return;
-      }
-      
-      // Use the first available context
-      const firstContext = contexts[0];
-      setInstallStatus(`Using context ${firstContext.id}`);
-      
-      // Proceed with the first context
-      onComplete(firstContext.id, '');
+             if (contexts.length === 0) {
+               // No contexts exist, we need to create one
+               setInstallStatus('No contexts found, proceeding to context creation...');
+               // For manifest flow, we don't need contexts - just redirect to callback
+               setInstallStatus('Application installed successfully! Redirecting to callback...');
+               console.log('DEBUG: Redirecting to callback (no contexts found)');
+               // Redirect to callback URL
+               const callbackUrl = localStorage.getItem('callback-url') || '/callback';
+               window.location.href = callbackUrl;
+               return;
+             }
+             
+             // Use the first available context
+             const firstContext = contexts[0];
+             setInstallStatus(`Application installed successfully! Using context ${firstContext.id}`);
+             
+             // Redirect to callback URL with context
+             console.log('DEBUG: Redirecting to callback with context:', firstContext.id);
+             const callbackUrl = localStorage.getItem('callback-url') || '/callback';
+             window.location.href = callbackUrl;
       
     } catch (err) {
       console.error('Failed to install package:', err);
@@ -234,6 +228,7 @@ export function PackageInstallFlow({ onComplete, onBack }: PackageInstallFlowPro
       <div data-testid="manifest-info">
         <h2>{manifest.name}</h2>
         <div style={{ textAlign: 'left', margin: '20px 0' }}>
+          <h3>{manifest.name}</h3>
           <p><strong>Package ID:</strong> {manifest.id}</p>
           <p><strong>Version:</strong> {manifest.version}</p>
           <p><strong>Manifest Version:</strong> {manifest.manifest_version}</p>
@@ -247,7 +242,7 @@ export function PackageInstallFlow({ onComplete, onBack }: PackageInstallFlowPro
         </div>
         
         {installStatus && (
-          <div style={{ margin: '20px 0', padding: '10px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
+          <div data-testid="install-status" style={{ margin: '20px 0', padding: '10px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
             <p><strong>Status:</strong> {installStatus}</p>
           </div>
         )}
@@ -256,13 +251,29 @@ export function PackageInstallFlow({ onComplete, onBack }: PackageInstallFlowPro
           <Button onClick={onBack} style={{ marginRight: '10px' }}>
             Back
           </Button>
-          <Button 
-            onClick={handlePackageInstall}
-            disabled={installing}
-            primary
-          >
-            {installing ? 'Installing...' : 'Install Application'}
-          </Button>
+          {!installing && installStatus.includes('successfully') ? (
+            <Button 
+              onClick={() => {
+                console.log('DEBUG: Complete Installation button clicked - redirecting to callback');
+                const callbackUrl = localStorage.getItem('callback-url') || '/callback';
+                window.location.href = callbackUrl;
+              }}
+              primary
+            >
+              Complete Installation
+            </Button>
+          ) : (
+            <Button 
+              onClick={() => {
+                console.log('DEBUG: Install Application button clicked');
+                handlePackageInstall();
+              }}
+              disabled={installing}
+              primary
+            >
+              {installing ? 'Installing...' : 'Install Application'}
+            </Button>
+          )}
         </div>
       </div>
     </EmptyState>
