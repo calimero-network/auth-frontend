@@ -50,11 +50,12 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
   };
 
   const handlePermissionsApprove = async () => {
-    // If multi-context mode, show context selection
-    if (mode === 'multi-context') {
+    // Single-context mode requires context selection (user picks ONE context)
+    // Multi-context mode skips selection (app manages contexts itself)
+    if (mode === 'single-context') {
       setStep('context-selection');
     } else {
-      // Single-context mode: generate token immediately
+      // Multi-context mode: generate token immediately (no context selection)
       await generateAndRedirect(null, null);
     }
   };
@@ -142,7 +143,7 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
         />
       )}
 
-      {step === 'context-selection' && mode === 'multi-context' && (
+      {step === 'context-selection' && mode === 'single-context' && (
         <ContextSelector
           onComplete={(contextId, identity) => generateAndRedirect(contextId, identity)}
           onBack={() => setStep('permissions')}
