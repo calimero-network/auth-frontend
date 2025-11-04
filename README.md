@@ -100,6 +100,68 @@ src/
 - **@emotion/react** & **@emotion/styled**: CSS-in-JS styling
 - **styled-components**: Component styling
 
+## Package-Based Authentication
+
+The auth service supports package-based application resolution using the Calimero registry.
+
+### URL Parameters
+
+#### Package Name (Recommended)
+```
+https://auth.calimero.network/auth/login?
+  package-name=network.calimero.meropass&
+  package-version=1.0.0&
+  callback-url=https://app.example.com/callback&
+  permissions=context:execute,application
+```
+
+#### Manifest URL (Direct)
+```
+https://auth.calimero.network/auth/login?
+  manifest-url=http://localhost:8082/apps/network.calimero.meropass/1.0.0&
+  callback-url=https://app.example.com/callback&
+  permissions=context:execute,application
+```
+
+#### Application ID (Legacy)
+```
+https://auth.calimero.network/auth/login?
+  application-id=4WEikdan9yeaDTADsS1uGzGasiVuJDQcozJbogEyTYcy&
+  callback-url=https://app.example.com/callback&
+  permissions=context:execute,application
+```
+
+### Environment Variables
+
+Create a `.env` file for configuration:
+
+```bash
+# Registry URL (defaults to http://localhost:8082)
+VITE_REGISTRY_URL=http://localhost:8082
+
+# For official registry (future):
+# VITE_REGISTRY_URL=https://registry.calimero.network
+```
+
+### How It Works
+
+1. Client redirects to auth service with `package-name` parameter
+2. Auth service fetches manifest from registry
+3. Auth service checks if app is installed on node
+4. If not installed, downloads WASM from manifest's artifact URL
+5. Node installs application with package metadata
+6. Auth service creates JWT with resolved application ID
+7. User is redirected back with access token
+
+### Manifest Components
+
+The auth service processes manifests with these fields:
+
+- **ManifestProcessor**: Fetches manifest from registry by package name
+- **PackageInstallFlow**: Handles installation from registry artifact URL
+
+See [PACKAGE_NAMING.md](../PACKAGE_NAMING.md) for complete documentation.
+
 ## Browser Support
 
 This application uses modern JavaScript features and supports:
