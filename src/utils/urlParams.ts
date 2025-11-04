@@ -19,6 +19,9 @@ export const handleUrlParams = () => {
   }
   
   // Convert URLSearchParams to a plain object and store in localStorage
+  // EXCEPT transient params that should always come from URL
+  const doNotStore = ['registry-url', 'package-version', 'package-name']; // Never persist these in localStorage
+  
   searchParams.forEach((value, key) => {
     params[key] = value;
     console.log(`DEBUG handleUrlParams: Processing key=${key}, value=${value}`);
@@ -28,6 +31,9 @@ export const handleUrlParams = () => {
       setAppEndpointKey(value);
     } else if (key === 'auth-url') {
       setAuthEndpointURL(value);
+    } else if (doNotStore.includes(key)) {
+      // Skip storing registry-url and other transient params
+      console.log(`DEBUG handleUrlParams: Skipping localStorage for ${key} (transient param)`);
     } else {
       // For other keys, use regular localStorage (these are auth-frontend specific)
       localStorage.setItem(key, JSON.stringify(value));
@@ -35,9 +41,22 @@ export const handleUrlParams = () => {
     }
   });
   
-  // Clear URL parameters without reloading the page
+  // Preserve transient params in URL (don't clear them)
+  // Only clear non-transient params that are now stored in localStorage
+  const transientParams = ['registry-url', 'package-version', 'package-name'];
+  const preservedParams = new URLSearchParams();
+  transientParams.forEach(param => {
+    const value = searchParams.get(param);
+    if (value) {
+      preservedParams.set(param, value);
+    }
+  });
+  
+  // Update URL to keep transient params but clear others
   if (searchParams.toString()) {
-    const newUrl = window.location.pathname + window.location.hash;
+    const newUrl = window.location.pathname + 
+                   (preservedParams.toString() ? '?' + preservedParams.toString() : '') + 
+                   window.location.hash;
     window.history.replaceState({}, '', newUrl);
   }
   
@@ -45,6 +64,13 @@ export const handleUrlParams = () => {
 };
 
 export const getStoredUrlParam = (key: string): string | null => {
+  // For transient params, always read from current URL params only (never from localStorage)
+  const transientParams = ['registry-url', 'package-version', 'package-name'];
+  if (transientParams.includes(key)) {
+    const searchParams = new URLSearchParams(window.location.search);
+    return searchParams.get(key);
+  }
+  
   const value = localStorage.getItem(key);
   if (value) {
     return JSON.parse(value);
@@ -61,7 +87,10 @@ export const clearStoredUrlParams = () => {
     'application-id',
     'application-path',
     'manifest-url',
-    'isWhitelist'
+    'isWhitelist',
+    'package-name',
+    'package-version',
+    'registry-url'
   ];
   
   keysToRemove.forEach(key => {

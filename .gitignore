@@ -106,3 +106,7 @@ data/
 # Misc
 *.log
 .vercelfrontend-build/
+
+# Registry environment configuration (local-only)
+.env.development
+.env.production

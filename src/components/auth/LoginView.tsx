@@ -11,7 +11,7 @@ import Loader from '../common/Loader';
 import { PermissionsView } from '../permissions/PermissionsView';
 import { UsernamePasswordForm } from './UsernamePasswordForm';
 import { ApplicationInstallCheck } from '../applications/ApplicationInstallCheck';
-import { ManifestProcessor, PackageInstallFlow } from '../manifest';
+import { ManifestProcessor } from '../manifest';
 
 interface SignedMessage {
   accountId: string;
@@ -31,7 +31,11 @@ const LoginView: React.FC = () => {
   const [cameFromUsernamePassword, setCameFromUsernamePassword] = useState(false);
   const [cameFromApplicationCheck, setCameFromApplicationCheck] = useState(false);
   const [showManifestProcessor, setShowManifestProcessor] = useState(false);
-  const [showPackageInstallFlow, setShowPackageInstallFlow] = useState(false);
+
+  // Store URL params in state (read once on mount)
+  const [packageName] = useState(() => new URLSearchParams(window.location.search).get('package-name'));
+  const [packageVersion] = useState(() => new URLSearchParams(window.location.search).get('package-version'));
+  const [registryUrl] = useState(() => new URLSearchParams(window.location.search).get('registry-url'));
 
   /**
    * Load available authentication providers from the auth service and update UI state.
@@ -102,7 +106,6 @@ const LoginView: React.FC = () => {
     console.log('DEBUG: manifestUrl =', manifestUrl);
     console.log('DEBUG: window.location.search =', window.location.search);
     console.log('DEBUG: showManifestProcessor state =', showManifestProcessor);
-    console.log('DEBUG: showPackageInstallFlow state =', showPackageInstallFlow);
     
     // Don't bypass authentication for manifest flows - let user authenticate first
     // The manifest processing will happen after authentication
@@ -121,9 +124,10 @@ const LoginView: React.FC = () => {
         // Check for manifest flows after authentication
         const manifestUrl = getStoredUrlParam('manifest-url');
         
-        // For manifest flows, we need admin permissions, so show PermissionsView first
-        if (manifestUrl && hasAdminPermissions) {
+        // For manifest flows, show permissions FIRST
+        if (manifestUrl) {
           console.log('DEBUG: After auth, showing PermissionsView for manifest flow');
+          // Store manifest data for PermissionsView to display
           setShowPermissionsView(true);
         } else if (hasAdminPermissions) {
           setShowPermissionsView(true);
@@ -163,6 +167,15 @@ const LoginView: React.FC = () => {
    */
   const handleContinueSession = () => {
     console.log('handleContinueSession');
+    
+    // Check for manifest flow first - show permissions before manifest
+    const manifestUrl = getStoredUrlParam('manifest-url');
+    if (manifestUrl) {
+      console.log('handleContinueSession: manifest-url found, showing PermissionsView first');
+      setShowPermissionsView(true);
+      return;
+    }
+    
     // Check if admin permissions are requested
     const permissionsParam = getStoredUrlParam('permissions');
     const permissions = permissionsParam ? permissionsParam.split(',') : [];
@@ -218,28 +231,31 @@ const LoginView: React.FC = () => {
         setAccessToken(tokenResponse.data.access_token);
         setRefreshToken(tokenResponse.data.refresh_token);
         
-        // Check if admin permissions are requested
-        const permissionsParam = getStoredUrlParam('permissions');
-        const permissions = permissionsParam ? permissionsParam.split(',') : [];
-        const hasAdminPermissions = permissions.includes('admin');
-
-        // Check for manifest flows after authentication
+        // Check for manifest/package flows after authentication
         const manifestUrl = getStoredUrlParam('manifest-url');
+        const packageName = getStoredUrlParam('package-name');
         
-        // For manifest flows, we need admin permissions, so show PermissionsView first
-        if (manifestUrl && hasAdminPermissions) {
-          console.log('DEBUG: After auth, showing PermissionsView for manifest flow');
-          setShowPermissionsView(true);
-          setShowUsernamePasswordForm(false);
-          setCameFromUsernamePassword(true);
-        } else if (hasAdminPermissions) {
+        // Manifest or package-name flows proceed directly to permissions
+        if (manifestUrl || packageName) {
+          console.log('DEBUG: After auth, showing PermissionsView for manifest/package flow');
           setShowPermissionsView(true);
           setShowUsernamePasswordForm(false);
           setCameFromUsernamePassword(true);
         } else {
-          setShowApplicationInstallCheck(true);
-          setShowUsernamePasswordForm(false);
-          setCameFromUsernamePassword(true);
+          // Legacy flow: check for admin permissions
+          const permissionsParam = getStoredUrlParam('permissions');
+          const permissions = permissionsParam ? permissionsParam.split(',') : [];
+          const hasAdminPermissions = permissions.includes('admin');
+          
+          if (hasAdminPermissions) {
+            setShowPermissionsView(true);
+            setShowUsernamePasswordForm(false);
+            setCameFromUsernamePassword(true);
+          } else {
+            setShowApplicationInstallCheck(true);
+            setShowUsernamePasswordForm(false);
+            setCameFromUsernamePassword(true);
+          }
         }
       } else {
         throw new Error('Failed to get access token');
@@ -377,6 +393,12 @@ const LoginView: React.FC = () => {
           fragmentParams.set('access_token', response.data.access_token);
           fragmentParams.set('refresh_token', response.data.refresh_token);
           
+          // Include applicationId for package-based flows
+          const installedAppId = localStorage.getItem('installed-application-id');
+          if (installedAppId) {
+            fragmentParams.set('application_id', installedAppId);
+          }
+          
           clearStoredUrlParams();
           // Combine the base URL with the fragment
           window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;
@@ -403,11 +425,7 @@ const LoginView: React.FC = () => {
    * Handle manifest processing completion.
    * After manifest is processed, proceed to package install flow.
    */
-  const handleManifestComplete = (manifest: any) => {
-    setShowManifestProcessor(false);
-    setShowPackageInstallFlow(true);
-    setCameFromApplicationCheck(true);
-  };
+  // ManifestProcessor now handles installation inline - no need for separate flow
 
 
   /**
@@ -423,6 +441,21 @@ const LoginView: React.FC = () => {
       const permissionsParam = getStoredUrlParam('permissions');
       if (permissionsParam) {
         permissions = permissionsParam.split(',');
+      }
+
+      // Scope permissions to the installed application ID if available
+      const installedAppId = localStorage.getItem('installed-application-id');
+      if (installedAppId) {
+        console.log('Scoping permissions to application:', installedAppId);
+        // Scope context permissions to the specific application
+        permissions = permissions.map(perm => {
+          // Only scope context permissions (context:create, context:list, context:execute)
+          if (perm.startsWith('context:')) {
+            return `${perm}[${installedAppId}]`;
+          }
+          return perm;
+        });
+        console.log('Application-scoped permissions:', permissions);
       }
 
       const response = await apiClient.auth().generateClientKey({
@@ -445,6 +478,23 @@ const LoginView: React.FC = () => {
           const fragmentParams = new URLSearchParams();
           fragmentParams.set('access_token', response.data.access_token);
           fragmentParams.set('refresh_token', response.data.refresh_token);
+          
+          // Include applicationId for package-based flows (before cleanup!)
+          const installedAppId = localStorage.getItem('installed-application-id');
+          console.log('🔍 DEBUG: Reading installed-application-id from localStorage:', installedAppId);
+          console.log('🔍 DEBUG: All localStorage keys:', Object.keys(localStorage));
+          if (installedAppId) {
+            console.log('✅ DEBUG: Adding application_id to fragmentParams:', installedAppId);
+            fragmentParams.set('application_id', installedAppId);
+          } else {
+            console.warn('❌ DEBUG: No installed-application-id in localStorage!');
+          }
+          
+          console.log('🔍 DEBUG: Final fragmentParams:', fragmentParams.toString());
+          console.log('🔍 DEBUG: Final redirect URL:', `${returnUrl.toString()}#${fragmentParams.toString()}`);
+          
+          // Clean up stored application ID
+          localStorage.removeItem('installed-application-id');
           
           clearStoredUrlParams();
           // Combine the base URL with the fragment
@@ -491,7 +541,6 @@ const LoginView: React.FC = () => {
   const handleBack = () => {
     setShowApplicationInstallCheck(false);
     setShowManifestProcessor(false);
-    setShowPackageInstallFlow(false);
     if (cameFromUsernamePassword) {
       setShowUsernamePasswordForm(true);
       setCameFromUsernamePassword(false);
@@ -535,10 +584,13 @@ const LoginView: React.FC = () => {
           onComplete={() => {
             setShowPermissionsView(false);
             
-            // Check if this is a manifest flow
+            // Check if this is a manifest flow (via manifest-url OR package-name)
             const manifestUrl = getStoredUrlParam('manifest-url');
-            if (manifestUrl) {
+            const packageName = getStoredUrlParam('package-name');
+            
+            if (manifestUrl || packageName) {
               // For manifest flows, show ManifestProcessor first
+              console.log('DEBUG: Triggering ManifestProcessor with:', { manifestUrl, packageName });
               setShowManifestProcessor(true);
             } else if (cameFromApplicationCheck) {
               setShowApplicationInstallCheck(true);
@@ -579,21 +631,18 @@ const LoginView: React.FC = () => {
 
       {showManifestProcessor && !showPermissionsView && !showApplicationInstallCheck && (
         <>
-          {console.log('DEBUG: Rendering ManifestProcessor')}
+          {console.log('DEBUG: Rendering ManifestProcessor with:', { packageName, packageVersion, registryUrl })}
           <ManifestProcessor
-            onComplete={handleManifestComplete}
+            onComplete={handleContextAndIdentitySelect}
             onBack={handleBack}
+            packageName={packageName}
+            packageVersion={packageVersion}
+            registryUrl={registryUrl}
           />
         </>
       )}
 
 
-      {showPackageInstallFlow && !showPermissionsView && !showApplicationInstallCheck && (
-        <PackageInstallFlow
-          onComplete={handleContextAndIdentitySelect}
-          onBack={handleBack}
-        />
-      )}
     </>
   );
 };
