@@ -192,15 +192,89 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
 
   return (
     <ContextSelectorWrapper>
+      {/* Create New Context Flow */}
+      {showProtocolSelection && !selectedContext && (
+        <EmptyState>
+          <h2>Create New Context</h2>
+          {selectedProtocol ? (
+            <>
+              <p>Selected Protocol: {PROTOCOL_DISPLAY[selectedProtocol]}</p>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                <Button 
+                  onClick={() => setSelectedProtocol(null)}
+                  style={{ marginRight: '10px' }}
+                >
+                  Back to Protocols
+                </Button>
+                <Button 
+                  onClick={async () => {
+                    if (applicationId && applicationPath) {
+                      const success = await checkAndInstallApplication(applicationId, applicationPath);
+                      if (!success) {
+                        return;
+                      }
+                    }
+
+                    const result = await handleContextCreation(targetApplicationId);
+                    if (result) {
+                      onComplete(result.contextId, result.memberPublicKey);
+                    }
+                  }}
+                  disabled={loading}
+                  primary
+                >
+                  {loading ? 'Creating...' : 'Create Context'}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p>Please select a protocol:</p>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '20px' }}>
+                {PROTOCOLS.map((protocol) => (
+                  <Button
+                    key={protocol}
+                    onClick={() => setSelectedProtocol(protocol)}
+                    style={{ margin: '5px' }}
+                    primary
+                  >
+                    {PROTOCOL_DISPLAY[protocol]}
+                  </Button>
+                ))}
+              </div>
+              <Button 
+                onClick={() => {
+                  setShowProtocolSelection(false);
+                }}
+                style={{ marginTop: '10px' }}
+              >
+                Back to Context List
+              </Button>
+            </>
+          )}
+        </EmptyState>
+      )}
+
       {/* Context Selection */}
-      {!selectedContext && (
-        <SelectContext
-          contextList={filteredContexts}
-          setSelectedContextId={(id) => {
-            handleContextSelect(id);
-          }}
-          backStep={onBack}
-        />
+      {!selectedContext && !showProtocolSelection && (
+        <>
+          <SelectContext
+            contextList={filteredContexts}
+            setSelectedContextId={(id) => {
+              handleContextSelect(id);
+            }}
+            backStep={onBack}
+          />
+          {/* Add Create Context Button */}
+          <div style={{ marginTop: '20px', textAlign: 'center' }}>
+            <Button
+              onClick={() => setShowProtocolSelection(true)}
+              primary
+            >
+              + Create New Context
+            </Button>
+          </div>
+        </>
       )}
 
       {/* Identity Selection */}
