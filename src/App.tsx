@@ -6,7 +6,6 @@ import { PackageFlow } from './flows/PackageFlow';
 import { ApplicationFlow } from './flows/ApplicationFlow';
 import { useFlowDetection } from './hooks/useFlowDetection';
 import { handleUrlParams } from './utils/urlParams';
-import { setAppEndpointKey } from '@calimero-network/calimero-client';
 
 /**
  * App - Main entry point for auth-frontend
@@ -28,12 +27,8 @@ function App() {
   
   const flowParams = useFlowDetection();
 
-  useEffect(() => {
-    // Auth frontend runs on the node's domain
-    if (flowParams.appUrl) {
-      setAppEndpointKey(flowParams.appUrl);
-    }
-  }, [flowParams.appUrl]);
+  // Auth frontend doesn't need to set app endpoint
+  // It uses auth endpoint (set in urlParams) for admin API calls
 
   return (
     <ThemeProvider>
