@@ -67,6 +67,7 @@ export function PermissionsView({
   const [manifestData, setManifestData] = useState<any>(null);
   const [referrer, setReferrer] = useState<string>('');
   const manifestUrl = getStoredUrlParam('manifest-url');
+  const hasAdminPermission = permissions.includes('admin');
   
   useEffect(() => {
     // Load manifest data if available
@@ -203,6 +204,36 @@ export function PermissionsView({
           );
         })}
       </div>
+
+      {/* Critical Warning for Admin Permissions */}
+      {hasAdminPermission && (
+        <div style={{
+          backgroundColor: tokens.color.semantic.error.value + '20',
+          border: `1px solid ${tokens.color.semantic.error.value}`,
+          borderRadius: tokens.radius.sm.value,
+          padding: '16px',
+          marginBottom: '16px',
+          display: 'flex',
+          gap: '12px'
+        }}>
+          <span style={{ fontSize: '20px', color: tokens.color.semantic.error.value }}>🛑</span>
+          <div>
+            <div style={{
+              fontSize: '14px',
+              fontWeight: '700',
+              color: tokens.color.semantic.error.value,
+              marginBottom: '4px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
+              Admin Access Requested
+            </div>
+            <div style={{ fontSize: '13px', color: tokens.color.neutral['200'].value }}>
+              Granting <strong style={{ color: tokens.color.semantic.error.value }}>admin</strong> permission gives this application unrestricted control over your node. Only approve this if you fully trust the application and understand the risks.
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Security Warning */}
       <div style={{
