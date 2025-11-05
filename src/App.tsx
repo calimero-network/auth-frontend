@@ -19,12 +19,16 @@ import { setAppEndpointKey } from '@calimero-network/calimero-client';
  * 5. Redirect to callbackUrl with tokens in hash
  */
 function App() {
+  // CRITICAL: Process URL params SYNCHRONOUSLY before flow detection
+  // This clears conflicting localStorage and stores new params
+  // Must run before useFlowDetection() to avoid race condition
+  React.useLayoutEffect(() => {
+    handleUrlParams();
+  }, []);
+  
   const flowParams = useFlowDetection();
 
   useEffect(() => {
-    // Process URL parameters on mount
-    handleUrlParams();
-    
     // Auth frontend runs on the node's domain
     if (flowParams.appUrl) {
       setAppEndpointKey(flowParams.appUrl);
