@@ -158,7 +158,7 @@ export function ManifestProcessor({
       setInstallStatus('Application installed successfully!');
       
       // Store applicationId for permission scoping in JWT generation
-      localStorage.setItem('installed-application-id', applicationId);
+      sessionStorage.setItem('installed-application-id', applicationId);
       
       // Get contexts
       setInstallStatus('Fetching contexts...');

@@ -40,7 +40,7 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
   const handleManifestComplete = (contextId?: string, identity?: string) => {
     // ManifestProcessor might complete with contextId if it handled context selection
     // For now, just proceed to permissions
-    const appId = localStorage.getItem('installed-application-id');
+    const appId = sessionStorage.getItem('installed-application-id');
     if (appId) {
       setInstalledAppId(appId);
       setStep('permissions');
@@ -103,7 +103,7 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
           fragmentParams.set('application_id', installedAppId);
         }
 
-        localStorage.removeItem('installed-application-id');
+        sessionStorage.removeItem('installed-application-id');
         clearStoredUrlParams();
         window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;
       } else {

@@ -16,14 +16,22 @@ export function useFlowDetection(): FlowDetectionResult & UrlParams {
     console.log('🔍 FLOW DETECTION - window.location.search:', window.location.search);
     console.log('🔍 FLOW DETECTION - URL params:', Object.fromEntries(urlSearch.entries()));
     
-    // Clear conflicting flow params BEFORE detecting flow
-    // This prevents stale localStorage from previous sessions
-    if (urlSearch.has('package-name')) {
-      console.log('🧹 Clearing old application-id params (package flow)');
+    // Clear old localStorage entries IMMEDIATELY to prevent cross-session pollution
+    const modeFromUrl = urlSearch.get('mode');
+    if (modeFromUrl === 'admin' || urlSearch.get('permissions') === 'admin') {
+      console.log('🧹 Admin flow - clearing all app params');
+      localStorage.removeItem('package-name');
+      localStorage.removeItem('package-version');
+      localStorage.removeItem('registry-url');
+      localStorage.removeItem('application-id');
+      localStorage.removeItem('application-path');
+      localStorage.removeItem('installed-application-id');
+    } else if (urlSearch.has('package-name')) {
+      console.log('🧹 Package flow - clearing old application-id params');
       localStorage.removeItem('application-id');
       localStorage.removeItem('application-path');
     } else if (urlSearch.has('application-id')) {
-      console.log('🧹 Clearing old package params (application-id flow)');
+      console.log('🧹 Application-ID flow - clearing old package params');
       localStorage.removeItem('package-name');
       localStorage.removeItem('package-version');
       localStorage.removeItem('registry-url');

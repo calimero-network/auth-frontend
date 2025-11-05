@@ -32,7 +32,8 @@ interface UseContextCreationReturn {
 function getStoredApplicationId(): string | null {
   return (
     getStoredUrlParam('application-id') ||
-    localStorage.getItem('installed-application-id') ||
+    sessionStorage.getItem('installed-application-id') ||
+    localStorage.getItem('installed-application-id') || // Fallback for old sessions
     null
   );
 }
@@ -121,7 +122,7 @@ export function useContextCreation(): UseContextCreationReturn {
         }
         const newApplicationId = installResponse.data.applicationId;
         applicationId = newApplicationId;
-        localStorage.setItem('application-id', newApplicationId);
+        sessionStorage.setItem('application-id', newApplicationId);
       }
 
       if (!applicationId) {

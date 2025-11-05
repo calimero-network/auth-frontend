@@ -5,7 +5,8 @@ import { useFlowDetection } from '../useFlowDetection';
 // Mock the urlParams module
 vi.mock('../../utils/urlParams', () => ({
   getStoredUrlParam: vi.fn((key: string) => {
-    return localStorage.getItem(key);
+    // Match real behavior: check sessionStorage first, then localStorage
+    return sessionStorage.getItem(key) || localStorage.getItem(key);
   })
 }));
 
@@ -43,11 +44,11 @@ describe('useFlowDetection', () => {
       expect(result.current.mode).toBe('single-context');
     });
 
-    it('should read package params from localStorage if not in URL', () => {
-      localStorage.setItem('package-name', 'network.calimero.stored');
-      localStorage.setItem('mode', 'multi-context');
-      localStorage.setItem('permissions', 'context:create');
-      localStorage.setItem('callback-url', 'http://localhost:5173/');
+    it('should read package params from sessionStorage if not in URL', () => {
+      sessionStorage.setItem('package-name', 'network.calimero.stored');
+      sessionStorage.setItem('mode', 'multi-context');
+      sessionStorage.setItem('permissions', 'context:create');
+      sessionStorage.setItem('callback-url', 'http://localhost:5173/');
       
       (window as any).location.search = '';
       
@@ -69,12 +70,12 @@ describe('useFlowDetection', () => {
   });
 
   describe('Application-ID Flow Detection', () => {
-    it('should detect application-id flow from localStorage', () => {
-      localStorage.setItem('application-id', 'abc123');
-      localStorage.setItem('application-path', '/app');
-      localStorage.setItem('mode', 'single-context');
-      localStorage.setItem('permissions', 'context:execute');
-      localStorage.setItem('callback-url', 'http://localhost:5173/');
+    it('should detect application-id flow from sessionStorage', () => {
+      sessionStorage.setItem('application-id', 'abc123');
+      sessionStorage.setItem('application-path', '/app');
+      sessionStorage.setItem('mode', 'single-context');
+      sessionStorage.setItem('permissions', 'context:execute');
+      sessionStorage.setItem('callback-url', 'http://localhost:5173/');
       
       (window as any).location.search = '';
       
@@ -88,8 +89,8 @@ describe('useFlowDetection', () => {
 
     it('should prefer package flow over application-id if package-name exists', () => {
       (window as any).location.search = '?package-name=network.calimero.app';
-      localStorage.setItem('application-id', 'old123');
-      localStorage.setItem('mode', 'multi-context');
+      sessionStorage.setItem('application-id', 'old123');
+      sessionStorage.setItem('mode', 'multi-context');
       
       const { result } = renderHook(() => useFlowDetection());
       
@@ -100,8 +101,8 @@ describe('useFlowDetection', () => {
 
   describe('Admin Flow Detection', () => {
     it('should detect admin flow from permissions', () => {
-      localStorage.setItem('permissions', 'admin');
-      localStorage.setItem('callback-url', 'http://localhost:5173/');
+      sessionStorage.setItem('permissions', 'admin');
+      sessionStorage.setItem('callback-url', 'http://localhost:5173/');
       
       (window as any).location.search = '';
       
@@ -112,8 +113,8 @@ describe('useFlowDetection', () => {
     });
 
     it('should detect admin flow from mode param', () => {
-      localStorage.setItem('mode', 'admin');
-      localStorage.setItem('callback-url', 'http://localhost:5173/');
+      sessionStorage.setItem('mode', 'admin');
+      sessionStorage.setItem('callback-url', 'http://localhost:5173/');
       
       (window as any).location.search = '';
       
@@ -136,8 +137,8 @@ describe('useFlowDetection', () => {
   describe('Flow Priority', () => {
     it('should prioritize package-name over everything', () => {
       (window as any).location.search = '?package-name=network.calimero.app&mode=single-context';
-      localStorage.setItem('application-id', 'old-app');
-      localStorage.setItem('permissions', 'admin');
+      sessionStorage.setItem('application-id', 'old-app');
+      sessionStorage.setItem('permissions', 'admin');
       
       const { result } = renderHook(() => useFlowDetection());
       
@@ -145,9 +146,9 @@ describe('useFlowDetection', () => {
     });
 
     it('should prioritize admin over application-id', () => {
-      localStorage.setItem('permissions', 'admin');
-      localStorage.setItem('application-id', 'app123');
-      localStorage.setItem('callback-url', 'http://localhost:5173/');
+      sessionStorage.setItem('permissions', 'admin');
+      sessionStorage.setItem('application-id', 'app123');
+      sessionStorage.setItem('callback-url', 'http://localhost:5173/');
       
       (window as any).location.search = '';
       
@@ -157,7 +158,7 @@ describe('useFlowDetection', () => {
     });
 
     it('should fallback to admin if no clear indicators', () => {
-      localStorage.setItem('callback-url', 'http://localhost:5173/');
+      sessionStorage.setItem('callback-url', 'http://localhost:5173/');
       
       (window as any).location.search = '';
       
@@ -186,9 +187,9 @@ describe('useFlowDetection', () => {
     });
 
     it('should always set admin mode for admin flow', () => {
-      localStorage.setItem('permissions', 'admin');
-      localStorage.setItem('mode', 'multi-context'); // This should be ignored
-      localStorage.setItem('callback-url', 'http://localhost:5173/');
+      sessionStorage.setItem('permissions', 'admin');
+      sessionStorage.setItem('mode', 'multi-context'); // This should be ignored
+      sessionStorage.setItem('callback-url', 'http://localhost:5173/');
       
       const { result } = renderHook(() => useFlowDetection());
       
@@ -199,8 +200,8 @@ describe('useFlowDetection', () => {
 
   describe('Conflict Resolution', () => {
     it('should clear application-id params when package-name is in URL', () => {
-      localStorage.setItem('application-id', 'old-app');
-      localStorage.setItem('application-path', '/old-path');
+      sessionStorage.setItem('application-id', 'old-app');
+      sessionStorage.setItem('application-path', '/old-path');
       (window as any).location.search = '?package-name=network.calimero.new';
       
       renderHook(() => useFlowDetection());
@@ -210,8 +211,8 @@ describe('useFlowDetection', () => {
     });
 
     it('should clear package params when application-id is in URL', () => {
-      localStorage.setItem('package-name', 'network.calimero.old');
-      localStorage.setItem('registry-url', 'http://old-registry');
+      sessionStorage.setItem('package-name', 'network.calimero.old');
+      sessionStorage.setItem('registry-url', 'http://old-registry');
       (window as any).location.search = '?application-id=new-app';
       
       renderHook(() => useFlowDetection());
@@ -223,7 +224,7 @@ describe('useFlowDetection', () => {
 
   describe('URL and localStorage interaction', () => {
     it('should prefer URL params over localStorage', () => {
-      localStorage.setItem('package-name', 'network.calimero.old');
+      sessionStorage.setItem('package-name', 'network.calimero.old');
       (window as any).location.search = '?package-name=network.calimero.new';
       
       const { result } = renderHook(() => useFlowDetection());
@@ -232,8 +233,8 @@ describe('useFlowDetection', () => {
     });
 
     it('should use localStorage as fallback when URL param is missing', () => {
-      localStorage.setItem('mode', 'multi-context');
-      localStorage.setItem('package-name', 'network.calimero.app');
+      sessionStorage.setItem('mode', 'multi-context');
+      sessionStorage.setItem('package-name', 'network.calimero.app');
       (window as any).location.search = '?package-name=network.calimero.app';
       
       const { result } = renderHook(() => useFlowDetection());
@@ -261,7 +262,7 @@ describe('useFlowDetection', () => {
 
     it('should handle missing optional parameters', () => {
       (window as any).location.search = '?package-name=network.calimero.app&mode=multi-context';
-      localStorage.setItem('callback-url', 'http://localhost:5173/');
+      sessionStorage.setItem('callback-url', 'http://localhost:5173/');
       
       const { result } = renderHook(() => useFlowDetection());
       
