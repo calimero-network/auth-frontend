@@ -265,11 +265,25 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
             }}
             backStep={onBack}
           />
-          {/* Add Create Context Button */}
-          <div style={{ marginTop: '20px', textAlign: 'center' }}>
+          {/* Create New Context Button - Always visible for privacy/isolation */}
+          <div style={{ 
+            marginTop: '24px', 
+            textAlign: 'center',
+            borderTop: filteredContexts.length > 0 ? '1px solid #404040' : 'none',
+            paddingTop: filteredContexts.length > 0 ? '24px' : '0'
+          }}>
+            <p style={{ 
+              fontSize: '14px', 
+              color: '#A0A0A0', 
+              marginBottom: '12px',
+              display: filteredContexts.length > 0 ? 'block' : 'none'
+            }}>
+              Or create a new context for better privacy and isolation
+            </p>
             <Button
               onClick={() => setShowProtocolSelection(true)}
               primary
+              style={{ fontSize: '14px', fontWeight: '600' }}
             >
               + Create New Context
             </Button>
