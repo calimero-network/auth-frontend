@@ -5,7 +5,7 @@ import Button from '../common/Button';
 import Loader from '../common/Loader';
 import { ErrorView } from '../common/ErrorView';
 import { registryClient } from '../../utils/registryClient';
-import { apiClient, getAccessToken, setAppEndpointKey } from '@calimero-network/calimero-client';
+import { apiClient, getAccessToken } from '@calimero-network/calimero-client';
 
 interface Manifest {
   manifest_version: string;
@@ -50,11 +50,6 @@ export function ManifestProcessor({
   const packageName = propPackageName || getStoredUrlParam('package-name');
   const packageVersion = propPackageVersion || getStoredUrlParam('package-version');
   const registryUrl = propRegistryUrl || getStoredUrlParam('registry-url');
-
-  // Auth frontend runs on the node's domain, so use window.location.origin for admin API calls
-  useEffect(() => {
-    setAppEndpointKey(window.location.origin);
-  }, []);
 
   // Fetch manifest
   useEffect(() => {
