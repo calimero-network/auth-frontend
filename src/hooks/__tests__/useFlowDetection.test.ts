@@ -13,6 +13,7 @@ vi.mock('../../utils/urlParams', () => ({
 describe('useFlowDetection', () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     delete (window as any).location;
     (window as any).location = {
       search: '',
