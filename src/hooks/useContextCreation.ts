@@ -19,9 +19,26 @@ interface UseContextCreationReturn {
   showInstallPrompt: boolean;
   selectedProtocol: Protocol | null;
   setSelectedProtocol: (protocol: Protocol | null) => void;
-  checkAndInstallApplication: (applicationId: string, applicationPath: string) => Promise<boolean>;
-  handleContextCreation: () => Promise<{ contextId: string; memberPublicKey: string } | undefined>;
+  checkAndInstallApplication: (
+    applicationId?: string | null,
+    applicationPath?: string | null
+  ) => Promise<boolean>;
+  handleContextCreation: (
+    applicationIdOverride?: string | null
+  ) => Promise<{ contextId: string; memberPublicKey: string } | undefined>;
   handleInstallCancel: () => void;
+}
+
+function getStoredApplicationId(): string | null {
+  return (
+    getStoredUrlParam('application-id') ||
+    localStorage.getItem('installed-application-id') ||
+    null
+  );
+}
+
+function getStoredApplicationPath(): string | null {
+  return getStoredUrlParam('application-path');
 }
 
 export function useContextCreation(): UseContextCreationReturn {
@@ -31,18 +48,32 @@ export function useContextCreation(): UseContextCreationReturn {
   const [applicationMismatch, setApplicationMismatch] = useState(false);
   const [selectedProtocol, setSelectedProtocol] = useState<Protocol | null>(null);
 
-  const checkAndInstallApplication = async (applicationId: string, applicationPath: string) => {
+  const checkAndInstallApplication = async (
+    applicationId?: string | null,
+    applicationPath?: string | null
+  ) => {
     try {
-      if (!applicationId || !applicationPath) {
-        throw new Error('Missing required parameters');
+      const targetApplicationId = applicationId || getStoredApplicationId();
+
+      if (!targetApplicationId) {
+        throw new Error('Missing application identifier');
       }
 
-      const application = await apiClient.node().getInstalledApplicationDetails(applicationId);
+      // If we don't have an application path, assume app is already installed
+      if (!applicationPath) {
+        return true;
+      }
+
+      const application = await apiClient
+        .node()
+        .getInstalledApplicationDetails(targetApplicationId);
       console.log('application', application);
       
       if (application.data) {
         // Application doesn't exist, try to install with expected ID
-        const installResponse = await apiClient.node().installApplication(applicationPath, new Uint8Array(), applicationId);
+        const installResponse = await apiClient
+          .node()
+          .installApplication(applicationPath, new Uint8Array(), targetApplicationId);
         console.log('installResponse', installResponse);
 
         if (installResponse.error) {
@@ -65,28 +96,42 @@ export function useContextCreation(): UseContextCreationReturn {
     }
   };
 
-  const handleContextCreation = async () => {
+  const handleContextCreation = async (
+    applicationIdOverride?: string | null
+  ) => {
     setIsLoading(true);
     setError(null);
     
     try {
-      const applicationPath = getStoredUrlParam('application-path');
-      const applicationId = getStoredUrlParam('application-id');
+      const applicationPath = getStoredApplicationPath();
+      let applicationId = applicationIdOverride || getStoredApplicationId();
       
-      if (!applicationPath || !applicationId || !selectedProtocol) {
+      if (!applicationId || !selectedProtocol) {
         throw new Error('Missing required parameters');
       }
 
-      // Install application without expected ID
-      const installResponse = await apiClient.node().installApplication(applicationPath, new Uint8Array());
-      if (installResponse.error) {
-        setError(installResponse.error.message);
-        return;
+      // Install application when application path is available (legacy flow)
+      if (applicationPath) {
+        const installResponse = await apiClient
+          .node()
+          .installApplication(applicationPath, new Uint8Array());
+        if (installResponse.error) {
+          setError(installResponse.error.message);
+          return;
+        }
+        const newApplicationId = installResponse.data.applicationId;
+        applicationId = newApplicationId;
+        localStorage.setItem('application-id', newApplicationId);
       }
-      const newApplicationId = installResponse.data.applicationId;
-      localStorage.setItem('application-id', JSON.stringify(newApplicationId));
-      // Create context
-      const createContextResponse = await apiClient.node().createContext(newApplicationId, '{}', selectedProtocol);
+
+      if (!applicationId) {
+        throw new Error('Missing application identifier after installation');
+      }
+
+      // Create context using finalized application ID
+      const createContextResponse = await apiClient
+        .node()
+        .createContext(applicationId, '{}', selectedProtocol);
       if (createContextResponse.error) {
         setError(createContextResponse.error.message);
         return;

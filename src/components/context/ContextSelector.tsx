@@ -55,6 +55,8 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
   // Filter contexts based on applicationId URL parameter
   const applicationId = getStoredUrlParam('application-id');
   const applicationPath = getStoredUrlParam('application-path');
+  const installedApplicationId = localStorage.getItem('installed-application-id');
+  const targetApplicationId = applicationId || installedApplicationId;
   
   const filteredContexts = useMemo(() => {
     if (!applicationId) return contexts;
@@ -95,7 +97,7 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
             </Button>
             <Button 
               onClick={async () => {
-                const contextData = await handleContextCreation();
+                const contextData = await handleContextCreation(applicationId || targetApplicationId);
                 if (contextData) {
                   handleContextSelect(contextData.contextId);
                   handleIdentitySelect(contextData.contextId, contextData.memberPublicKey);
@@ -113,7 +115,7 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
   }
 
   // No contexts available and applicationPath is present - show create context prompt
-  if (!filteredContexts.length && applicationId && applicationPath && !selectedContext && !selectedIdentity) {
+  if (!filteredContexts.length && targetApplicationId && !selectedContext && !selectedIdentity) {
     return (
       <ContextSelectorWrapper>
         <EmptyState>
@@ -138,12 +140,16 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                 </Button>
                 <Button 
                   onClick={async () => {
-                    const success = await checkAndInstallApplication(applicationId, applicationPath);
-                    if (success) {
-                      const result = await handleContextCreation();
-                      if (result) {
-                        onComplete(result.contextId, result.memberPublicKey);
+                    if (applicationId && applicationPath) {
+                      const success = await checkAndInstallApplication(applicationId, applicationPath);
+                      if (!success) {
+                        return;
                       }
+                    }
+
+                    const result = await handleContextCreation(targetApplicationId);
+                    if (result) {
+                      onComplete(result.contextId, result.memberPublicKey);
                     }
                   }}
                   disabled={loading}
