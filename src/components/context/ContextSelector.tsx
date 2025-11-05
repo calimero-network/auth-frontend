@@ -55,7 +55,8 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
   // Filter contexts based on applicationId URL parameter
   const applicationId = getStoredUrlParam('application-id');
   const applicationPath = getStoredUrlParam('application-path');
-  const installedApplicationId = localStorage.getItem('installed-application-id');
+  const installedApplicationId = sessionStorage.getItem('installed-application-id') || 
+                                  localStorage.getItem('installed-application-id'); // Fallback
   const targetApplicationId = applicationId || installedApplicationId;
   
   const filteredContexts = useMemo(() => {

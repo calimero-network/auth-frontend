@@ -13,15 +13,23 @@ export const handleUrlParams = () => {
   console.log('DEBUG handleUrlParams: window.location.search =', window.location.search);
   console.log('DEBUG handleUrlParams: searchParams =', Array.from(searchParams.entries()));
   
-  // Clear conflicting flow params to prevent stale localStorage from previous sessions
-  if (searchParams.has('package-name')) {
-    // Package flow: clear any old application-id params
-    console.log('DEBUG: Package flow detected, clearing old application-id params');
+  // Clear flow params from localStorage (old sessions) to prevent pollution
+  // SessionStorage already handles per-tab isolation
+  const modeFromUrl = searchParams.get('mode');
+  if (modeFromUrl === 'admin' || searchParams.get('permissions') === 'admin') {
+    console.log('DEBUG: Admin flow - clearing all app params from localStorage');
+    localStorage.removeItem('package-name');
+    localStorage.removeItem('package-version');
+    localStorage.removeItem('registry-url');
+    localStorage.removeItem('application-id');
+    localStorage.removeItem('application-path');
+    localStorage.removeItem('installed-application-id');
+  } else if (searchParams.has('package-name')) {
+    console.log('DEBUG: Package flow detected, clearing old application-id params from localStorage');
     localStorage.removeItem('application-id');
     localStorage.removeItem('application-path');
   } else if (searchParams.has('application-id')) {
-    // Application-ID flow: clear any old package params
-    console.log('DEBUG: Application-ID flow detected, clearing old package params');
+    console.log('DEBUG: Application-ID flow detected, clearing old package params from localStorage');
     localStorage.removeItem('package-name');
     localStorage.removeItem('package-version');
     localStorage.removeItem('registry-url');
@@ -76,10 +84,11 @@ export const handleUrlParams = () => {
       // Skip storing registry-url and other transient params
       console.log(`DEBUG handleUrlParams: Skipping localStorage for ${key} (transient param)`);
     } else {
-      // For other keys, use regular localStorage (these are auth-frontend specific)
+      // For other keys, use sessionStorage (these are auth-frontend flow params)
       // Store as plain string (no JSON.stringify - value is already a string from URLSearchParams)
-      localStorage.setItem(key, value);
-      console.log(`DEBUG handleUrlParams: Stored ${key} = ${value} in localStorage`);
+      // SessionStorage clears when tab closes, preventing cross-session pollution
+      sessionStorage.setItem(key, value);
+      console.log(`DEBUG handleUrlParams: Stored ${key} = ${value} in sessionStorage`);
     }
   });
   
@@ -91,7 +100,11 @@ export const handleUrlParams = () => {
 };
 
 export const getStoredUrlParam = (key: string): string | null => {
-  const value = localStorage.getItem(key);
+  // Read from sessionStorage first (new behavior), fall back to localStorage (old sessions)
+  let value = sessionStorage.getItem(key);
+  if (!value) {
+    value = localStorage.getItem(key);
+  }
   if (!value) return null;
   
   // Handle both old JSON-encoded format and new plain string format
@@ -109,7 +122,7 @@ export const getStoredUrlParam = (key: string): string | null => {
 
 export const clearStoredUrlParams = () => {
   
-  // Clear auth-frontend specific keys (non-SDK keys)
+  // Clear auth-frontend specific keys (non-SDK keys) from both storages
   const keysToRemove = [
     'callback-url',
     'permissions', 
@@ -119,10 +132,12 @@ export const clearStoredUrlParams = () => {
     'isWhitelist',
     'package-name',
     'package-version',
-    'registry-url'
+    'registry-url',
+    'mode'
   ];
   
   keysToRemove.forEach(key => {
-    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+    localStorage.removeItem(key); // Clean up old localStorage entries too
   });
 }; 

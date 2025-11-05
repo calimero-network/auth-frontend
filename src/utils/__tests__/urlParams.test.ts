@@ -31,11 +31,11 @@ describe('urlParams', () => {
     });
 
     it('should handle plain string values (new format)', () => {
-      localStorage.setItem('package-name', 'network.calimero.meropass');
+      sessionStorage.setItem('package-name', 'network.calimero.meropass');
       expect(getStoredUrlParam('package-name')).toBe('network.calimero.meropass');
     });
 
-    it('should handle JSON-encoded string values (old format)', () => {
+    it('should handle JSON-encoded string values (old format from localStorage)', () => {
       localStorage.setItem('package-name', '"network.calimero.meropass"');
       expect(getStoredUrlParam('package-name')).toBe('network.calimero.meropass');
     });
@@ -48,27 +48,30 @@ describe('urlParams', () => {
     });
 
     it('should handle mode values', () => {
-      // New format
-      localStorage.setItem('mode', 'single-context');
+      // New format (sessionStorage)
+      sessionStorage.setItem('mode', 'single-context');
       expect(getStoredUrlParam('mode')).toBe('single-context');
       
-      // Old format
+      // Old format (localStorage fallback)
+      sessionStorage.clear();
       localStorage.setItem('mode', '"multi-context"');
       expect(getStoredUrlParam('mode')).toBe('multi-context');
     });
 
     it('should handle registry URLs', () => {
-      localStorage.setItem('registry-url', 'http://localhost:8082');
+      sessionStorage.setItem('registry-url', 'http://localhost:8082');
       expect(getStoredUrlParam('registry-url')).toBe('http://localhost:8082');
       
+      sessionStorage.clear();
       localStorage.setItem('registry-url', '"http://localhost:8082"');
       expect(getStoredUrlParam('registry-url')).toBe('http://localhost:8082');
     });
 
     it('should handle permissions', () => {
-      localStorage.setItem('permissions', 'context:create,context:list,context:execute');
+      sessionStorage.setItem('permissions', 'context:create,context:list,context:execute');
       expect(getStoredUrlParam('permissions')).toBe('context:create,context:list,context:execute');
       
+      sessionStorage.clear();
       localStorage.setItem('permissions', '"context:create,context:list,context:execute"');
       expect(getStoredUrlParam('permissions')).toBe('context:create,context:list,context:execute');
     });
@@ -85,14 +88,14 @@ describe('urlParams', () => {
       vi.clearAllMocks();
     });
 
-    it('should store URL params in localStorage as plain strings', () => {
+    it('should store URL params in sessionStorage as plain strings', () => {
       (window as any).location.search = '?package-name=network.calimero.meropass&mode=single-context&callback-url=http://localhost:5173/';
       
       handleUrlParams();
       
-      expect(localStorage.getItem('package-name')).toBe('network.calimero.meropass');
-      expect(localStorage.getItem('mode')).toBe('single-context');
-      expect(localStorage.getItem('callback-url')).toBe('http://localhost:5173/');
+      expect(sessionStorage.getItem('package-name')).toBe('network.calimero.meropass');
+      expect(sessionStorage.getItem('mode')).toBe('single-context');
+      expect(sessionStorage.getItem('callback-url')).toBe('http://localhost:5173/');
     });
 
     it('should handle all package flow parameters', () => {
@@ -100,12 +103,12 @@ describe('urlParams', () => {
       
       handleUrlParams();
       
-      expect(localStorage.getItem('package-name')).toBe('network.calimero.meropass');
-      expect(localStorage.getItem('package-version')).toBe('1.0.0');
-      expect(localStorage.getItem('registry-url')).toBe('http://localhost:8082');
-      expect(localStorage.getItem('mode')).toBe('multi-context');
-      expect(localStorage.getItem('permissions')).toBe('context:create,context:list,context:execute');
-      expect(localStorage.getItem('callback-url')).toBe('http://localhost:5173/');
+      expect(sessionStorage.getItem('package-name')).toBe('network.calimero.meropass');
+      expect(sessionStorage.getItem('package-version')).toBe('1.0.0');
+      expect(sessionStorage.getItem('registry-url')).toBe('http://localhost:8082');
+      expect(sessionStorage.getItem('mode')).toBe('multi-context');
+      expect(sessionStorage.getItem('permissions')).toBe('context:create,context:list,context:execute');
+      expect(sessionStorage.getItem('callback-url')).toBe('http://localhost:5173/');
     });
 
     it('should handle application-id flow parameters', () => {
@@ -113,9 +116,9 @@ describe('urlParams', () => {
       
       handleUrlParams();
       
-      expect(localStorage.getItem('application-id')).toBe('abc123');
-      expect(localStorage.getItem('application-path')).toBe('/app');
-      expect(localStorage.getItem('mode')).toBe('single-context');
+      expect(sessionStorage.getItem('application-id')).toBe('abc123');
+      expect(sessionStorage.getItem('application-path')).toBe('/app');
+      expect(sessionStorage.getItem('mode')).toBe('single-context');
     });
 
     it('should handle URL-encoded values', () => {
@@ -123,8 +126,8 @@ describe('urlParams', () => {
       
       handleUrlParams();
       
-      expect(localStorage.getItem('callback-url')).toBe('http://localhost:5173/');
-      expect(localStorage.getItem('permissions')).toBe('context:create,context:list');
+      expect(sessionStorage.getItem('callback-url')).toBe('http://localhost:5173/');
+      expect(sessionStorage.getItem('permissions')).toBe('context:create,context:list');
     });
 
     it('should not store values with JSON.stringify', () => {
@@ -132,7 +135,7 @@ describe('urlParams', () => {
       
       handleUrlParams();
       
-      const stored = localStorage.getItem('package-name');
+      const stored = sessionStorage.getItem('package-name');
       expect(stored).toBe('network.calimero.meropass');
       expect(stored).not.toBe('"network.calimero.meropass"');
       expect(stored?.startsWith('"')).toBe(false);
@@ -153,10 +156,10 @@ describe('urlParams', () => {
 
       handleUrlParams();
 
-      expect(localStorage.getItem('package-name')).toBe('network.calimero.session');
-      expect(localStorage.getItem('mode')).toBe('multi-context');
-      expect(localStorage.getItem('permissions')).toBe('context:create');
-      expect(localStorage.getItem('callback-url')).toBe('http://localhost:5173/');
+      expect(sessionStorage.getItem('package-name')).toBe('network.calimero.session');
+      expect(sessionStorage.getItem('mode')).toBe('multi-context');
+      expect(sessionStorage.getItem('permissions')).toBe('context:create');
+      expect(sessionStorage.getItem('callback-url')).toBe('http://localhost:5173/');
     });
   });
 
@@ -190,12 +193,12 @@ describe('urlParams', () => {
       expect(getStoredUrlParam('package-name')).toBe('network.calimero.old');
       expect(getStoredUrlParam('mode')).toBe('single-context');
       
-      // Now store new values in new format
+      // Now store new values in new format (sessionStorage)
       (window as any).location.search = '?package-name=network.calimero.new&mode=multi-context';
       handleUrlParams();
       
-      // Verify new format is stored and read correctly
-      expect(localStorage.getItem('package-name')).toBe('network.calimero.new');
+      // Verify new format is stored in sessionStorage and read correctly
+      expect(sessionStorage.getItem('package-name')).toBe('network.calimero.new');
       expect(getStoredUrlParam('package-name')).toBe('network.calimero.new');
       expect(getStoredUrlParam('mode')).toBe('multi-context');
     });
