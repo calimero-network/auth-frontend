@@ -59,9 +59,9 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
   const targetApplicationId = applicationId || installedApplicationId;
   
   const filteredContexts = useMemo(() => {
-    if (!applicationId) return contexts;
-    return contexts.filter(context => context.applicationId === applicationId);
-  }, [contexts, applicationId]);
+    if (!targetApplicationId) return contexts;
+    return contexts.filter(context => context.applicationId === targetApplicationId);
+  }, [contexts, targetApplicationId]);
 
   const loading = selectionLoading || creationLoading;
   const error = selectionError || creationError;
