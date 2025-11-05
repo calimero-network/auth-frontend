@@ -20,7 +20,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@calimero-network/calimero-client": "file:../calimero-client-js",
+    "@calimero-network/calimero-client": "^1.24.0",
     "@calimero-network/mero-icons": "^0.0.4",
     "@calimero-network/mero-tokens": "^0.0.5",
     "@calimero-network/mero-ui": "^0.3.6",
