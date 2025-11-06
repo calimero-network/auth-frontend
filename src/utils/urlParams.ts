@@ -60,10 +60,15 @@ export const handleUrlParams = () => {
     }
   });
   
-  // Set auth-url if not provided (auth frontend should know its own URL)
-  if (!searchParams.has('auth-url')) {
-    setAuthEndpointURL(window.location.origin);
-  }
+    // Set auth-url if not provided (auth frontend should know its own URL)
+    if (!searchParams.has('auth-url')) {
+      setAuthEndpointURL(window.location.origin);
+    }
+    
+    // Set app-url for node API calls (contexts, etc) - use auth-url as fallback
+    if (!searchParams.has('app-url')) {
+      setAppEndpointKey(window.location.origin);
+    }
   
   // Convert URLSearchParams to a plain object and store in localStorage
   // EXCEPT transient params that should always come from URL
