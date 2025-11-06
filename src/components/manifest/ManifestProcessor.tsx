@@ -247,7 +247,7 @@ export function ManifestProcessor({
         <CardContent>
           <Stack spacing="lg">
             {/* Development Registry Warning */}
-            {propRegistryUrl && propRegistryUrl !== 'https://mero-registry.vercel.app/api' && (
+            {propRegistryUrl && propRegistryUrl !== 'https://apps.calimero.network/api' && (
               <div style={{
                 display: 'flex',
                 alignItems: 'flex-start',

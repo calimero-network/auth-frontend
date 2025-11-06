@@ -54,7 +54,7 @@ interface DevRegistryWarningProps {
  * This helps users understand they're installing apps from a development/testing registry.
  */
 export const DevRegistryWarning: React.FC<DevRegistryWarningProps> = ({ registryUrl }) => {
-  const PRODUCTION_REGISTRY = 'https://mero-registry.vercel.app/api';
+  const PRODUCTION_REGISTRY = 'https://apps.calimero.network/api';
   
   if (registryUrl === PRODUCTION_REGISTRY) {
     return null;

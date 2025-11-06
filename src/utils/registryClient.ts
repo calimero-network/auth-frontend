@@ -32,7 +32,7 @@ export class RegistryClient {
     // Priority: 1. Passed URL, 2. Environment variable, 3. Default production
     this.baseUrl = baseUrl || 
                    import.meta.env.VITE_REGISTRY_URL || 
-                   'https://mero-registry.vercel.app/api';
+                   'https://apps.calimero.network/api';
   }
 
   /**
