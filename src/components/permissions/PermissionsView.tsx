@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getStoredUrlParam } from '../../utils/urlParams';
 import { tokens } from '@calimero-network/mero-tokens';
+import { Button, Flex } from '@calimero-network/mero-ui';
 
 interface PermissionsViewProps {
   permissions: string[];
@@ -257,45 +258,25 @@ export function PermissionsView({
       </div>
       
       {/* Action Buttons */}
-      <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-        <button
+      <Flex justify="flex-end" gap="sm">
+        <Button
+          variant="secondary"
           onClick={onBack}
-          style={{
-            padding: '10px 20px',
-            fontSize: '14px',
-            fontWeight: '500',
-            color: tokens.color.neutral['300'].value,
-            backgroundColor: tokens.color.background.secondary.value,
-            border: `1px solid ${tokens.color.neutral['600'].value}`,
-            borderRadius: '6px',
-            cursor: 'pointer',
-            transition: 'all 0.2s'
-          }}
-          onMouseOver={(e) => e.currentTarget.style.backgroundColor = tokens.color.background.tertiary.value}
-          onMouseOut={(e) => e.currentTarget.style.backgroundColor = tokens.color.background.secondary.value}
         >
           Deny
-        </button>
+        </Button>
         
-        <button
+        <Button
+          variant="primary"
           onClick={() => onComplete(selectedContext, selectedIdentity)}
           style={{
-            padding: '10px 24px',
-            fontSize: '14px',
-            fontWeight: '500',
-            color: tokens.color.neutral['900'].value,
-            backgroundColor: tokens.color.brand['600'].value,
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            transition: 'all 0.2s'
+            color: 'var(--color-text-brand)',
+            borderColor: 'var(--color-border-brand)',
           }}
-          onMouseOver={(e) => e.currentTarget.style.backgroundColor = tokens.color.brand['700'].value}
-          onMouseOut={(e) => e.currentTarget.style.backgroundColor = tokens.color.brand['600'].value}
         >
           Approve Permissions
-        </button>
-      </div>
+        </Button>
+      </Flex>
     </div>
   );
 }
