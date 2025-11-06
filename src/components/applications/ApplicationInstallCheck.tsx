@@ -1,11 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useContextCreation } from '../../hooks/useContextCreation';
-import { EmptyState } from '../common/styles';
-import Button from '../common/Button';
-import Loader from '../common/Loader';
-import { ErrorView } from '../common/ErrorView';
 import { getStoredUrlParam } from '../../utils/urlParams';
 import { apiClient } from '@calimero-network/calimero-client';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  ErrorView,
+  Flex,
+  Loader,
+  Stack,
+  Text,
+} from '@calimero-network/mero-ui';
 
 interface ApplicationInstallCheckProps {
   onComplete: (contextId: string, identity: string) => void;
@@ -59,76 +68,155 @@ export function ApplicationInstallCheck({ onComplete, onBack }: ApplicationInsta
 
   if (error) {
     return (
-      <ErrorView 
-        message={error} 
-        onRetry={onBack}
-      />
+      <div style={{ 
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        maxWidth: 520,
+        width: '100%',
+        padding: '0 16px',
+      }}>
+        <Card variant="rounded" color="var(--color-border-brand)">
+          <CardContent>
+            <ErrorView
+              title="Installation Error"
+              message={error}
+              actionLabel="Back"
+              onAction={onBack}
+              showAction
+            />
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   if (!applicationId || !applicationPath) {
     return (
-      <EmptyState>
-        <h2>Missing Application Information</h2>
-        <p>Application ID and path are required to proceed.</p>
-        <Button onClick={onBack}>Back</Button>
-      </EmptyState>
+      <div style={{ 
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        maxWidth: 520,
+        width: '100%',
+        padding: '0 16px',
+      }}>
+        <Card variant="rounded" color="var(--color-border-brand)">
+          <CardContent>
+            <EmptyState
+              title="Missing Application Information"
+              description="Application ID and path are required to proceed."
+              action={
+                <Button variant="secondary" onClick={onBack}>
+                  Back
+                </Button>
+              }
+            />
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   if (showInstallPrompt) {
     return (
-      <EmptyState>
-        <h2>Application ID Mismatch</h2>
-        <p>The application ID doesn't match the actual application. Would you like to install it anyway?</p>
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-          <Button 
-            onClick={handleInstallCancel}
-            style={{ marginRight: '10px' }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={async () => {
-              const success = await checkAndInstallApplication(applicationId, applicationPath);
-              if (success) {
-                onComplete('', '');
-              }
-            }}
-            disabled={isLoading}
-            primary
-          >
-            Install Anyway
-          </Button>
-        </div>
-      </EmptyState>
+      <div style={{ 
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        maxWidth: 520,
+        width: '100%',
+        padding: '0 16px',
+      }}>
+        <Card variant="rounded" color="var(--color-border-brand)">
+          <CardHeader>
+            <CardTitle>Application ID Mismatch</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Stack spacing="lg" align="center">
+              <Text align="center" color="muted">
+                The application ID doesn't match the actual application. Would you like to install it anyway?
+              </Text>
+              <Flex justify="center" gap="sm">
+                <Button 
+                  variant="secondary"
+                  onClick={handleInstallCancel}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="primary"
+                  onClick={async () => {
+                    const success = await checkAndInstallApplication(applicationId, applicationPath);
+                    if (success) {
+                      onComplete('', '');
+                    }
+                  }}
+                  disabled={isLoading}
+                  style={{
+                    color: 'var(--color-text-brand)',
+                    borderColor: 'var(--color-border-brand)',
+                  }}
+                >
+                  Install Anyway
+                </Button>
+              </Flex>
+            </Stack>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <EmptyState>
-      <h2>Install Application</h2>
-      <p>This application needs to be installed to proceed. Would you like to install it now?</p>
-      <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-        <Button 
-          onClick={onBack}
-          style={{ marginRight: '10px' }}
-        >
-          Cancel
-        </Button>
-        <Button 
-          onClick={async () => {
-            const success = await checkAndInstallApplication(applicationId, applicationPath);
-            if (success) {
-              onComplete('', '');
-            }
-          }}
-          disabled={isLoading}
-          primary
-        >
-          {isLoading ? 'Installing...' : 'Install Application'}
-        </Button>
-      </div>
-    </EmptyState>
+    <div style={{ 
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      maxWidth: 520,
+      width: '100%',
+      padding: '0 16px',
+    }}>
+      <Card variant="rounded" color="var(--color-border-brand)">
+        <CardHeader>
+          <CardTitle>Install Application</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Stack spacing="lg" align="center">
+            <Text align="center" color="muted">
+              This application needs to be installed to proceed. Would you like to install it now?
+            </Text>
+            <Flex justify="center" gap="sm">
+              <Button 
+                variant="secondary"
+                onClick={onBack}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="primary"
+                onClick={async () => {
+                  const success = await checkAndInstallApplication(applicationId, applicationPath);
+                  if (success) {
+                    onComplete('', '');
+                  }
+                }}
+                disabled={isLoading}
+                style={{
+                  color: 'var(--color-text-brand)',
+                  borderColor: 'var(--color-border-brand)',
+                }}
+              >
+                {isLoading ? 'Installing...' : 'Install Application'}
+              </Button>
+            </Flex>
+          </Stack>
+        </CardContent>
+      </Card>
+    </div>
   );
-} 
+}
