@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { getStoredUrlParam } from '../../utils/urlParams';
 import { tokens } from '@calimero-network/mero-tokens';
 import {
-  Alert,
   Button,
   Card,
   CardContent,
@@ -122,28 +121,33 @@ export function PermissionsView({
         </CardHeader>
         <CardContent>
           <Stack spacing="lg">
-            {/* Package Info - Brand colored alert */}
+            {/* Package Info - Brand colored banner */}
             {manifestData && (
-              <Alert variant="info" size="md">
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                padding: '12px 14px',
+                borderRadius: 'var(--radius-md)',
+                border: `1px solid ${tokens.color.brand['600'].value}`,
+                background: `${tokens.color.brand['600'].value}14`,
+                color: 'var(--color-text-primary)',
+              }}>
+                <span style={{ fontSize: '24px', flexShrink: 0 }}>📦</span>
                 <Stack spacing="xs">
-                  <Flex gap="sm" align="center">
-                    <span style={{ fontSize: '24px' }}>📦</span>
-                    <Stack spacing="xs">
-                      <Text weight="semibold" size="md">
-                        {manifestData.name}
-                      </Text>
-                      <Text size="sm" color="muted">
-                        Package: {manifestData.id}@{manifestData.version}
-                      </Text>
-                      {referrer && (
-                        <Text size="xs" color="muted">
-                          Requested by: {referrer}
-                        </Text>
-                      )}
-                    </Stack>
-                  </Flex>
+                  <Text weight="semibold" size="md">
+                    {manifestData.name}
+                  </Text>
+                  <Text size="sm" color="muted">
+                    Package: {manifestData.id}@{manifestData.version}
+                  </Text>
+                  {referrer && (
+                    <Text size="xs" color="muted">
+                      Requested by: {referrer}
+                    </Text>
+                  )}
                 </Stack>
-              </Alert>
+              </div>
             )}
             
             <Text color="muted">
@@ -208,39 +212,53 @@ export function PermissionsView({
 
             {/* Critical Warning for Admin Permissions */}
             {hasAdminPermission && (
-              <Alert variant="error" size="md">
-                <Flex gap="sm">
-                  <span style={{ fontSize: '20px' }}>🛑</span>
-                  <Stack spacing="xs">
-                    <Text weight="bold" size="sm" style={{ 
-                      color: tokens.color.semantic.error.value,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em'
-                    }}>
-                      Admin Access Requested
-                    </Text>
-                    <Text size="xs">
-                      Granting <strong style={{ color: tokens.color.semantic.error.value }}>admin</strong> permission gives this application unrestricted control over your node. Only approve this if you fully trust the application and understand the risks.
-                    </Text>
-                  </Stack>
-                </Flex>
-              </Alert>
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                padding: '12px 14px',
+                borderRadius: 'var(--radius-md)',
+                border: `1px solid ${tokens.color.semantic.error.value}`,
+                background: `${tokens.color.semantic.error.value}18`,
+                color: 'var(--color-text-primary)',
+              }}>
+                <span style={{ fontSize: '20px', flexShrink: 0 }}>🛑</span>
+                <Stack spacing="xs">
+                  <Text weight="bold" size="sm" style={{ 
+                    color: tokens.color.semantic.error.value,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
+                  }}>
+                    Admin Access Requested
+                  </Text>
+                  <Text size="xs">
+                    Granting <strong style={{ color: tokens.color.semantic.error.value }}>admin</strong> permission gives this application unrestricted control over your node. Only approve this if you fully trust the application and understand the risks.
+                  </Text>
+                </Stack>
+              </div>
             )}
             
             {/* Security Warning */}
-            <Alert variant="warning" size="md">
-              <Flex gap="sm">
-                <span style={{ fontSize: '20px' }}>⚠️</span>
-                <Stack spacing="xs">
-                  <Text weight="semibold" size="sm">
-                    Security Notice
-                  </Text>
-                  <Text size="xs">
-                    Only approve permissions for applications you trust. These permissions grant access to your node and data.
-                  </Text>
-                </Stack>
-              </Flex>
-            </Alert>
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px',
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              border: `1px solid ${tokens.color.semantic.warning.value}`,
+              background: `${tokens.color.semantic.warning.value}14`,
+              color: 'var(--color-text-primary)',
+            }}>
+              <span style={{ fontSize: '20px', flexShrink: 0 }}>⚠️</span>
+              <Stack spacing="xs">
+                <Text weight="semibold" size="sm">
+                  Security Notice
+                </Text>
+                <Text size="xs">
+                  Only approve permissions for applications you trust. These permissions grant access to your node and data.
+                </Text>
+              </Stack>
+            </div>
             
             {/* Action Buttons */}
             <Flex justify="flex-end" gap="sm">
