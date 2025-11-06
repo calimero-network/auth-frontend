@@ -20,6 +20,9 @@ async function enableMocking() {
   if (import.meta.env.MODE === 'development' && import.meta.env.VITE_ENABLE_MSW === 'true') {
     const { worker } = await import('./mocks/browser');
     await worker.start({
+      serviceWorker: {
+        url: '/auth/mockServiceWorker.js',
+      },
       onUnhandledRequest: 'bypass',
     });
     console.log('🎭 MSW enabled - API requests will be mocked');
