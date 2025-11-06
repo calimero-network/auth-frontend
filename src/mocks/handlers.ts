@@ -186,17 +186,21 @@ export const handlers = [
     
     if (packageId === 'network.calimero.meropass') {
       return HttpResponse.json({
-        application_id: fixtures.applications.meropass.application_id,
-        version: fixtures.applications.meropass.version,
-        package: fixtures.applications.meropass.package,
+        data: {
+          application_id: fixtures.applications.meropass.application_id,
+          version: fixtures.applications.meropass.version,
+          package: fixtures.applications.meropass.package,
+        }
       });
     }
     
     if (packageId === 'network.calimero.newapp') {
       return HttpResponse.json({
-        application_id: fixtures.applications.newApp.application_id,
-        version: fixtures.applications.newApp.version,
-        package: fixtures.applications.newApp.package,
+        data: {
+          application_id: fixtures.applications.newApp.application_id,
+          version: fixtures.applications.newApp.version,
+          package: fixtures.applications.newApp.package,
+        }
       });
     }
     
@@ -207,9 +211,9 @@ export const handlers = [
   }),
   
   /**
-   * POST /admin-api/applications/install - Install application
+   * POST /admin-api/install-application - Install application
    */
-  http.post(`*/admin-api/applications/install`, async ({ request }) => {
+  http.post(`*/admin-api/install-application`, async ({ request }) => {
     await delay(currentScenario.networkDelay + 500); // Simulate installation time
     
     const body = await request.json() as any;
@@ -227,10 +231,11 @@ export const handlers = [
       : `app_legacy_${Date.now()}`;
     
     return HttpResponse.json({
-      application_id: appId,
-      installed: true,
-      package: body.package,
-      version: body.version,
+      data: {
+        data: {
+          applicationId: appId,  // camelCase
+        }
+      }
     });
   }),
   
@@ -244,11 +249,13 @@ export const handlers = [
     
     if (appId === fixtures.applications.meropass.application_id && currentScenario.contextsExist) {
       return HttpResponse.json({
-        contexts: fixtures.contexts.meropassContexts,
+        data: {
+          contexts: fixtures.contexts.meropassContexts,
+        }
       });
     }
     
-    return HttpResponse.json({ contexts: [] });
+    return HttpResponse.json({ data: { contexts: [] } });
   }),
   
   /**
@@ -261,11 +268,11 @@ export const handlers = [
     
     if (currentScenario.applicationInstalled) {
       if (appId === fixtures.applications.meropass.application_id) {
-        return HttpResponse.json(fixtures.applications.meropass);
+        return HttpResponse.json({ data: fixtures.applications.meropass });
       }
       
       if (appId === fixtures.applications.legacyApp.application_id) {
-        return HttpResponse.json(fixtures.applications.legacyApp);
+        return HttpResponse.json({ data: fixtures.applications.legacyApp });
       }
     }
     
@@ -282,10 +289,10 @@ export const handlers = [
     await delay(currentScenario.networkDelay);
     
     if (currentScenario.contextsExist) {
-      return HttpResponse.json(fixtures.contexts.meropassContexts);
+      return HttpResponse.json({ data: fixtures.contexts.meropassContexts });
     }
     
-    return HttpResponse.json([]);
+    return HttpResponse.json({ data: [] });
   }),
   
   /**
@@ -298,10 +305,10 @@ export const handlers = [
     
     const identities = fixtures.identities[contextId as keyof typeof fixtures.identities];
     if (identities) {
-      return HttpResponse.json(identities);
+      return HttpResponse.json({ data: identities });
     }
     
-    return HttpResponse.json([]);
+    return HttpResponse.json({ data: [] });
   }),
   
   /**
@@ -321,10 +328,12 @@ export const handlers = [
     
     // Return created context
     return HttpResponse.json({
-      contextId: `context_new_${Date.now()}`,
-      memberPublicKey: `ed25519:NewContext_${Date.now()}`,
-      protocol: body.protocol || 'near',
-      applicationId: body.application_id,
+      data: {
+        contextId: `context_new_${Date.now()}`,
+        memberPublicKey: `ed25519:NewContext_${Date.now()}`,
+        protocol: body.protocol || 'near',
+        applicationId: body.application_id,
+      }
     });
   }),
 ];
