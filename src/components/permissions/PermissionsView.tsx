@@ -1,7 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { getStoredUrlParam } from '../../utils/urlParams';
 import { tokens } from '@calimero-network/mero-tokens';
-import { Button, Flex } from '@calimero-network/mero-ui';
+import {
+  Alert,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Divider,
+  Flex,
+  Stack,
+  Text,
+} from '@calimero-network/mero-ui';
 
 interface PermissionsViewProps {
   permissions: string[];
@@ -97,186 +108,163 @@ export function PermissionsView({
   
   return (
     <div style={{ 
-      maxWidth: '600px', 
-      margin: '0 auto', 
-      padding: '32px 24px',
-      fontFamily: tokens.font.body.value,
-      backgroundColor: tokens.color.background.primary.value,
-      minHeight: '100vh'
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      maxWidth: 600,
+      width: '100%',
+      padding: '0 16px',
     }}>
-      {/* Package Info Banner - Brand colored */}
-      {manifestData && (
-        <div style={{
-          backgroundColor: tokens.color.background.brand.value,
-          border: `1px solid ${tokens.color.brand['700'].value}`,
-          borderRadius: tokens.radius.md.value,
-          padding: '16px',
-          marginBottom: '24px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '32px' }}>📦</span>
-            <div>
-              <div style={{ fontSize: '18px', fontWeight: '600', color: tokens.color.brand['100'].value }}>
-                {manifestData.name}
-              </div>
-              <div style={{ fontSize: '14px', color: tokens.color.neutral['300'].value, marginTop: '4px' }}>
-                Package: {manifestData.id}@{manifestData.version}
-              </div>
-              {referrer && (
-                <div style={{ fontSize: '12px', color: tokens.color.neutral['400'].value, marginTop: '4px' }}>
-                  Requested by: {referrer}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <Card variant="rounded" color="var(--color-border-brand)">
+        <CardHeader>
+          <CardTitle>Review Permissions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Stack spacing="lg">
+            {/* Package Info - Brand colored alert */}
+            {manifestData && (
+              <Alert variant="info" size="md">
+                <Stack spacing="xs">
+                  <Flex gap="sm" align="center">
+                    <span style={{ fontSize: '24px' }}>📦</span>
+                    <Stack spacing="xs">
+                      <Text weight="semibold" size="md">
+                        {manifestData.name}
+                      </Text>
+                      <Text size="sm" color="muted">
+                        Package: {manifestData.id}@{manifestData.version}
+                      </Text>
+                      {referrer && (
+                        <Text size="xs" color="muted">
+                          Requested by: {referrer}
+                        </Text>
+                      )}
+                    </Stack>
+                  </Flex>
+                </Stack>
+              </Alert>
+            )}
+            
+            <Text color="muted">
+              This application is requesting the following permissions:
+            </Text>
       
-      {/* Title */}
-      <h2 style={{ 
-        fontSize: '24px', 
-        fontWeight: '700', 
-        color: tokens.color.neutral['200'].value,
-        marginBottom: '8px'
-      }}>
-        Review Permissions
-      </h2>
-      
-      <p style={{ 
-        fontSize: '14px', 
-        color: tokens.color.neutral['300'].value,
-        marginBottom: '24px'
-      }}>
-        This application is requesting the following permissions:
-      </p>
-      
-      {/* Permission Cards */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
-        {permissions.map((permission) => {
-          const info = PERMISSION_DETAILS[permission] || {
-            title: permission,
-            description: 'Permission access',
-            risk: 'medium' as const,
-            icon: '🔒'
-          };
-          
-          return (
-            <div
-              key={permission}
-              style={{
-                border: `1px solid ${tokens.color.neutral['600'].value}`,
-                borderRadius: tokens.radius.md.value,
-                padding: '16px',
-                backgroundColor: tokens.color.background.secondary.value,
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.3)'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                {/* Risk Badge - Semantic colors */}
-                <div style={{
-                  backgroundColor: RISK_COLORS[info.risk] + '20',
-                  color: RISK_COLORS[info.risk],
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  textTransform: 'uppercase',
-                  flexShrink: 0
-                }}>
-                  {info.risk} risk
-                </div>
+            {/* Permission Cards */}
+            <Stack spacing="sm">
+              {permissions.map((permission) => {
+                const info = PERMISSION_DETAILS[permission] || {
+                  title: permission,
+                  description: 'Permission access',
+                  risk: 'medium' as const,
+                  icon: '🔒'
+                };
                 
-                {/* Icon */}
-                <div style={{ fontSize: '24px', flexShrink: 0 }}>
-                  {info.icon}
-                </div>
-                
-                {/* Info */}
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '16px', fontWeight: '600', color: tokens.color.neutral['200'].value, marginBottom: '4px' }}>
-                    {info.title}
+                return (
+                  <div
+                    key={permission}
+                    style={{
+                      border: `1px solid ${tokens.color.neutral['700'].value}`,
+                      borderRadius: tokens.radius.md.value,
+                      padding: '12px 16px',
+                      backgroundColor: tokens.color.background.secondary.value,
+                    }}
+                  >
+                    <Flex align="flex-start" gap="sm">
+                      {/* Risk Badge */}
+                      <div style={{
+                        backgroundColor: RISK_COLORS[info.risk] + '20',
+                        color: RISK_COLORS[info.risk],
+                        fontSize: '10px',
+                        fontWeight: '700',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        textTransform: 'uppercase',
+                        flexShrink: 0,
+                        lineHeight: 1,
+                      }}>
+                        {info.risk} risk
+                      </div>
+                      
+                      {/* Icon */}
+                      <span style={{ fontSize: '20px', flexShrink: 0 }}>
+                        {info.icon}
+                      </span>
+                      
+                      {/* Info */}
+                      <Stack spacing="xs" style={{ flex: 1 }}>
+                        <Text weight="semibold" size="sm">
+                          {info.title}
+                        </Text>
+                        <Text size="xs" color="muted">
+                          {info.description}
+                        </Text>
+                      </Stack>
+                    </Flex>
                   </div>
-                  <div style={{ fontSize: '14px', color: tokens.color.neutral['300'].value }}>
-                    {info.description}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                );
+              })}
+            </Stack>
 
-      {/* Critical Warning for Admin Permissions */}
-      {hasAdminPermission && (
-        <div style={{
-          backgroundColor: tokens.color.semantic.error.value + '20',
-          border: `1px solid ${tokens.color.semantic.error.value}`,
-          borderRadius: tokens.radius.sm.value,
-          padding: '16px',
-          marginBottom: '16px',
-          display: 'flex',
-          gap: '12px'
-        }}>
-          <span style={{ fontSize: '20px', color: tokens.color.semantic.error.value }}>🛑</span>
-          <div>
-            <div style={{
-              fontSize: '14px',
-              fontWeight: '700',
-              color: tokens.color.semantic.error.value,
-              marginBottom: '4px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em'
-            }}>
-              Admin Access Requested
-            </div>
-            <div style={{ fontSize: '13px', color: tokens.color.neutral['200'].value }}>
-              Granting <strong style={{ color: tokens.color.semantic.error.value }}>admin</strong> permission gives this application unrestricted control over your node. Only approve this if you fully trust the application and understand the risks.
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Security Warning */}
-      <div style={{
-        backgroundColor: tokens.color.semantic.warning.value + '20',
-        border: `1px solid ${tokens.color.semantic.warning.value}`,
-        borderRadius: tokens.radius.sm.value,
-        padding: '16px',
-        marginBottom: '24px'
-      }}>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <span style={{ fontSize: '20px' }}>⚠️</span>
-          <div>
-            <div style={{ fontSize: '14px', fontWeight: '600', color: tokens.color.neutral['200'].value, marginBottom: '4px' }}>
-              Security Notice
-            </div>
-            <div style={{ fontSize: '13px', color: tokens.color.neutral['300'].value }}>
-              Only approve permissions for applications you trust. These permissions grant access to your node and data.
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Action Buttons */}
-      <Flex justify="flex-end" gap="sm">
-        <Button
-          variant="secondary"
-          onClick={onBack}
-        >
-          Deny
-        </Button>
-        
-        <Button
-          variant="primary"
-          onClick={() => onComplete(selectedContext, selectedIdentity)}
-          style={{
-            color: 'var(--color-text-brand)',
-            borderColor: 'var(--color-border-brand)',
-          }}
-        >
-          Approve Permissions
-        </Button>
-      </Flex>
+            {/* Critical Warning for Admin Permissions */}
+            {hasAdminPermission && (
+              <Alert variant="error" size="md">
+                <Flex gap="sm">
+                  <span style={{ fontSize: '20px' }}>🛑</span>
+                  <Stack spacing="xs">
+                    <Text weight="bold" size="sm" style={{ 
+                      color: tokens.color.semantic.error.value,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Admin Access Requested
+                    </Text>
+                    <Text size="xs">
+                      Granting <strong style={{ color: tokens.color.semantic.error.value }}>admin</strong> permission gives this application unrestricted control over your node. Only approve this if you fully trust the application and understand the risks.
+                    </Text>
+                  </Stack>
+                </Flex>
+              </Alert>
+            )}
+            
+            {/* Security Warning */}
+            <Alert variant="warning" size="md">
+              <Flex gap="sm">
+                <span style={{ fontSize: '20px' }}>⚠️</span>
+                <Stack spacing="xs">
+                  <Text weight="semibold" size="sm">
+                    Security Notice
+                  </Text>
+                  <Text size="xs">
+                    Only approve permissions for applications you trust. These permissions grant access to your node and data.
+                  </Text>
+                </Stack>
+              </Flex>
+            </Alert>
+            
+            {/* Action Buttons */}
+            <Flex justify="flex-end" gap="sm">
+              <Button
+                variant="secondary"
+                onClick={onBack}
+              >
+                Deny
+              </Button>
+              
+              <Button
+                variant="primary"
+                onClick={() => onComplete(selectedContext, selectedIdentity)}
+                style={{
+                  color: 'var(--color-text-brand)',
+                  borderColor: 'var(--color-border-brand)',
+                }}
+              >
+                Approve Permissions
+              </Button>
+            </Flex>
+          </Stack>
+        </CardContent>
+      </Card>
     </div>
   );
 }
