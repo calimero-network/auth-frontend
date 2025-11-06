@@ -5,7 +5,6 @@ import { ErrorView } from '../common/ErrorView';
 import { registryClient } from '../../utils/registryClient';
 import { apiClient, getAccessToken } from '@calimero-network/calimero-client';
 import {
-  Alert,
   Button,
   Card,
   CardContent,
@@ -345,24 +344,32 @@ export function ManifestProcessor({
             
             {/* Installation Progress */}
             {installing && (
-              <Alert variant="info" size="sm">
-                <Flex gap="sm" align="center">
-                  <div style={{
-                    width: '16px',
-                    height: '16px',
-                    border: `2px solid ${tokens.color.brand['500'].value}`,
-                    borderTopColor: 'transparent',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite'
-                  }} />
-                  <Text size="xs">{installStatus}</Text>
-                </Flex>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px 14px',
+                borderRadius: 'var(--radius-md)',
+                border: `1px solid ${tokens.color.brand['600'].value}`,
+                background: `${tokens.color.brand['600'].value}14`,
+                color: 'var(--color-text-primary)',
+              }}>
+                <div style={{
+                  width: '16px',
+                  height: '16px',
+                  border: `2px solid ${tokens.color.brand['500'].value}`,
+                  borderTopColor: 'transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                  flexShrink: 0,
+                }} />
+                <Text size="xs">{installStatus}</Text>
                 <style>{`
                   @keyframes spin {
                     to { transform: rotate(360deg); }
                   }
                 `}</style>
-              </Alert>
+              </div>
             )}
             
             {/* Action Buttons */}
