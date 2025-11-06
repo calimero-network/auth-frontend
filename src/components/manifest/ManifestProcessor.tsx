@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { getStoredUrlParam } from '../../utils/urlParams';
-import { EmptyState } from '../common/styles';
-import Button from '../common/Button';
 import Loader from '../common/Loader';
 import { ErrorView } from '../common/ErrorView';
 import { registryClient } from '../../utils/registryClient';
 import { apiClient, getAccessToken } from '@calimero-network/calimero-client';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Stack,
+  Text,
+  Flex,
+} from '@calimero-network/mero-ui';
 
 interface Manifest {
   manifest_version: string;
@@ -207,11 +215,19 @@ export function ManifestProcessor({
 
   if (!manifest) {
     return (
-      <EmptyState>
-        <h2>No Manifest Found</h2>
-        <p>Unable to load manifest information.</p>
-        <Button onClick={onBack}>Back</Button>
-      </EmptyState>
+      <Card variant="rounded" color="var(--color-border-brand)" style={{ maxWidth: 600, margin: '0 auto' }}>
+        <CardHeader>
+          <CardTitle>No Manifest Found</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Stack spacing="md" align="center">
+            <Text color="muted">Unable to load manifest information.</Text>
+            <Button variant="secondary" onClick={onBack}>
+              Back
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -363,49 +379,27 @@ export function ManifestProcessor({
       )}
       
       {/* Action Buttons */}
-      <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-        <button
+      <Flex justify="flex-end" gap="sm">
+        <Button
+          variant="secondary"
           onClick={onBack}
           disabled={installing}
-          style={{
-            padding: '10px 20px',
-            fontSize: '14px',
-            fontWeight: '500',
-            color: '#64748b',
-            backgroundColor: '#f1f5f9',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: installing ? 'not-allowed' : 'pointer',
-            opacity: installing ? 0.5 : 1,
-            transition: 'all 0.2s'
-          }}
-          onMouseOver={(e) => !installing && (e.currentTarget.style.backgroundColor = '#e2e8f0')}
-          onMouseOut={(e) => !installing && (e.currentTarget.style.backgroundColor = '#f1f5f9')}
         >
           Back
-        </button>
+        </Button>
         
-        <button
+        <Button
+          variant="primary"
           onClick={alreadyInstalled ? handleContinueWithExisting : handleInstallAndContinue}
           disabled={installing}
           style={{
-            padding: '10px 24px',
-            fontSize: '14px',
-            fontWeight: '500',
-            color: '#ffffff',
-            backgroundColor: alreadyInstalled ? '#10b981' : '#3b82f6',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: installing ? 'not-allowed' : 'pointer',
-            opacity: installing ? 0.7 : 1,
-            transition: 'all 0.2s'
+            color: 'var(--color-text-brand)',
+            borderColor: 'var(--color-border-brand)',
           }}
-          onMouseOver={(e) => !installing && (e.currentTarget.style.backgroundColor = alreadyInstalled ? '#059669' : '#2563eb')}
-          onMouseOut={(e) => !installing && (e.currentTarget.style.backgroundColor = alreadyInstalled ? '#10b981' : '#3b82f6')}
         >
           {installing ? 'Installing...' : alreadyInstalled ? 'Continue to App' : 'Install & Continue'}
-        </button>
-      </div>
+        </Button>
+      </Flex>
     </div>
   );
 }
