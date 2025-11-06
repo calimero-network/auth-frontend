@@ -21,11 +21,16 @@ export function useContextSelection() {
         try {
             setLoading(true);
             setError(null);
+            console.log('🔍 Fetching contexts...');
             const response = await apiClient.node().getContexts();
+            console.log('🔍 getContexts response:', response);
             if (response.error) {
+                console.error('❌ getContexts error:', response.error);
                 setError(response.error.message);
                 return;
             }
+            console.log('✅ getContexts data:', response.data);
+            console.log('✅ Contexts array:', response.data?.contexts);
             setContexts(response.data.contexts);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to fetch contexts');
