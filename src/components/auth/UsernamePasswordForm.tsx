@@ -7,10 +7,9 @@ import {
   CardHeader,
   CardTitle,
   Flex,
-  Form,
-  FormField,
   Input,
   Stack,
+  Text,
 } from '@calimero-network/mero-ui';
 
 interface UsernamePasswordFormProps {
@@ -70,7 +69,7 @@ export function UsernamePasswordForm({
           <CardTitle>Sign In</CardTitle>
         </CardHeader>
         <CardContent>
-          <Form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit}>
             <Stack spacing="lg">
               {displayError && (
                 <Alert variant="error" size="sm">
@@ -78,7 +77,10 @@ export function UsernamePasswordForm({
                 </Alert>
               )}
 
-              <FormField label="Username" required>
+              <Stack spacing="xs">
+                <Text size="sm" weight="medium">
+                  Username <span style={{ color: 'var(--color-text-error, #ef4444)' }}>*</span>
+                </Text>
                 <Input
                   id="username"
                   type="text"
@@ -88,9 +90,12 @@ export function UsernamePasswordForm({
                   disabled={loading}
                   autoComplete="username"
                 />
-              </FormField>
+              </Stack>
 
-              <FormField label="Password" required>
+              <Stack spacing="xs">
+                <Text size="sm" weight="medium">
+                  Password <span style={{ color: 'var(--color-text-error, #ef4444)' }}>*</span>
+                </Text>
                 <Input
                   id="password"
                   type="password"
@@ -100,7 +105,7 @@ export function UsernamePasswordForm({
                   disabled={loading}
                   autoComplete="current-password"
                 />
-              </FormField>
+              </Stack>
 
               <Flex justify="flex-end" gap="sm">
                 <Button 
@@ -124,7 +129,7 @@ export function UsernamePasswordForm({
                 </Button>
               </Flex>
             </Stack>
-          </Form>
+          </form>
         </CardContent>
       </Card>
     </div>

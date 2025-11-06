@@ -5,15 +5,18 @@ import { ErrorView } from '../common/ErrorView';
 import { registryClient } from '../../utils/registryClient';
 import { apiClient, getAccessToken } from '@calimero-network/calimero-client';
 import {
+  Alert,
   Button,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  Divider,
+  Flex,
   Stack,
   Text,
-  Flex,
 } from '@calimero-network/mero-ui';
+import { tokens } from '@calimero-network/mero-tokens';
 
 interface Manifest {
   manifest_version: string;
@@ -233,173 +236,160 @@ export function ManifestProcessor({
 
   return (
     <div style={{ 
-      maxWidth: '600px', 
-      margin: '0 auto', 
-      padding: '32px 24px',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      maxWidth: 600,
+      width: '100%',
+      padding: '0 16px',
     }}>
-      {/* App Header Card */}
-      <div style={{
-        backgroundColor: '#ffffff',
-        border: '2px solid #e2e8f0',
-        borderRadius: '12px',
-        padding: '24px',
-        marginBottom: '24px',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'start', gap: '16px' }}>
-          {/* App Icon */}
-          <div style={{
-            width: '64px',
-            height: '64px',
-            backgroundColor: '#f1f5f9',
-            borderRadius: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '32px',
-            flexShrink: 0
-          }}>
-            📦
-          </div>
-          
-          {/* App Info */}
-          <div style={{ flex: 1 }}>
-            <h2 style={{ 
-              fontSize: '20px', 
-              fontWeight: '700', 
-              color: '#1e293b',
-              marginBottom: '4px'
-            }}>
-              {manifest.name}
-            </h2>
-            <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}>
-              v{manifest.version}
-            </div>
-            
-            {/* Already Installed Badge */}
-            {alreadyInstalled && (
+      <Card variant="rounded" color="var(--color-border-brand)">
+        <CardContent>
+          <Stack spacing="lg">
+            {/* App Header */}
+            <Flex align="flex-start" gap="md">
+              {/* App Icon */}
               <div style={{
-                display: 'inline-flex',
+                width: '64px',
+                height: '64px',
+                backgroundColor: tokens.color.background.tertiary.value,
+                borderRadius: tokens.radius.lg.value,
+                display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                backgroundColor: '#d1fae5',
-                color: '#065f46',
-                fontSize: '12px',
-                fontWeight: '600',
-                padding: '4px 12px',
-                borderRadius: '12px',
-                marginTop: '8px'
+                justifyContent: 'center',
+                fontSize: '32px',
+                flexShrink: 0
               }}>
-                <span>✓</span>
-                Already Installed
+                📦
               </div>
+              
+              {/* App Info */}
+              <Stack spacing="xs" style={{ flex: 1 }}>
+                <Text size="lg" weight="bold">
+                  {manifest.name}
+                </Text>
+                <Text size="sm" color="muted">
+                  v{manifest.version}
+                </Text>
+                
+                {/* Already Installed Badge */}
+                {alreadyInstalled && (
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: tokens.color.semantic.success.value + '20',
+                    color: tokens.color.semantic.success.value,
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    padding: '4px 10px',
+                    borderRadius: tokens.radius.sm.value,
+                    width: 'fit-content'
+                  }}>
+                    <span>✓</span>
+                    Already Installed
+                  </div>
+                )}
+              </Stack>
+            </Flex>
+
+            <Divider color="muted" />
+            
+            {/* Installation Details */}
+            <Stack spacing="sm">
+              <Text size="sm" weight="semibold">Package Details</Text>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <Flex justify="space-between">
+                  <Text size="xs" color="secondary">Package ID:</Text>
+                  <Text size="xs" style={{ fontFamily: 'monospace' }}>
+                    {manifest.id}
+                  </Text>
+                </Flex>
+                <Flex justify="space-between">
+                  <Text size="xs" color="secondary">Type:</Text>
+                  <Text size="xs">{manifest.artifact.type}</Text>
+                </Flex>
+                <Flex justify="space-between">
+                  <Text size="xs" color="secondary">Target:</Text>
+                  <Text size="xs">{manifest.artifact.target}</Text>
+                </Flex>
+                {manifest.chains && manifest.chains.length > 0 && (
+                  <Flex justify="space-between">
+                    <Text size="xs" color="secondary">Chains:</Text>
+                    <Text size="xs">{manifest.chains.join(', ')}</Text>
+                  </Flex>
+                )}
+                {manifest.provides && manifest.provides.length > 0 && (
+                  <Flex justify="space-between">
+                    <Text size="xs" color="secondary">Provides:</Text>
+                    <Text size="xs">{manifest.provides.join(', ')}</Text>
+                  </Flex>
+                )}
+                {alreadyInstalled && existingAppId && (
+                  <>
+                    <Divider color="subtle" spacing="xs" />
+                    <Flex justify="space-between">
+                      <Text size="xs" color="secondary">Application ID:</Text>
+                      <Text size="xs" style={{ 
+                        fontFamily: 'monospace',
+                        color: tokens.color.semantic.success.value
+                      }}>
+                        {existingAppId}
+                      </Text>
+                    </Flex>
+                  </>
+                )}
+              </div>
+            </Stack>
+            
+            {/* Installation Progress */}
+            {installing && (
+              <Alert variant="info" size="sm">
+                <Flex gap="sm" align="center">
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    border: `2px solid ${tokens.color.brand['500'].value}`,
+                    borderTopColor: 'transparent',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                  <Text size="xs">{installStatus}</Text>
+                </Flex>
+                <style>{`
+                  @keyframes spin {
+                    to { transform: rotate(360deg); }
+                  }
+                `}</style>
+              </Alert>
             )}
-          </div>
-        </div>
-      </div>
-      
-      {/* Installation Details */}
-      <div style={{
-        backgroundColor: '#f8fafc',
-        border: '1px solid #e2e8f0',
-        borderRadius: '8px',
-        padding: '16px',
-        marginBottom: '24px'
-      }}>
-        <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '12px' }}>
-          Package Details
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-            <span style={{ color: '#64748b' }}>Package ID:</span>
-            <span style={{ color: '#1e293b', fontWeight: '500', fontFamily: 'monospace', fontSize: '12px' }}>
-              {manifest.id}
-            </span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-            <span style={{ color: '#64748b' }}>Type:</span>
-            <span style={{ color: '#1e293b', fontWeight: '500' }}>{manifest.artifact.type}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-            <span style={{ color: '#64748b' }}>Target:</span>
-            <span style={{ color: '#1e293b', fontWeight: '500' }}>{manifest.artifact.target}</span>
-          </div>
-          {manifest.chains && manifest.chains.length > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-              <span style={{ color: '#64748b' }}>Chains:</span>
-              <span style={{ color: '#1e293b', fontWeight: '500' }}>{manifest.chains.join(', ')}</span>
-            </div>
-          )}
-          {manifest.provides && manifest.provides.length > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-              <span style={{ color: '#64748b' }}>Provides:</span>
-              <span style={{ color: '#1e293b', fontWeight: '500' }}>{manifest.provides.join(', ')}</span>
-            </div>
-          )}
-          {alreadyInstalled && existingAppId && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #e2e8f0' }}>
-              <span style={{ color: '#64748b' }}>Application ID:</span>
-              <span style={{ color: '#10b981', fontWeight: '500', fontFamily: 'monospace', fontSize: '11px' }}>
-                {existingAppId}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-      
-      {/* Installation Progress */}
-      {installing && (
-        <div style={{
-          backgroundColor: '#eff6ff',
-          border: '1px solid #3b82f6',
-          borderRadius: '8px',
-          padding: '16px',
-          marginBottom: '24px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              width: '20px',
-              height: '20px',
-              border: '2px solid #3b82f6',
-              borderTopColor: 'transparent',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite'
-            }} />
-            <div style={{ fontSize: '14px', color: '#1e40af' }}>
-              {installStatus}
-            </div>
-          </div>
-          <style>{`
-            @keyframes spin {
-              to { transform: rotate(360deg); }
-            }
-          `}</style>
-        </div>
-      )}
-      
-      {/* Action Buttons */}
-      <Flex justify="flex-end" gap="sm">
-        <Button
-          variant="secondary"
-          onClick={onBack}
-          disabled={installing}
-        >
-          Back
-        </Button>
-        
-        <Button
-          variant="primary"
-          onClick={alreadyInstalled ? handleContinueWithExisting : handleInstallAndContinue}
-          disabled={installing}
-          style={{
-            color: 'var(--color-text-brand)',
-            borderColor: 'var(--color-border-brand)',
-          }}
-        >
-          {installing ? 'Installing...' : alreadyInstalled ? 'Continue to App' : 'Install & Continue'}
-        </Button>
-      </Flex>
+            
+            {/* Action Buttons */}
+            <Flex justify="flex-end" gap="sm">
+              <Button
+                variant="secondary"
+                onClick={onBack}
+                disabled={installing}
+              >
+                Back
+              </Button>
+              
+              <Button
+                variant="primary"
+                onClick={alreadyInstalled ? handleContinueWithExisting : handleInstallAndContinue}
+                disabled={installing}
+                style={{
+                  color: 'var(--color-text-brand)',
+                  borderColor: 'var(--color-border-brand)',
+                }}
+              >
+                {installing ? 'Installing...' : alreadyInstalled ? 'Continue to App' : 'Install & Continue'}
+              </Button>
+            </Flex>
+          </Stack>
+        </CardContent>
+      </Card>
     </div>
   );
 }
