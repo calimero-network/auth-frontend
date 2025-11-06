@@ -1,18 +1,17 @@
 import React from 'react';
 import { Provider } from '@calimero-network/calimero-client/lib/api/authApi';
-import Button from '../common/Button';
 import {
-  ProviderContainer,
-  ProviderTitle,
-  ProviderGrid,
-  ProviderCard,
-  ProviderIcon,
-  ProviderName,
-  ProviderDescription,
-  LoadingSpinner,
-  NoProvidersMessage,
-  ButtonContainer
-} from './styles';
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  Loader,
+  Menu,
+  MenuItem,
+  Stack,
+  Text,
+} from '@calimero-network/mero-ui';
 
 interface ProviderSelectorProps {
   providers: Provider[];
@@ -20,42 +19,82 @@ interface ProviderSelectorProps {
   loading: boolean;
 }
 
+const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+  'near_wallet': 'NEAR Wallet',
+  'user_password': 'Username/Password',
+  'username_password': 'Username/Password',
+};
+
 const ProviderSelector: React.FC<ProviderSelectorProps> = ({ 
   providers, 
   onProviderSelect,
   loading
 }) => {
-
-
   if (loading) {
-    return <LoadingSpinner />;
+    return <Loader />;
   }
   
   if (providers.length === 0) {
     return (
-      <NoProvidersMessage>
-        No authentication providers are available.
-      </NoProvidersMessage>
+      <div style={{ 
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        maxWidth: 520,
+        width: '100%',
+        padding: '0 16px',
+      }}>
+        <Card variant="rounded" color="var(--color-border-brand)">
+          <CardContent>
+            <EmptyState
+              title="No providers available"
+              description="No authentication providers are configured on this node."
+              variant="minimal"
+            />
+          </CardContent>
+        </Card>
+      </div>
     );
   }
   
   return (
-    <ProviderContainer>
-      <ProviderTitle>Choose an authentication method</ProviderTitle>
-      <ProviderGrid>
-        {providers.map((provider) => (
-          <ProviderCard
-            key={provider.name}
-            onClick={() => onProviderSelect(provider)}
-          >
-            <ProviderName>{provider.name}</ProviderName>
-            <ProviderDescription>
-              {provider.description}
-            </ProviderDescription>
-          </ProviderCard>
-        ))}
-      </ProviderGrid>
-    </ProviderContainer>
+    <div style={{ 
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      maxWidth: 520,
+      width: '100%',
+      padding: '0 16px',
+    }}>
+      <Card variant="rounded" color="var(--color-border-brand)">
+        <CardHeader>
+          <CardTitle>Choose an authentication method</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Menu variant="compact" size="md">
+            {providers.map((provider) => (
+              <MenuItem
+                key={provider.name}
+                onClick={() => onProviderSelect(provider)}
+              >
+                <Stack spacing="xs">
+                  <Text weight="medium">
+                    {PROVIDER_DISPLAY_NAMES[provider.name] || provider.description || provider.name}
+                  </Text>
+                  {provider.name !== provider.description && (
+                    <Text size="xs" color="muted">
+                      {provider.name}
+                    </Text>
+                  )}
+                </Stack>
+              </MenuItem>
+            ))}
+          </Menu>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
