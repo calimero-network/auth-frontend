@@ -326,13 +326,13 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                       onClick={() => handleContextSelect(context.id)}
                     >
                       <Stack spacing="xs">
-                        <Text weight="medium">{context.name || context.id}</Text>
+                        <Text weight="medium">{(context as any).name || context.id}</Text>
                         <Text size="xs" color="muted">
                           ID: {context.id}
                         </Text>
-                        {context.protocol && (
+                        {(context as any).protocol && (
                           <Text size="xs" color="secondary">
-                            Protocol: {PROTOCOL_DISPLAY[context.protocol] ?? context.protocol}
+                            Protocol: {PROTOCOL_DISPLAY[(context as any).protocol as keyof typeof PROTOCOL_DISPLAY] ?? (context as any).protocol}
                           </Text>
                         )}
                       </Stack>
@@ -402,7 +402,7 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                 {selectedContextDetails && (
                   <Stack spacing="xs">
                     <Text size="sm" color="secondary">
-                      Context: {selectedContextDetails.name || selectedContextDetails.id}
+                      Context: {(selectedContextDetails as any).name || selectedContextDetails.id}
                     </Text>
                     <Text size="xs" color="muted">ID: {selectedContextDetails.id}</Text>
                   </Stack>

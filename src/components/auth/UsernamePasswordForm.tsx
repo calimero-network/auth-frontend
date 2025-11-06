@@ -72,7 +72,7 @@ export function UsernamePasswordForm({
           <form onSubmit={handleSubmit}>
             <Stack spacing="lg">
               {displayError && (
-                <Alert variant="error" size="sm">
+                <Alert variant="error">
                   {displayError}
                 </Alert>
               )}
