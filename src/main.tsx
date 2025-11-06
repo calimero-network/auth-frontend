@@ -15,10 +15,24 @@ if (typeof window !== 'undefined') {
   window.global = window;
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  // <React.StrictMode>
-    <ThemeProvider>
-      <App />
-    </ThemeProvider>
-  // </React.StrictMode>,
-);
+// Enable MSW in development mode for testing without backend
+async function enableMocking() {
+  if (import.meta.env.MODE === 'development' && import.meta.env.VITE_ENABLE_MSW === 'true') {
+    const { worker } = await import('./mocks/browser');
+    await worker.start({
+      onUnhandledRequest: 'bypass',
+    });
+    console.log('🎭 MSW enabled - API requests will be mocked');
+    return;
+  }
+}
+
+enableMocking().then(() => {
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    // <React.StrictMode>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    // </React.StrictMode>,
+  );
+});
