@@ -181,7 +181,7 @@ export function ManifestProcessor({
     console.log('Continuing with existing app:', existingAppId);
     
     // Store applicationId for permission scoping in JWT generation
-    localStorage.setItem('installed-application-id', existingAppId);
+    sessionStorage.setItem('installed-application-id', existingAppId);
     
     // Just complete the flow - app is already installed
     onComplete('', '');
