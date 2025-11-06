@@ -232,9 +232,7 @@ export const handlers = [
     
     return HttpResponse.json({
       data: {
-        data: {
-          applicationId: appId,  // camelCase
-        }
+        applicationId: appId,  // camelCase (httpClient unwraps one level of 'data')
       }
     });
   }),
