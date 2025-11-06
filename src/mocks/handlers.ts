@@ -18,8 +18,8 @@ let currentScenario: {
   networkDelay: number;
   forceErrors: string[];
 } = {
-  applicationInstalled: false,
-  contextsExist: false,
+  applicationInstalled: true,   // Default: apps are installed (for dev testing)
+  contextsExist: true,            // Default: contexts exist (for dev testing)
   networkDelay: 0,
   forceErrors: [],
 };
@@ -32,12 +32,12 @@ export const updateScenario = (updates: Partial<typeof currentScenario>) => {
 };
 
 /**
- * Reset scenario to default state
+ * Reset scenario to default state (dev-friendly defaults)
  */
 export const resetScenario = () => {
   currentScenario = {
-    applicationInstalled: false,
-    contextsExist: false,
+    applicationInstalled: true,   // Dev default: apps installed
+    contextsExist: true,            // Dev default: contexts exist
     networkDelay: 0,
     forceErrors: [],
   };
@@ -240,9 +240,9 @@ export const handlers = [
   }),
   
   /**
-   * GET /admin-api/applications/:appId/contexts - Get contexts for application
+   * GET /admin-api/contexts/for-application/:appId - Get contexts for application
    */
-  http.get(`*/admin-api/applications/:appId/contexts`, async ({ params }) => {
+  http.get(`*/admin-api/contexts/for-application/:appId`, async ({ params }) => {
     await delay(currentScenario.networkDelay);
     
     const appId = params.appId as string;
@@ -289,26 +289,34 @@ export const handlers = [
     await delay(currentScenario.networkDelay);
     
     if (currentScenario.contextsExist) {
-      return HttpResponse.json({ data: fixtures.contexts.meropassContexts });
+      return HttpResponse.json({ 
+        data: { 
+          contexts: fixtures.contexts.meropassContexts 
+        } 
+      });
     }
     
-    return HttpResponse.json({ data: [] });
+    return HttpResponse.json({ data: { contexts: [] } });
   }),
   
   /**
-   * GET /admin-api/contexts/:contextId/identities - Get identities for context
+   * GET /admin-api/contexts/:contextId/identities-owned - Get identities for context
    */
-  http.get(`*/admin-api/contexts/:contextId/identities`, async ({ params }) => {
+  http.get(`*/admin-api/contexts/:contextId/identities-owned`, async ({ params }) => {
     await delay(currentScenario.networkDelay);
     
     const contextId = params.contextId as string;
     
     const identities = fixtures.identities[contextId as keyof typeof fixtures.identities];
     if (identities) {
-      return HttpResponse.json({ data: identities });
+      return HttpResponse.json({ 
+        data: { 
+          identities: identities.map(id => id.publicKey) 
+        } 
+      });
     }
     
-    return HttpResponse.json({ data: [] });
+    return HttpResponse.json({ data: { identities: [] } });
   }),
   
   /**
