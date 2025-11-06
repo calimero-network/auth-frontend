@@ -6,7 +6,10 @@ import { http, HttpResponse, delay } from 'msw';
 import { fixtures } from './fixtures';
 
 // Base URL - matches the auth endpoint
-const BASE_URL = 'http://node1.127.0.0.1.nip.io';
+// In dev mode, use relative paths; in production it would be the node URL
+const BASE_URL = import.meta.env.DEV 
+  ? 'http://localhost:5176'  // Dev mode: local vite server
+  : 'http://node1.127.0.0.1.nip.io';  // Production: node endpoint
 
 // Dynamic scenario state - can be updated by tests
 let currentScenario: {
@@ -47,8 +50,9 @@ export const handlers = [
   
   /**
    * GET /auth/providers - List available authentication providers
+   * Matches both /auth/providers and /providers
    */
-  http.get(`${BASE_URL}/auth/providers`, async () => {
+  http.get('*/auth/providers', async () => {
     await delay(currentScenario.networkDelay);
     
     if (currentScenario.forceErrors.includes('providers')) {
@@ -59,15 +63,17 @@ export const handlers = [
     }
     
     return HttpResponse.json({ 
-      providers: fixtures.providers.all, 
-      count: fixtures.providers.all.length 
+      data: {
+        providers: fixtures.providers.all, 
+        count: fixtures.providers.all.length 
+      }
     });
   }),
   
   /**
    * POST /auth/refresh - Refresh access token
    */
-  http.post(`${BASE_URL}/auth/refresh`, async ({ request }) => {
+  http.post('*/auth/refresh', async ({ request }) => {
     await delay(currentScenario.networkDelay);
     
     const body = await request.json() as any;
@@ -87,13 +93,13 @@ export const handlers = [
     }
     
     // Return refreshed tokens
-    return HttpResponse.json(fixtures.tokens.user);
+    return HttpResponse.json({ data: fixtures.tokens.user });
   }),
   
   /**
    * POST /auth/token - Request new token (username/password or NEAR)
    */
-  http.post(`${BASE_URL}/auth/token`, async ({ request }) => {
+  http.post('*/auth/token', async ({ request }) => {
     await delay(currentScenario.networkDelay);
     
     const body = await request.json() as any;
@@ -105,11 +111,11 @@ export const handlers = [
       );
     }
     
-    if (body.auth_method === 'username_password') {
+    if (body.auth_method === 'user_password') {
       // Validate credentials
       const { username, password } = body.provider_data || {};
       if (username === 'admin' && password === 'admin') {
-        return HttpResponse.json(fixtures.tokens.admin);
+        return HttpResponse.json({ data: fixtures.tokens.admin });
       }
       return HttpResponse.json(
         { error: 'Invalid credentials' }, 
@@ -118,7 +124,7 @@ export const handlers = [
     }
     
     if (body.auth_method === 'near_wallet') {
-      return HttpResponse.json(fixtures.tokens.user);
+      return HttpResponse.json({ data: fixtures.tokens.user });
     }
     
     return HttpResponse.json(
@@ -130,15 +136,15 @@ export const handlers = [
   /**
    * GET /auth/challenge - Get challenge for NEAR wallet auth
    */
-  http.get(`${BASE_URL}/auth/challenge`, async () => {
+  http.get(`*/auth/challenge`, async () => {
     await delay(currentScenario.networkDelay);
-    return HttpResponse.json(fixtures.challenges.near);
+    return HttpResponse.json({ data: fixtures.challenges.near });
   }),
   
   /**
-   * POST /auth/generate-client-key - Generate scoped token
+   * POST /admin/client-key - Generate scoped token
    */
-  http.post(`${BASE_URL}/auth/generate-client-key`, async ({ request }) => {
+  http.post(`*/admin/client-key`, async ({ request }) => {
     await delay(currentScenario.networkDelay);
     
     const body = await request.json() as any;
@@ -152,8 +158,10 @@ export const handlers = [
     
     // Generate scoped tokens
     return HttpResponse.json({
-      access_token: `scoped_access_${Date.now()}_${body.permissions[0]}`,
-      refresh_token: `scoped_refresh_${Date.now()}`,
+      data: {
+        access_token: `scoped_access_${Date.now()}_${body.permissions[0]}`,
+        refresh_token: `scoped_refresh_${Date.now()}`,
+      }
     });
   }),
   
@@ -164,7 +172,7 @@ export const handlers = [
   /**
    * GET /admin-api/packages/:packageId/latest - Get latest package version
    */
-  http.get(`${BASE_URL}/admin-api/packages/:packageId/latest`, async ({ params }) => {
+  http.get(`*/admin-api/packages/:packageId/latest`, async ({ params }) => {
     await delay(currentScenario.networkDelay);
     
     const packageId = params.packageId as string;
@@ -201,7 +209,7 @@ export const handlers = [
   /**
    * POST /admin-api/applications/install - Install application
    */
-  http.post(`${BASE_URL}/admin-api/applications/install`, async ({ request }) => {
+  http.post(`*/admin-api/applications/install`, async ({ request }) => {
     await delay(currentScenario.networkDelay + 500); // Simulate installation time
     
     const body = await request.json() as any;
@@ -229,7 +237,7 @@ export const handlers = [
   /**
    * GET /admin-api/applications/:appId/contexts - Get contexts for application
    */
-  http.get(`${BASE_URL}/admin-api/applications/:appId/contexts`, async ({ params }) => {
+  http.get(`*/admin-api/applications/:appId/contexts`, async ({ params }) => {
     await delay(currentScenario.networkDelay);
     
     const appId = params.appId as string;
@@ -246,7 +254,7 @@ export const handlers = [
   /**
    * GET /admin-api/applications/:appId - Get installed application details
    */
-  http.get(`${BASE_URL}/admin-api/applications/:appId`, async ({ params }) => {
+  http.get(`*/admin-api/applications/:appId`, async ({ params }) => {
     await delay(currentScenario.networkDelay);
     
     const appId = params.appId as string;
@@ -270,7 +278,7 @@ export const handlers = [
   /**
    * GET /admin-api/contexts - List all contexts
    */
-  http.get(`${BASE_URL}/admin-api/contexts`, async () => {
+  http.get(`*/admin-api/contexts`, async () => {
     await delay(currentScenario.networkDelay);
     
     if (currentScenario.contextsExist) {
@@ -283,7 +291,7 @@ export const handlers = [
   /**
    * GET /admin-api/contexts/:contextId/identities - Get identities for context
    */
-  http.get(`${BASE_URL}/admin-api/contexts/:contextId/identities`, async ({ params }) => {
+  http.get(`*/admin-api/contexts/:contextId/identities`, async ({ params }) => {
     await delay(currentScenario.networkDelay);
     
     const contextId = params.contextId as string;
@@ -299,7 +307,7 @@ export const handlers = [
   /**
    * POST /admin-api/contexts - Create new context
    */
-  http.post(`${BASE_URL}/admin-api/contexts`, async ({ request }) => {
+  http.post(`*/admin-api/contexts`, async ({ request }) => {
     await delay(currentScenario.networkDelay + 300);
     
     const body = await request.json() as any;

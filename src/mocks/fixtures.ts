@@ -12,7 +12,7 @@ export const fixtures = {
         configured: true 
       },
       { 
-        name: 'username_password', 
+        name: 'user_password', 
         type: 'credentials', 
         description: 'Username/Password', 
         configured: true 
