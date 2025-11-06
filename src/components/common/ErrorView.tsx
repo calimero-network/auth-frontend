@@ -1,5 +1,4 @@
-import Button from './Button';
-import { ErrorContainer, ErrorMessage } from './styles';
+import { ErrorView as DSErrorView } from '@calimero-network/mero-ui';
 
 interface ErrorViewProps {
   message: string;
@@ -17,11 +16,13 @@ export function ErrorView({ message, onRetry, buttonText }: ErrorViewProps) {
   };
 
   return (
-    <ErrorContainer data-testid="error-view">
-      <ErrorMessage>{message}</ErrorMessage>
-      <Button onClick={handleRefresh} size="md">
-        {buttonText || 'Try Again'}
-      </Button>
-    </ErrorContainer>
+    <div data-testid="error-view">
+      <DSErrorView
+        message={message}
+        actionLabel={buttonText || 'Try Again'}
+        onAction={handleRefresh}
+        showAction
+      />
+    </div>
   );
-} 
+}
