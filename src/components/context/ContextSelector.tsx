@@ -2,15 +2,26 @@ import { useEffect, useMemo, useState } from 'react';
 import { useContextSelection } from '../../hooks/useContextSelection';
 import { PROTOCOLS, PROTOCOL_DISPLAY, useContextCreation } from '../../hooks/useContextCreation';
 import { getStoredUrlParam } from '../../utils/urlParams';
-import Button from '../common/Button';
 import { ErrorView } from '../common/ErrorView';
-import { SelectContext, SelectContextIdentity } from '@calimero-network/calimero-client';
 import { PermissionsView } from '../permissions/PermissionsView';
 import {
   ContextSelectorWrapper,
 } from './styles';
-import { EmptyState } from '../common/styles';
 import Loader from '../common/Loader';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Divider,
+  EmptyState,
+  Flex,
+  Menu,
+  MenuItem,
+  Stack,
+  Text,
+} from '@calimero-network/mero-ui';
 
 interface ContextSelectorProps {
   onComplete: (contextId: string, identity: string) => void;
@@ -64,6 +75,21 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
     return contexts.filter(context => context.applicationId === targetApplicationId);
   }, [contexts, targetApplicationId]);
 
+  const selectedContextDetails = useMemo(
+    () => contexts.find((context) => context.id === selectedContext) ?? null,
+    [contexts, selectedContext],
+  );
+
+  const formatPublicKey = (key: string) => {
+    if (!key) {
+      return '';
+    }
+    if (key.length <= 16) {
+      return key;
+    }
+    return `${key.slice(0, 10)}…${key.slice(-6)}`;
+  };
+
   const loading = selectionLoading || creationLoading;
   const error = selectionError || creationError;
 
@@ -86,31 +112,36 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
   if (showInstallPrompt) {
     return (
       <ContextSelectorWrapper>
-        <EmptyState>
-          <h2>Application ID Mismatch</h2>
-          <p>The application ID doesn't match the actual application. Would you like to install it anyway?</p>
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-            <Button 
-              onClick={handleInstallCancel}
-              style={{ marginRight: '10px' }}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={async () => {
-                const contextData = await handleContextCreation(applicationId || targetApplicationId);
-                if (contextData) {
-                  handleContextSelect(contextData.contextId);
-                  handleIdentitySelect(contextData.contextId, contextData.memberPublicKey);
-                }
-              }}
-              disabled={loading}
-              primary
-            >
-              Install Anyway
-            </Button>
-          </div>
-        </EmptyState>
+        <Card variant="rounded" style={{ maxWidth: 520 }}>
+          <CardHeader>
+            <CardTitle>Application ID mismatch</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Stack spacing="md" align="center">
+              <Text align="center" color="muted">
+                The application ID in the request does not match the installed application. Do you want to proceed with installation anyway?
+              </Text>
+              <Flex justify="center" gap="sm">
+                <Button variant="secondary" onClick={handleInstallCancel}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  disabled={loading}
+                  onClick={async () => {
+                    const contextData = await handleContextCreation(applicationId || targetApplicationId);
+                    if (contextData) {
+                      handleContextSelect(contextData.contextId);
+                      handleIdentitySelect(contextData.contextId, contextData.memberPublicKey);
+                    }
+                  }}
+                >
+                  Install anyway
+                </Button>
+              </Flex>
+            </Stack>
+          </CardContent>
+        </Card>
       </ContextSelectorWrapper>
     );
   }
@@ -119,188 +150,278 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
   if (!filteredContexts.length && targetApplicationId && !selectedContext && !selectedIdentity) {
     return (
       <ContextSelectorWrapper>
-        <EmptyState>
-          <h2>Create New Context</h2>
-          <p>There are no contexts for this application. Would you like to create a new context?</p>
-          {!showProtocolSelection ? (
-            <Button 
-              onClick={() => setShowProtocolSelection(true)}
-              primary
-            >
-              Create New Context
-            </Button>
-          ) : selectedProtocol ? (
-            <>
-              <p>Selected Protocol: {PROTOCOL_DISPLAY[selectedProtocol]}</p>
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                <Button 
-                  onClick={() => setSelectedProtocol(null)}
-                  style={{ marginRight: '10px' }}
-                >
-                  Back
-                </Button>
-                <Button 
-                  onClick={async () => {
-                    if (applicationId && applicationPath) {
-                      const success = await checkAndInstallApplication(applicationId, applicationPath);
-                      if (!success) {
-                        return;
-                      }
-                    }
+        <Card variant="rounded" style={{ maxWidth: 520 }}>
+          <CardHeader>
+            <CardTitle>Create a new context</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Stack spacing="lg" align="center">
+              <Text align="center" color="muted">
+                There are no contexts available for this application yet. Create one to continue.
+              </Text>
 
-                    const result = await handleContextCreation(targetApplicationId);
-                    if (result) {
-                      onComplete(result.contextId, result.memberPublicKey);
-                    }
-                  }}
-                  disabled={loading}
-                  primary
-                >
-                  {loading ? 'Creating...' : 'Create Context'}
+              {!showProtocolSelection && (
+                <Button variant="primary" onClick={() => setShowProtocolSelection(true)}>
+                  Create new context
                 </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p>Please select a protocol:</p>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '20px' }}>
-                {PROTOCOLS.map((protocol) => (
-                  <Button
-                    key={protocol}
-                    onClick={() => setSelectedProtocol(protocol)}
-                    style={{ margin: '5px' }}
-                    primary
-                  >
-                    {PROTOCOL_DISPLAY[protocol]}
+              )}
+
+              {showProtocolSelection && !selectedProtocol && (
+                <Stack spacing="md" align="center" style={{ width: '100%' }}>
+                  <Text color="secondary">Select a protocol for the new context</Text>
+                  <Flex wrap="wrap" justify="center" gap="sm" style={{ width: '100%' }}>
+                    {PROTOCOLS.map((protocol) => (
+                      <Button
+                        key={protocol}
+                        variant="secondary"
+                        onClick={() => setSelectedProtocol(protocol)}
+                      >
+                        {PROTOCOL_DISPLAY[protocol]}
+                      </Button>
+                    ))}
+                  </Flex>
+                  <Button variant="secondary" onClick={() => setShowProtocolSelection(false)}>
+                    Back
                   </Button>
-                ))}
-              </div>
-              <Button 
-                onClick={() => {
-                  setShowProtocolSelection(false);
-                }}
-                style={{ marginTop: '10px' }}
-              >
-                Back
-              </Button>
-            </>
-          )}
-        </EmptyState>
+                </Stack>
+              )}
+
+              {showProtocolSelection && selectedProtocol && (
+                <Stack spacing="md" align="center">
+                  <Text size="sm" color="secondary">
+                    Selected protocol: {PROTOCOL_DISPLAY[selectedProtocol]}
+                  </Text>
+                  <Flex justify="center" gap="sm">
+                    <Button variant="secondary" onClick={() => setSelectedProtocol(null)}>
+                      Change protocol
+                    </Button>
+                    <Button
+                      variant="primary"
+                      disabled={loading}
+                      onClick={async () => {
+                        if (applicationId && applicationPath) {
+                          const success = await checkAndInstallApplication(applicationId, applicationPath);
+                          if (!success) {
+                            return;
+                          }
+                        }
+
+                        const result = await handleContextCreation(targetApplicationId);
+                        if (result) {
+                          onComplete(result.contextId, result.memberPublicKey);
+                        }
+                      }}
+                    >
+                      {loading ? 'Creating…' : 'Create context'}
+                    </Button>
+                  </Flex>
+                </Stack>
+              )}
+            </Stack>
+          </CardContent>
+        </Card>
       </ContextSelectorWrapper>
     );
   }
 
   return (
     <ContextSelectorWrapper>
-      {/* Create New Context Flow */}
-      {showProtocolSelection && !selectedContext && (
-        <EmptyState>
-          <h2>Create New Context</h2>
-          {selectedProtocol ? (
-            <>
-              <p>Selected Protocol: {PROTOCOL_DISPLAY[selectedProtocol]}</p>
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                <Button 
-                  onClick={() => setSelectedProtocol(null)}
-                  style={{ marginRight: '10px' }}
-                >
-                  Back to Protocols
-                </Button>
-                <Button 
-                  onClick={async () => {
-                    if (applicationId && applicationPath) {
-                      const success = await checkAndInstallApplication(applicationId, applicationPath);
-                      if (!success) {
-                        return;
-                      }
-                    }
-
-                    const result = await handleContextCreation(targetApplicationId);
-                    if (result) {
-                      onComplete(result.contextId, result.memberPublicKey);
-                    }
-                  }}
-                  disabled={loading}
-                  primary
-                >
-                  {loading ? 'Creating...' : 'Create Context'}
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p>Please select a protocol:</p>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '20px' }}>
-                {PROTOCOLS.map((protocol) => (
-                  <Button
-                    key={protocol}
-                    onClick={() => setSelectedProtocol(protocol)}
-                    style={{ margin: '5px' }}
-                    primary
-                  >
-                    {PROTOCOL_DISPLAY[protocol]}
+      {/* Create new context flow when contexts already exist */}
+      {showProtocolSelection && !selectedContext && filteredContexts.length > 0 && (
+        <Card variant="rounded" style={{ maxWidth: 520 }}>
+          <CardHeader>
+            <CardTitle>Create a new context</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Stack spacing="lg" align="center">
+              {!selectedProtocol ? (
+                <>
+                  <Text align="center" color="muted">
+                    Choose a protocol to create a fresh context for this application.
+                  </Text>
+                  <Flex wrap="wrap" justify="center" gap="sm" style={{ width: '100%' }}>
+                    {PROTOCOLS.map((protocol) => (
+                      <Button
+                        key={protocol}
+                        variant="secondary"
+                        onClick={() => setSelectedProtocol(protocol)}
+                      >
+                        {PROTOCOL_DISPLAY[protocol]}
+                      </Button>
+                    ))}
+                  </Flex>
+                  <Button variant="secondary" onClick={() => setShowProtocolSelection(false)}>
+                    Back to contexts
                   </Button>
-                ))}
-              </div>
-              <Button 
-                onClick={() => {
-                  setShowProtocolSelection(false);
-                }}
-                style={{ marginTop: '10px' }}
-              >
-                Back to Context List
-              </Button>
-            </>
-          )}
-        </EmptyState>
+                </>
+              ) : (
+                <>
+                  <Text size="sm" color="secondary">
+                    Selected protocol: {PROTOCOL_DISPLAY[selectedProtocol]}
+                  </Text>
+                  <Flex justify="center" gap="sm">
+                    <Button variant="secondary" onClick={() => setSelectedProtocol(null)}>
+                      Change protocol
+                    </Button>
+                    <Button
+                      variant="primary"
+                      disabled={loading}
+                      onClick={async () => {
+                        if (applicationId && applicationPath) {
+                          const success = await checkAndInstallApplication(applicationId, applicationPath);
+                          if (!success) {
+                            return;
+                          }
+                        }
+
+                        const result = await handleContextCreation(targetApplicationId);
+                        if (result) {
+                          onComplete(result.contextId, result.memberPublicKey);
+                        }
+                      }}
+                    >
+                      {loading ? 'Creating…' : 'Create context'}
+                    </Button>
+                  </Flex>
+                </>
+              )}
+            </Stack>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Context Selection */}
+      {/* Context selection */}
       {!selectedContext && !showProtocolSelection && (
-        <>
-          <SelectContext
-            contextList={filteredContexts}
-            setSelectedContextId={(id) => {
-              handleContextSelect(id);
-            }}
-            backStep={onBack}
-          />
-          {/* Create New Context Button - Always visible for privacy/isolation */}
-          <div style={{ 
-            marginTop: '24px', 
-            textAlign: 'center',
-            borderTop: filteredContexts.length > 0 ? '1px solid #404040' : 'none',
-            paddingTop: filteredContexts.length > 0 ? '24px' : '0'
-          }}>
-            <p style={{ 
-              fontSize: '14px', 
-              color: '#A0A0A0', 
-              marginBottom: '12px',
-              display: filteredContexts.length > 0 ? 'block' : 'none'
-            }}>
-              Or create a new context for better privacy and isolation
-            </p>
-            <Button
-              onClick={() => setShowProtocolSelection(true)}
-              primary
-              style={{ fontSize: '14px', fontWeight: '600' }}
-            >
-              + Create New Context
-            </Button>
-          </div>
-        </>
+        <Card variant="rounded" style={{ maxWidth: 520 }}>
+          <CardHeader>
+            <CardTitle>Select a context</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {filteredContexts.length > 0 ? (
+              <Stack spacing="lg">
+                <Menu variant="compact" size="md">
+                  {filteredContexts.map((context) => (
+                    <MenuItem
+                      key={context.id}
+                      selected={selectedContext === context.id}
+                      onClick={() => handleContextSelect(context.id)}
+                    >
+                      <Stack spacing="xs">
+                        <Text weight="medium">{context.name || context.id}</Text>
+                        <Text size="xs" color="muted">
+                          ID: {context.id}
+                        </Text>
+                        {context.protocol && (
+                          <Text size="xs" color="secondary">
+                            Protocol: {PROTOCOL_DISPLAY[context.protocol] ?? context.protocol}
+                          </Text>
+                        )}
+                      </Stack>
+                    </MenuItem>
+                  ))}
+                </Menu>
+                <Divider color="muted" spacing="sm" />
+                <Stack spacing="sm" align="center">
+                  <Text size="sm" color="muted" align="center">
+                    Need a fresh workspace? Create a new context for better privacy and isolation.
+                  </Text>
+                  <Flex justify="space-between" gap="sm" style={{ width: '100%' }}>
+                    <Button variant="secondary" onClick={onBack} style={{ flex: 1 }}>
+                      Back
+                    </Button>
+                    <Button
+                      variant="primary"
+                      onClick={() => {
+                        setSelectedProtocol(null);
+                        setShowProtocolSelection(true);
+                      }}
+                      style={{ flex: 1 }}
+                    >
+                      + Create new context
+                    </Button>
+                  </Flex>
+                </Stack>
+              </Stack>
+            ) : (
+              <EmptyState
+                title="No contexts found"
+                description="Create a context to link this application to your node."
+                action={
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      setSelectedProtocol(null);
+                      setShowProtocolSelection(true);
+                    }}
+                  >
+                    Create new context
+                  </Button>
+                }
+              />
+            )}
+          </CardContent>
+        </Card>
       )}
 
-      {/* Identity Selection */}
-      {selectedContext && identities.length > 0 && !selectedIdentity && (
-        <SelectContextIdentity
-          contextIdentities={identities}
-          selectedContextId={selectedContext}
-          onSelectIdentity={handleIdentitySelect}
-          backStep={() => {
-            handleContextSelect(null);
-          }}
-        />
+      {/* Identity selection */}
+      {selectedContext && !selectedIdentity && (
+        identities.length > 0 ? (
+          <Card variant="rounded" style={{ maxWidth: 520 }}>
+            <CardHeader>
+              <CardTitle>Select an identity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Stack spacing="lg">
+                {selectedContextDetails && (
+                  <Stack spacing="xs">
+                    <Text size="sm" color="secondary">
+                      Context: {selectedContextDetails.name || selectedContextDetails.id}
+                    </Text>
+                    <Text size="xs" color="muted">ID: {selectedContextDetails.id}</Text>
+                  </Stack>
+                )}
+
+                <Menu variant="compact" size="md">
+                  {identities.map((identity) => (
+                    <MenuItem
+                      key={identity}
+                      selected={selectedIdentity === identity}
+                      onClick={() => handleIdentitySelect(selectedContext, identity)}
+                    >
+                      <Stack spacing="xs">
+                        <Text weight="medium">{formatPublicKey(identity)}</Text>
+                        <Text size="xs" color="muted">
+                          {identity}
+                        </Text>
+                      </Stack>
+                    </MenuItem>
+                  ))}
+                </Menu>
+
+                <Button variant="secondary" onClick={() => handleContextSelect(null)}>
+                  Back to contexts
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card variant="rounded" style={{ maxWidth: 520 }}>
+            <CardHeader>
+              <CardTitle>No identities found</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EmptyState
+                title="This context has no identities yet"
+                description="Create an identity for this context in the node dashboard and try again."
+                action={
+                  <Button variant="secondary" onClick={() => handleContextSelect(null)}>
+                    Back to contexts
+                  </Button>
+                }
+              />
+            </CardContent>
+          </Card>
+        )
       )}
 
       {/* Permissions View */}
