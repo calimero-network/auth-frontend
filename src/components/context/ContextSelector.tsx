@@ -112,7 +112,7 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
   if (showInstallPrompt) {
     return (
       <ContextSelectorWrapper>
-        <Card variant="rounded" style={{ maxWidth: 520 }}>
+        <Card variant="rounded" color="var(--color-border-brand)" style={{ maxWidth: 520 }}>
           <CardHeader>
             <CardTitle>Application ID mismatch</CardTitle>
           </CardHeader>
@@ -135,6 +135,10 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                       handleIdentitySelect(contextData.contextId, contextData.memberPublicKey);
                     }
                   }}
+                  style={{
+                    color: 'var(--color-text-brand)',
+                    borderColor: 'var(--color-border-brand)',
+                  }}
                 >
                   Install anyway
                 </Button>
@@ -150,7 +154,7 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
   if (!filteredContexts.length && targetApplicationId && !selectedContext && !selectedIdentity) {
     return (
       <ContextSelectorWrapper>
-        <Card variant="rounded" style={{ maxWidth: 520 }}>
+        <Card variant="rounded" color="var(--color-border-brand)" style={{ maxWidth: 520 }}>
           <CardHeader>
             <CardTitle>Create a new context</CardTitle>
           </CardHeader>
@@ -161,7 +165,14 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
               </Text>
 
               {!showProtocolSelection && (
-                <Button variant="primary" onClick={() => setShowProtocolSelection(true)}>
+                <Button
+                  variant="primary"
+                  onClick={() => setShowProtocolSelection(true)}
+                  style={{
+                    color: 'var(--color-text-brand)',
+                    borderColor: 'var(--color-border-brand)',
+                  }}
+                >
                   Create new context
                 </Button>
               )}
@@ -211,6 +222,10 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                           onComplete(result.contextId, result.memberPublicKey);
                         }
                       }}
+                      style={{
+                        color: 'var(--color-text-brand)',
+                        borderColor: 'var(--color-border-brand)',
+                      }}
                     >
                       {loading ? 'Creating…' : 'Create context'}
                     </Button>
@@ -228,7 +243,7 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
     <ContextSelectorWrapper>
       {/* Create new context flow when contexts already exist */}
       {showProtocolSelection && !selectedContext && filteredContexts.length > 0 && (
-        <Card variant="rounded" style={{ maxWidth: 520 }}>
+        <Card variant="rounded" color="var(--color-border-brand)" style={{ maxWidth: 520 }}>
           <CardHeader>
             <CardTitle>Create a new context</CardTitle>
           </CardHeader>
@@ -279,6 +294,10 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                           onComplete(result.contextId, result.memberPublicKey);
                         }
                       }}
+                      style={{
+                        color: 'var(--color-text-brand)',
+                        borderColor: 'var(--color-border-brand)',
+                      }}
                     >
                       {loading ? 'Creating…' : 'Create context'}
                     </Button>
@@ -292,7 +311,7 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
 
       {/* Context selection */}
       {!selectedContext && !showProtocolSelection && (
-        <Card variant="rounded" style={{ maxWidth: 520 }}>
+        <Card variant="rounded" color="var(--color-border-brand)" style={{ maxWidth: 520 }}>
           <CardHeader>
             <CardTitle>Select a context</CardTitle>
           </CardHeader>
@@ -335,7 +354,11 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                         setSelectedProtocol(null);
                         setShowProtocolSelection(true);
                       }}
-                      style={{ flex: 1 }}
+                      style={{
+                        flex: 1,
+                        color: 'var(--color-text-brand)',
+                        borderColor: 'var(--color-border-brand)',
+                      }}
                     >
                       + Create new context
                     </Button>
@@ -353,6 +376,10 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                       setSelectedProtocol(null);
                       setShowProtocolSelection(true);
                     }}
+                    style={{
+                      color: 'var(--color-text-brand)',
+                      borderColor: 'var(--color-border-brand)',
+                    }}
                   >
                     Create new context
                   </Button>
@@ -366,7 +393,7 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
       {/* Identity selection */}
       {selectedContext && !selectedIdentity && (
         identities.length > 0 ? (
-          <Card variant="rounded" style={{ maxWidth: 520 }}>
+          <Card variant="rounded" color="var(--color-border-brand)" style={{ maxWidth: 520 }}>
             <CardHeader>
               <CardTitle>Select an identity</CardTitle>
             </CardHeader>
@@ -405,7 +432,7 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
             </CardContent>
           </Card>
         ) : (
-          <Card variant="rounded" style={{ maxWidth: 520 }}>
+          <Card variant="rounded" color="var(--color-border-brand)" style={{ maxWidth: 520 }}>
             <CardHeader>
               <CardTitle>No identities found</CardTitle>
             </CardHeader>
