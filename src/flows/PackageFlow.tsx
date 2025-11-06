@@ -3,7 +3,6 @@ import { apiClient, getAppEndpointKey } from '@calimero-network/calimero-client'
 import { ManifestProcessor } from '../components/manifest/ManifestProcessor';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ContextSelector } from '../components/context/ContextSelector';
-import { DevRegistryWarning } from '../components/steps/DevRegistryWarning';
 import { ErrorView } from '../components/common/ErrorView';
 import { AppMode } from '../types/flows';
 import { clearStoredUrlParams, getStoredUrlParam } from '../utils/urlParams';
@@ -121,8 +120,6 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
 
   return (
     <>
-      {registryUrl && <DevRegistryWarning registryUrl={registryUrl} />}
-      
       {step === 'manifest' && (
         <ManifestProcessor
           onComplete={handleManifestComplete}

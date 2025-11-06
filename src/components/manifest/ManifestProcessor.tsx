@@ -246,6 +246,43 @@ export function ManifestProcessor({
       <Card variant="rounded" color="var(--color-border-brand)">
         <CardContent>
           <Stack spacing="lg">
+            {/* Development Registry Warning */}
+            {propRegistryUrl && propRegistryUrl !== 'https://mero-registry.vercel.app/api' && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                padding: '12px 14px',
+                borderRadius: 'var(--radius-md)',
+                border: `1px solid ${tokens.color.semantic.warning.value}`,
+                background: `${tokens.color.semantic.warning.value}14`,
+                color: 'var(--color-text-primary)',
+              }}>
+                <span style={{ fontSize: '20px', flexShrink: 0 }}>⚠️</span>
+                <Stack spacing="xs">
+                  <Text weight="semibold" size="sm" style={{ color: tokens.color.semantic.warning.value }}>
+                    Development Registry
+                  </Text>
+                  <Text size="xs">
+                    This application is being installed from a development registry:{' '}
+                    <code style={{
+                      backgroundColor: tokens.color.background.tertiary.value,
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      color: tokens.color.semantic.warning.value,
+                      wordBreak: 'break-all'
+                    }}>
+                      {propRegistryUrl}
+                    </code>
+                  </Text>
+                  <Text size="xs" color="muted">
+                    This is NOT the official Calimero registry. Only proceed if you trust this source.
+                  </Text>
+                </Stack>
+              </div>
+            )}
+
             {/* App Header */}
             <Flex align="flex-start" gap="md">
               {/* App Icon */}
@@ -327,7 +364,7 @@ export function ManifestProcessor({
                 )}
                 {alreadyInstalled && existingAppId && (
                   <>
-                    <Divider color="subtle" spacing="xs" />
+                    <Divider color="subtle" spacing="sm" />
                     <Flex justify="space-between">
                       <Text size="xs" color="secondary">Application ID:</Text>
                       <Text size="xs" style={{ 
@@ -357,7 +394,7 @@ export function ManifestProcessor({
                 <div style={{
                   width: '16px',
                   height: '16px',
-                  border: `2px solid ${tokens.color.brand['500'].value}`,
+                  border: `2px solid ${tokens.color.brand['600'].value}`,
                   borderTopColor: 'transparent',
                   borderRadius: '50%',
                   animation: 'spin 1s linear infinite',

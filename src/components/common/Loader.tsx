@@ -16,7 +16,7 @@ const Loader: React.FC<LoaderProps> = ({ className }) => {
         transform: 'translate(-50%, -50%)',
       }}
     >
-      <DSLoader size="lg" />
+      <DSLoader size="large" />
     </div>
   );
 };
