@@ -11,8 +11,11 @@ import { getStoredUrlParam } from '../utils/urlParams';
  * 3. Application-ID: Has application-id param
  */
 export function useFlowDetection(): FlowDetectionResult & UrlParams {
-  const urlSearch = new URLSearchParams(window.location.search);
-    
+  const search = window.location.search;
+
+  return useMemo(() => {
+    const urlSearch = new URLSearchParams(search);
+      
     console.log('🔍 FLOW DETECTION - window.location.search:', window.location.search);
     console.log('🔍 FLOW DETECTION - URL params:', Object.fromEntries(urlSearch.entries()));
     
@@ -97,18 +100,17 @@ export function useFlowDetection(): FlowDetectionResult & UrlParams {
       }
     }
     
-  return {
-    source,
-    mode,
-    callbackUrl,
-    appUrl,
-    permissions,
-    packageName,
-    packageVersion,
-    registryUrl,
-    applicationId,
-    applicationPath,
-  };
+    return {
+      source,
+      mode,
+      callbackUrl,
+      appUrl,
+      permissions,
+      packageName,
+      packageVersion,
+      registryUrl,
+      applicationId,
+      applicationPath,
+    };
+  }, [search]);
 }
-
-
