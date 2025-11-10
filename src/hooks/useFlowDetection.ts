@@ -19,25 +19,31 @@ export function useFlowDetection(): FlowDetectionResult & UrlParams {
     console.log('🔍 FLOW DETECTION - window.location.search:', window.location.search);
     console.log('🔍 FLOW DETECTION - URL params:', Object.fromEntries(urlSearch.entries()));
     
-    // Clear old localStorage entries IMMEDIATELY to prevent cross-session pollution
+    // helper to clear both storages
+    const clearParam = (key: string) => {
+      sessionStorage.removeItem(key);
+      localStorage.removeItem(key);
+    };
+
+    // Clear old storage entries IMMEDIATELY to prevent cross-session pollution
     const modeFromUrl = urlSearch.get('mode');
     if (modeFromUrl === 'admin' || urlSearch.get('permissions') === 'admin') {
       console.log('🧹 Admin flow - clearing all app params');
-      localStorage.removeItem('package-name');
-      localStorage.removeItem('package-version');
-      localStorage.removeItem('registry-url');
-      localStorage.removeItem('application-id');
-      localStorage.removeItem('application-path');
-      localStorage.removeItem('installed-application-id');
+      clearParam('package-name');
+      clearParam('package-version');
+      clearParam('registry-url');
+      clearParam('application-id');
+      clearParam('application-path');
+      clearParam('installed-application-id');
     } else if (urlSearch.has('package-name')) {
       console.log('🧹 Package flow - clearing old application-id params');
-      localStorage.removeItem('application-id');
-      localStorage.removeItem('application-path');
+      clearParam('application-id');
+      clearParam('application-path');
     } else if (urlSearch.has('application-id')) {
       console.log('🧹 Application-ID flow - clearing old package params');
-      localStorage.removeItem('package-name');
-      localStorage.removeItem('package-version');
-      localStorage.removeItem('registry-url');
+      clearParam('package-name');
+      clearParam('package-version');
+      clearParam('registry-url');
     }
     
     // Extract all params - PREFER URL over localStorage
