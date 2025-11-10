@@ -61,7 +61,7 @@ const generateScopedToken = async (request: Request, statusOnMissingPermissions 
   });
 };
 
-const installApplicationHandler = http.post(`*/admin-api/install-application`, async ({ request }) => {
+const installApplicationResolver: Parameters<typeof http.post>[1] = async ({ request }) => {
   await delay(currentScenario.networkDelay + 500); // Simulate installation time
   
   const body = await request.json() as any;
@@ -83,7 +83,12 @@ const installApplicationHandler = http.post(`*/admin-api/install-application`, a
       applicationId: appId,  // camelCase (httpClient unwraps one level of 'data')
     }
   });
-});
+};
+
+const installApplicationHandler = http.post(
+  `*/admin-api/install-application`,
+  installApplicationResolver,
+);
 
 export const handlers = [
   // ========================================
@@ -252,9 +257,10 @@ export const handlers = [
   /**
    * POST /admin-api/applications/install - Legacy install endpoint
    */
-  http.post(`*/admin-api/applications/install`, async (request) => {
-    return installApplicationHandler.resolver(request);
-  }),
+  http.post(
+    `*/admin-api/applications/install`,
+    installApplicationResolver,
+  ),
   
   /**
    * GET /admin-api/contexts/for-application/:appId - Get contexts for application
