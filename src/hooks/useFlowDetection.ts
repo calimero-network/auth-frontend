@@ -16,36 +16,6 @@ export function useFlowDetection(): FlowDetectionResult & UrlParams {
   return useMemo(() => {
     const urlSearch = new URLSearchParams(search);
       
-    console.log('🔍 FLOW DETECTION - window.location.search:', window.location.search);
-    console.log('🔍 FLOW DETECTION - URL params:', Object.fromEntries(urlSearch.entries()));
-    
-    // helper to clear both storages
-    const clearParam = (key: string) => {
-      sessionStorage.removeItem(key);
-      localStorage.removeItem(key);
-    };
-
-    // Clear old storage entries IMMEDIATELY to prevent cross-session pollution
-    const modeFromUrl = urlSearch.get('mode');
-    if (modeFromUrl === 'admin' || urlSearch.get('permissions') === 'admin') {
-      console.log('🧹 Admin flow - clearing all app params');
-      clearParam('package-name');
-      clearParam('package-version');
-      clearParam('registry-url');
-      clearParam('application-id');
-      clearParam('application-path');
-      clearParam('installed-application-id');
-    } else if (urlSearch.has('package-name')) {
-      console.log('🧹 Package flow - clearing old application-id params');
-      clearParam('application-id');
-      clearParam('application-path');
-    } else if (urlSearch.has('application-id')) {
-      console.log('🧹 Application-ID flow - clearing old package params');
-      clearParam('package-name');
-      clearParam('package-version');
-      clearParam('registry-url');
-    }
-    
     // Extract all params - PREFER URL over localStorage
     const callbackUrl = urlSearch.get('callback-url') || getStoredUrlParam('callback-url') || '';
     const appUrl = urlSearch.get('app-url') || getStoredUrlParam('app-url') || '';
