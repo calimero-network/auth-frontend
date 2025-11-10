@@ -68,19 +68,17 @@ export function useContextCreation(): UseContextCreationReturn {
       const application = await apiClient
         .node()
         .getInstalledApplicationDetails(targetApplicationId);
-      console.log('application', application);
-      
-      if (application.data) {
-        // Application doesn't exist, try to install with expected ID
+
+      const applicationMissing =
+        application.error || !application.data;
+
+      if (applicationMissing) {
         const installResponse = await apiClient
           .node()
           .installApplication(applicationPath, new Uint8Array(), targetApplicationId);
-        console.log('installResponse', installResponse);
 
         if (installResponse.error) {
-          console.log('installResponse.error', installResponse.error);
           if(installResponse.error.message === 'fatal: blob hash mismatch') {
-            console.log('application mismatch');
             setApplicationMismatch(true);
             setShowInstallPrompt(true);
             return false;
