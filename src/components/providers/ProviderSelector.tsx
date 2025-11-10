@@ -17,6 +17,7 @@ interface ProviderSelectorProps {
   providers: Provider[];
   onProviderSelect: (provider: Provider) => void;
   loading: boolean;
+  error?: string | null;
 }
 
 const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
@@ -25,15 +26,16 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   'username_password': 'Username/Password',
 };
 
-const ProviderSelector: React.FC<ProviderSelectorProps> = ({ 
-  providers, 
+const ProviderSelector: React.FC<ProviderSelectorProps> = ({
+  providers,
   onProviderSelect,
-  loading
+  loading,
+  error,
 }) => {
   if (loading) {
     return <Loader />;
   }
-  
+
   if (providers.length === 0) {
     return (
       <div style={{ 
@@ -57,7 +59,7 @@ const ProviderSelector: React.FC<ProviderSelectorProps> = ({
       </div>
     );
   }
-  
+
   return (
     <div style={{ 
       position: 'fixed',
@@ -73,6 +75,11 @@ const ProviderSelector: React.FC<ProviderSelectorProps> = ({
           <CardTitle>Choose an authentication method</CardTitle>
         </CardHeader>
         <CardContent>
+          {error && (
+            <Stack spacing="sm" align="center" style={{ marginBottom: '12px' }}>
+              <Text color="error">{error}</Text>
+            </Stack>
+          )}
           <Menu variant="compact" size="md">
             {providers.map((provider) => (
               <MenuItem

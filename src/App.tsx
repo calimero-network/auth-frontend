@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import { ThemeProvider } from './theme/ThemeProvider';
 import { EnsureAdminSession } from './components/auth/EnsureAdminSession';
 import { AdminFlow } from './flows/AdminFlow';
 import { PackageFlow } from './flows/PackageFlow';
@@ -31,30 +30,28 @@ function App() {
   // It uses auth endpoint (set in urlParams) for admin API calls
 
   return (
-    <ThemeProvider>
-      <EnsureAdminSession>
-        {flowParams.source === 'admin' && (
-          <AdminFlow />
-        )}
-        
-        {flowParams.source === 'package' && (
-          <PackageFlow
-            mode={flowParams.mode}
-            packageName={flowParams.packageName!}
-            packageVersion={flowParams.packageVersion}
-            registryUrl={flowParams.registryUrl}
-          />
-        )}
-        
-        {flowParams.source === 'application-id' && (
-          <ApplicationFlow
-            mode={flowParams.mode}
-            applicationId={flowParams.applicationId!}
-            applicationPath={flowParams.applicationPath!}
-          />
-        )}
-      </EnsureAdminSession>
-    </ThemeProvider>
+    <EnsureAdminSession>
+      {flowParams.source === 'admin' && (
+        <AdminFlow />
+      )}
+      
+      {flowParams.source === 'package' && (
+        <PackageFlow
+          mode={flowParams.mode}
+          packageName={flowParams.packageName!}
+          packageVersion={flowParams.packageVersion}
+          registryUrl={flowParams.registryUrl}
+        />
+      )}
+      
+      {flowParams.source === 'application-id' && (
+        <ApplicationFlow
+          mode={flowParams.mode}
+          applicationId={flowParams.applicationId!}
+          applicationPath={flowParams.applicationPath!}
+        />
+      )}
+    </EnsureAdminSession>
   );
 }
 

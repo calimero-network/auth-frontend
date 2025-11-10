@@ -202,6 +202,7 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
         providers={providers}
         onProviderSelect={handleProviderSelect}
         loading={loading}
+        error={error}
       />
     );
   }
