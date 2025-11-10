@@ -203,24 +203,15 @@ test.describe('Auth frontend flows', () => {
 
     await loginIfNeeded(page);
 
-    // Wait for manifest to be fetched and processed
-    await page.waitForFunction(
-      () => {
-        // Check if manifest info is displayed (app name, version, etc.)
-        const manifestInfo = document.querySelector('[data-testid="manifest-info"]');
-        return manifestInfo && manifestInfo.textContent?.includes('Real Test App');
-      },
-      { timeout: 30000 }
-    );
+    // Wait for manifest card to render and expose the install CTA
+    const installButton = page.getByRole('button', { name: /Install & Continue/i });
+    await expect(installButton).toBeVisible({ timeout: 30_000 });
 
     // Verify manifest details are shown
     await expect(page.getByText('Real Test App')).toBeVisible();
     await expect(page.getByText('1.0.0')).toBeVisible();
     await expect(page.getByText('com.example.real.test')).toBeVisible();
-
-    // Verify the Install Application button is visible and clickable
-    const installButton = page.getByRole('button', { name: /Install & Continue/i });
-    await expect(installButton).toBeVisible();
+    await expect(installButton).toBeEnabled();
     
     // The manifest flow is complete - we've verified it works
     // The installation can be tested manually by clicking the button
