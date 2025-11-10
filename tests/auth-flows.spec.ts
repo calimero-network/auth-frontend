@@ -219,7 +219,7 @@ test.describe('Auth frontend flows', () => {
     await expect(page.getByText('com.example.real.test')).toBeVisible();
 
     // Verify the Install Application button is visible and clickable
-    const installButton = page.getByRole('button', { name: /Install Application/i });
+    const installButton = page.getByRole('button', { name: /Install & Continue/i });
     await expect(installButton).toBeVisible();
     
     // The manifest flow is complete - we've verified it works

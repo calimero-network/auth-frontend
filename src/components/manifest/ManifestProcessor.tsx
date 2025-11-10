@@ -297,7 +297,7 @@ export function ManifestProcessor({
             )}
 
             {/* App Header */}
-            <Flex align="flex-start" gap="md">
+            <Flex align="flex-start" gap="md" data-testid="manifest-info">
               {/* App Icon */}
               <div style={{
                 width: '64px',
