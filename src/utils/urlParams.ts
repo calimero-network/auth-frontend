@@ -10,14 +10,10 @@ export const handleUrlParams = () => {
   const searchParams = new URLSearchParams(window.location.search);
   const params: Record<string, string> = {};
   
-  console.log('DEBUG handleUrlParams: window.location.search =', window.location.search);
-  console.log('DEBUG handleUrlParams: searchParams =', Array.from(searchParams.entries()));
-  
   // Clear flow params from localStorage (old sessions) to prevent pollution
   // SessionStorage already handles per-tab isolation
   const modeFromUrl = searchParams.get('mode');
   if (modeFromUrl === 'admin' || searchParams.get('permissions') === 'admin') {
-    console.log('DEBUG: Admin flow - clearing all app params from localStorage');
     localStorage.removeItem('package-name');
     localStorage.removeItem('package-version');
     localStorage.removeItem('registry-url');
@@ -25,11 +21,9 @@ export const handleUrlParams = () => {
     localStorage.removeItem('application-path');
     localStorage.removeItem('installed-application-id');
   } else if (searchParams.has('package-name')) {
-    console.log('DEBUG: Package flow detected, clearing old application-id params from localStorage');
     localStorage.removeItem('application-id');
     localStorage.removeItem('application-path');
   } else if (searchParams.has('application-id')) {
-    console.log('DEBUG: Application-ID flow detected, clearing old package params from localStorage');
     localStorage.removeItem('package-name');
     localStorage.removeItem('package-version');
     localStorage.removeItem('registry-url');
@@ -45,7 +39,6 @@ export const handleUrlParams = () => {
         if (value === null || typeof value === 'undefined') return;
         sessionParams[key] = String(value);
       });
-      console.log('DEBUG handleUrlParams: session params =', sessionParams);
       // Clear after reading to avoid reuse
       sessionStorage.removeItem('calimero-auth-params');
     }
@@ -78,7 +71,6 @@ export const handleUrlParams = () => {
   
   searchParams.forEach((value, key) => {
     params[key] = value;
-    console.log(`DEBUG handleUrlParams: Processing key=${key}, value=${value}`);
 
     // Use SDK storage functions for SDK-related keys to ensure proper prefixing
     if (key === 'app-url') {
@@ -87,13 +79,11 @@ export const handleUrlParams = () => {
       setAuthEndpointURL(value);
     } else if (doNotStore.includes(key)) {
       // Skip storing registry-url and other transient params
-      console.log(`DEBUG handleUrlParams: Skipping localStorage for ${key} (transient param)`);
     } else {
       // For other keys, use sessionStorage (these are auth-frontend flow params)
       // Store as plain string (no JSON.stringify - value is already a string from URLSearchParams)
       // SessionStorage clears when tab closes, preventing cross-session pollution
       sessionStorage.setItem(key, value);
-      console.log(`DEBUG handleUrlParams: Stored ${key} = ${value} in sessionStorage`);
     }
   });
   
