@@ -23,6 +23,7 @@ export const handleUrlParams = () => {
   } else if (searchParams.has('package-name')) {
     localStorage.removeItem('application-id');
     localStorage.removeItem('application-path');
+    localStorage.removeItem('installed-application-id');
   } else if (searchParams.has('application-id')) {
     localStorage.removeItem('package-name');
     localStorage.removeItem('package-version');

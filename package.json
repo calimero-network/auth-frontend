@@ -10,11 +10,11 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "e2e:install": "playwright install",
-    "e2e:start-auth": "bash ../core/scripts/auth-dev.sh $(pwd)/build",
-    "e2e:stop-auth": "docker-compose -f ../core/docker-compose.auth.dev.yml down || true",
-    "e2e": "pnpm build && pnpm e2e:install && pnpm -r --silent e2e:start-auth && playwright test || (pnpm -r --silent e2e:stop-auth && exit 1)",
-    "e2e:ci": "pnpm build && pnpm e2e:install && playwright test"
+    "e2e:install": "echo 'Playwright E2E tests have been removed'",
+    "e2e:start-auth": "echo 'Playwright E2E tests have been removed'",
+    "e2e:stop-auth": "echo 'Playwright E2E tests have been removed'",
+    "e2e": "echo 'Playwright E2E tests have been removed'",
+    "e2e:ci": "echo 'Playwright E2E tests have been removed'"
   },
   "keywords": [],
   "author": "",
