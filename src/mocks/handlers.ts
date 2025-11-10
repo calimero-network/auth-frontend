@@ -43,6 +43,48 @@ export const resetScenario = () => {
   };
 };
 
+const generateScopedToken = async (request: Request, statusOnMissingPermissions = 400) => {
+  const body = await request.json() as any;
+  
+  if (!body.permissions || body.permissions.length === 0) {
+    return HttpResponse.json(
+      { error: 'No permissions specified' }, 
+      { status: statusOnMissingPermissions }
+    );
+  }
+  
+  return HttpResponse.json({
+    data: {
+      access_token: `scoped_access_${Date.now()}_${body.permissions[0]}`,
+      refresh_token: `scoped_refresh_${Date.now()}`,
+    }
+  });
+};
+
+const installApplicationHandler = http.post(`*/admin-api/install-application`, async ({ request }) => {
+  await delay(currentScenario.networkDelay + 500); // Simulate installation time
+  
+  const body = await request.json() as any;
+  
+  if (currentScenario.forceErrors.includes('install')) {
+    return HttpResponse.json(
+      { error: 'Installation failed' }, 
+      { status: 500 }
+    );
+  }
+  
+  // Return installed application ID
+  const appId = body.package 
+    ? `app_${body.package.split('.').pop()}_${Date.now()}`
+    : `app_legacy_${Date.now()}`;
+  
+  return HttpResponse.json({
+    data: {
+      applicationId: appId,  // camelCase (httpClient unwraps one level of 'data')
+    }
+  });
+});
+
 export const handlers = [
   // ========================================
   // Auth API Endpoints
@@ -146,23 +188,15 @@ export const handlers = [
    */
   http.post(`*/admin/client-key`, async ({ request }) => {
     await delay(currentScenario.networkDelay);
-    
-    const body = await request.json() as any;
-    
-    if (!body.permissions || body.permissions.length === 0) {
-      return HttpResponse.json(
-        { error: 'No permissions specified' }, 
-        { status: 400 }
-      );
-    }
-    
-    // Generate scoped tokens
-    return HttpResponse.json({
-      data: {
-        access_token: `scoped_access_${Date.now()}_${body.permissions[0]}`,
-        refresh_token: `scoped_refresh_${Date.now()}`,
-      }
-    });
+    return generateScopedToken(request);
+  }),
+
+  /**
+   * POST /auth/generate-client-key - Generate scoped token (new endpoint)
+   */
+  http.post(`*/auth/generate-client-key`, async ({ request }) => {
+    await delay(currentScenario.networkDelay);
+    return generateScopedToken(request);
   }),
   
   // ========================================
@@ -213,28 +247,13 @@ export const handlers = [
   /**
    * POST /admin-api/install-application - Install application
    */
-  http.post(`*/admin-api/install-application`, async ({ request }) => {
-    await delay(currentScenario.networkDelay + 500); // Simulate installation time
-    
-    const body = await request.json() as any;
-    
-    if (currentScenario.forceErrors.includes('install')) {
-      return HttpResponse.json(
-        { error: 'Installation failed' }, 
-        { status: 500 }
-      );
-    }
-    
-    // Return installed application ID
-    const appId = body.package 
-      ? `app_${body.package.split('.').pop()}_${Date.now()}`
-      : `app_legacy_${Date.now()}`;
-    
-    return HttpResponse.json({
-      data: {
-        applicationId: appId,  // camelCase (httpClient unwraps one level of 'data')
-      }
-    });
+  installApplicationHandler,
+
+  /**
+   * POST /admin-api/applications/install - Legacy install endpoint
+   */
+  http.post(`*/admin-api/applications/install`, async (request) => {
+    return installApplicationHandler.resolver(request);
   }),
   
   /**

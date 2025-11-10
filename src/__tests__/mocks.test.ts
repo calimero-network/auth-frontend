@@ -14,11 +14,11 @@ describe('MSW Mock Server', () => {
   describe('Auth API Mocks', () => {
     it('should mock getProviders endpoint', async () => {
       const response = await fetch('http://node1.127.0.0.1.nip.io/auth/providers');
-      const data = await response.json();
+      const payload = await response.json();
       
       expect(response.ok).toBe(true);
-      expect(data.providers).toHaveLength(2);
-      expect(data.providers[0].name).toBe('near_wallet');
+      expect(payload.data.providers).toHaveLength(2);
+      expect(payload.data.providers[0].name).toBe('near_wallet');
     });
     
     it('should mock token refresh endpoint', async () => {
@@ -31,11 +31,11 @@ describe('MSW Mock Server', () => {
         }),
       });
       
-      const data = await response.json();
+      const payload = await response.json();
       
       expect(response.ok).toBe(true);
-      expect(data.access_token).toBeTruthy();
-      expect(data.refresh_token).toBeTruthy();
+      expect(payload.data.access_token).toBeTruthy();
+      expect(payload.data.refresh_token).toBeTruthy();
     });
     
     it('should mock username/password authentication', async () => {
@@ -43,7 +43,7 @@ describe('MSW Mock Server', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          auth_method: 'username_password',
+          auth_method: 'user_password',
           provider_data: {
             username: 'admin',
             password: 'admin',
@@ -51,10 +51,10 @@ describe('MSW Mock Server', () => {
         }),
       });
       
-      const data = await response.json();
+      const payload = await response.json();
       
       expect(response.ok).toBe(true);
-      expect(data.access_token).toBe(fixtures.tokens.admin.access_token);
+      expect(payload.data.access_token).toBe(fixtures.tokens.admin.access_token);
     });
     
     it('should reject invalid credentials', async () => {
@@ -62,7 +62,7 @@ describe('MSW Mock Server', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          auth_method: 'username_password',
+          auth_method: 'user_password',
           provider_data: {
             username: 'wrong',
             password: 'wrong',
@@ -85,22 +85,22 @@ describe('MSW Mock Server', () => {
         }),
       });
       
-      const data = await response.json();
+      const payload = await response.json();
       
       expect(response.ok).toBe(true);
-      expect(data.access_token).toContain('scoped_access');
-      expect(data.refresh_token).toContain('scoped_refresh');
+      expect(payload.data.access_token).toContain('scoped_access');
+      expect(payload.data.refresh_token).toContain('scoped_refresh');
     });
   });
   
   describe('Admin API Mocks', () => {
     it('should mock getPackageLatest endpoint for meropass', async () => {
       const response = await fetch('http://node1.127.0.0.1.nip.io/admin-api/packages/network.calimero.meropass/latest');
-      const data = await response.json();
+      const payload = await response.json();
       
       expect(response.ok).toBe(true);
-      expect(data.application_id).toBe(fixtures.applications.meropass.application_id);
-      expect(data.version).toBe('0.1.1');
+      expect(payload.data.application_id).toBe(fixtures.applications.meropass.application_id);
+      expect(payload.data.version).toBe('0.1.1');
     });
     
     it('should return 404 for non-existent package', async () => {
@@ -122,11 +122,10 @@ describe('MSW Mock Server', () => {
         }),
       });
       
-      const data = await response.json();
+      const payload = await response.json();
       
       expect(response.ok).toBe(true);
-      expect(data.application_id).toBeTruthy();
-      expect(data.installed).toBe(true);
+      expect(payload.data.applicationId).toBeTruthy();
     });
     
     it('should fail installation when error is forced', async () => {
@@ -158,51 +157,51 @@ describe('MSW Mock Server', () => {
       updateScenario({ applicationInstalled: true });
       
       const response = await fetch(`http://node1.127.0.0.1.nip.io/admin-api/applications/${fixtures.applications.meropass.application_id}`);
-      const data = await response.json();
+      const payload = await response.json();
       
       expect(response.ok).toBe(true);
-      expect(data.application_id).toBe(fixtures.applications.meropass.application_id);
-      expect(data.package).toBe('network.calimero.meropass');
+      expect(payload.data.application_id).toBe(fixtures.applications.meropass.application_id);
+      expect(payload.data.package).toBe('network.calimero.meropass');
     });
     
     it('should return empty contexts when none exist', async () => {
       updateScenario({ contextsExist: false });
       
       const response = await fetch('http://node1.127.0.0.1.nip.io/admin-api/contexts');
-      const data = await response.json();
+      const payload = await response.json();
       
       expect(response.ok).toBe(true);
-      expect(data).toEqual([]);
+      expect(payload.data.contexts).toEqual([]);
     });
     
     it('should return contexts when they exist', async () => {
       updateScenario({ contextsExist: true });
       
       const response = await fetch('http://node1.127.0.0.1.nip.io/admin-api/contexts');
-      const data = await response.json();
+      const payload = await response.json();
       
       expect(response.ok).toBe(true);
-      expect(data).toHaveLength(3);
-      expect(data[0].name).toBe('Personal Vault');
+      expect(payload.data.contexts).toHaveLength(3);
+      expect(payload.data.contexts[0].name).toBe('Personal Vault');
     });
     
     it('should return contexts for specific application', async () => {
       updateScenario({ contextsExist: true });
       
-      const response = await fetch(`http://node1.127.0.0.1.nip.io/admin-api/applications/${fixtures.applications.meropass.application_id}/contexts`);
-      const data = await response.json();
+      const response = await fetch(`http://node1.127.0.0.1.nip.io/admin-api/contexts/for-application/${fixtures.applications.meropass.application_id}`);
+      const payload = await response.json();
       
       expect(response.ok).toBe(true);
-      expect(data.contexts).toHaveLength(3);
+      expect(payload.data.contexts).toHaveLength(3);
     });
     
     it('should return identities for context', async () => {
-      const response = await fetch('http://node1.127.0.0.1.nip.io/admin-api/contexts/context_personal_vault/identities');
-      const data = await response.json();
+      const response = await fetch('http://node1.127.0.0.1.nip.io/admin-api/contexts/context_personal_vault/identities-owned');
+      const payload = await response.json();
       
       expect(response.ok).toBe(true);
-      expect(data).toHaveLength(2);
-      expect(data[0].name).toBe('john.near');
+      expect(payload.data.identities).toHaveLength(2);
+      expect(payload.data.identities[0]).toBe(fixtures.identities.context_personal_vault[0].publicKey);
     });
   });
   
