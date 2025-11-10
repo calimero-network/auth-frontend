@@ -40,15 +40,22 @@ async function proceedToApprove(page: import('@playwright/test').Page) {
     throw new Error('Unexpected Missing Application Information screen');
   }
 
-  // If an install button is presented, try to proceed
-  const installBtn = page.getByRole('button', { name: /Install/ });
-  if (await installBtn.isVisible().catch(() => false)) {
-    await installBtn.click();
+  // If an install or review button is presented, try to proceed
+  const installButtons = [
+    page.getByRole('button', { name: /Install & Continue/i }),
+    page.getByRole('button', { name: /Review Permissions/i }),
+    page.getByRole('button', { name: /Install Application/i }),
+  ];
+  for (const btn of installButtons) {
+    if (await btn.isVisible().catch(() => false)) {
+      await btn.click();
+      break;
+    }
   }
 
-  // Wait briefly for Approve to become available; skip if it doesn’t
-  const approve = page.getByRole('button', { name: 'Approve' });
-  await expect(approve).toBeVisible({ timeout: 15000 });
+  // Wait for the primary CTA (Approve Permissions or Generate Token)
+  const primaryCta = page.getByRole('button', { name: /Approve Permissions|Generate Token/i });
+  await expect(primaryCta).toBeVisible({ timeout: 30000 });
 }
 
 async function clickApproveAndAssertTokens(page: import('@playwright/test').Page) {
@@ -60,7 +67,16 @@ async function clickApproveAndAssertTokens(page: import('@playwright/test').Page
     )
     .catch(() => null);
 
-  await page.getByRole('button', { name: 'Approve' }).click();
+  const primaryCta = page.getByRole('button', { name: /Approve Permissions|Generate Token/i });
+  await expect(primaryCta).toBeVisible({ timeout: 30000 });
+  const initialLabel = (await primaryCta.innerText()).trim();
+  await primaryCta.click();
+
+  if (/Approve Permissions/i.test(initialLabel)) {
+    const finalCta = page.getByRole('button', { name: /Generate Token/i });
+    await expect(finalCta).toBeVisible({ timeout: 30000 });
+    await finalCta.click();
+  }
 
   // Wait until both tokens are present in the URL fragment
   await page.waitForFunction(
@@ -98,7 +114,7 @@ async function createContextIfPrompted(page: import('@playwright/test').Page) {
     for (let i = 0; i < count; i++) {
       const btn = protocolButtons.nth(i);
       const name = (await btn.innerText().catch(() => '')).trim();
-      if (!/Back|Create New Context|Install Application|Approve|Cancel/i.test(name)) {
+      if (!/Back|Create New Context|Install (Application|& Continue)|Approve Permissions|Generate Token|Cancel/i.test(name)) {
         await btn.click();
         break;
       }
