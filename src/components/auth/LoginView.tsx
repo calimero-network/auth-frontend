@@ -12,6 +12,8 @@ import { PermissionsView } from '../permissions/PermissionsView';
 import { UsernamePasswordForm } from './UsernamePasswordForm';
 import { ApplicationInstallCheck } from '../applications/ApplicationInstallCheck';
 import { ManifestProcessor } from '../manifest';
+import { normalizePermissions } from '../../utils/permissions';
+import { AppMode } from '../../types/flows';
 
 interface SignedMessage {
   accountId: string;
@@ -577,41 +579,50 @@ const LoginView: React.FC = () => {
       )}
 
       {showPermissionsView && (
+        (() => {
+          const modeParam = (getStoredUrlParam('mode') || '') as AppMode;
+          const rawPermissions = getStoredUrlParam('permissions')?.split(',') || [];
+          const normalized = normalizePermissions(modeParam, rawPermissions);
+
+          return (
         <PermissionsView
-          permissions={getStoredUrlParam('permissions')?.split(',') || []}
-          selectedContext=""
-          selectedIdentity=""
-          onComplete={() => {
-            setShowPermissionsView(false);
-            
-            // Check if this is a manifest flow (via manifest-url OR package-name)
-            const manifestUrl = getStoredUrlParam('manifest-url');
-            const packageName = getStoredUrlParam('package-name');
-            
-            if (manifestUrl || packageName) {
-              // For manifest flows, show ManifestProcessor first
-              console.log('DEBUG: Triggering ManifestProcessor with:', { manifestUrl, packageName });
-              setShowManifestProcessor(true);
-            } else if (cameFromApplicationCheck) {
-              setShowApplicationInstallCheck(true);
-              setCameFromApplicationCheck(false);
-            } else {
-              checkExistingSession();
-            }
-          }}
-          onBack={() => {
-            setShowPermissionsView(false);
-            if (cameFromApplicationCheck) {
-              setShowApplicationInstallCheck(true);
-              setCameFromApplicationCheck(false);
-            } else if (cameFromUsernamePassword) {
-              setShowUsernamePasswordForm(true);
-              setCameFromUsernamePassword(false);
-            } else {
-              checkExistingSession();
-            }
-          }}
-        />
+            permissions={normalized}
+            selectedContext=""
+            selectedIdentity=""
+            mode={modeParam}
+            onComplete={() => {
+              setShowPermissionsView(false);
+              
+              // Check if this is a manifest flow (via manifest-url OR package-name)
+              const manifestUrl = getStoredUrlParam('manifest-url');
+              const packageName = getStoredUrlParam('package-name');
+              
+              if (manifestUrl || packageName) {
+                // For manifest flows, show ManifestProcessor first
+                console.log('DEBUG: Triggering ManifestProcessor with:', { manifestUrl, packageName });
+                setShowManifestProcessor(true);
+              } else if (cameFromApplicationCheck) {
+                setShowApplicationInstallCheck(true);
+                setCameFromApplicationCheck(false);
+              } else {
+                checkExistingSession();
+              }
+            }}
+            onBack={() => {
+              setShowPermissionsView(false);
+              if (cameFromApplicationCheck) {
+                setShowApplicationInstallCheck(true);
+                setCameFromApplicationCheck(false);
+              } else if (cameFromUsernamePassword) {
+                setShowUsernamePasswordForm(true);
+                setCameFromUsernamePassword(false);
+              } else {
+                checkExistingSession();
+              }
+            }}
+          />
+          );
+        })()
       )}
 
       {showUsernamePasswordForm && !showPermissionsView && !showApplicationInstallCheck && (

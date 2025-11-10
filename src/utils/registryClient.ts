@@ -39,16 +39,13 @@ export class RegistryClient {
    * Get all available versions for a package
    */
   async getPackageVersions(packageId: string): Promise<string[]> {
-    const url = `${this.baseUrl}/apps/${packageId}`;
-    
-    try {
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Package '${packageId}' not found in registry`);
-      }
-      
-      const data: RegistryVersionsResponse = await response.json();
+    const response = await fetch(this.buildUrl(`/v1/apps/${packageId}`));
+
+    if (!response.ok) {
+      throw new Error(`Package '${packageId}' not found in registry`);
+    }
+
+    const data: RegistryVersionsResponse = await response.json();
       
       // Handle both formats:
       // - Production Vercel: versions is string[] 
@@ -63,10 +60,7 @@ export class RegistryClient {
       }
       
       return [];
-    } catch (error) {
-      console.error(`Failed to fetch versions for ${packageId}:`, error);
-      throw error;
-    }
+    return [];
   }
 
   /**
@@ -88,21 +82,48 @@ export class RegistryClient {
       actualVersion = versions[0];
     }
 
-    const url = `${this.baseUrl}/apps/${packageId}/${actualVersion}`;
-    
-    try {
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Manifest not found: ${packageId}@${actualVersion}`);
-      }
-      
-      const manifest: RegistryManifest = await response.json();
-      return manifest;
-    } catch (error) {
-      console.error(`Failed to fetch manifest for ${packageId}@${actualVersion}:`, error);
-      throw error;
+    const response = await fetch(
+      this.buildUrl(`/v1/apps/${packageId}/${actualVersion}`)
+    );
+
+    if (!response.ok) {
+      throw new Error(`Manifest not found: ${packageId}@${actualVersion}`);
     }
+
+    const rawManifest = await response.json();
+    return this.normalizeManifest(rawManifest);
+  }
+
+  private normalizeManifest(raw: any): RegistryManifest {
+    if (raw?.artifact?.uri) {
+      return raw as RegistryManifest;
+    }
+
+    const legacyArtifact = raw?.artifacts?.[0] || {};
+
+    let uri = legacyArtifact.uri || legacyArtifact.mirrors?.[0] || legacyArtifact.path || '';
+    if (uri.startsWith('/')) {
+      uri = `${this.baseUrl}${uri}`;
+    }
+
+    const digest = legacyArtifact.digest || legacyArtifact.cid || (legacyArtifact.sha256 ? `sha256:${legacyArtifact.sha256}` : '');
+
+    return {
+      manifest_version: raw?.manifest_version || '1.0',
+      id: raw?.id || raw?.app?.app_id || raw?.app?.id || 'unknown-app',
+      name: raw?.name || raw?.app?.name || 'Unknown Application',
+      version: raw?.version?.semver || raw?.version || '0.0.0',
+      chains: raw?.chains || raw?.supported_chains || [],
+      artifact: {
+        type: legacyArtifact.type || 'wasm',
+        target: legacyArtifact.target || 'node',
+        digest,
+        uri,
+      },
+      provides: raw?.provides || undefined,
+      requires: raw?.requires || undefined,
+      dependencies: raw?.dependencies || undefined,
+    };
   }
 
   /**
@@ -111,12 +132,14 @@ export class RegistryClient {
    */
   getManifestUrl(packageId: string, version?: string): string {
     if (version) {
-      return `${this.baseUrl}/apps/${packageId}/${version}`;
+      return this.buildUrl(`/v1/apps/${packageId}/${version}`);
     }
-    // For latest, we'll need to fetch versions first
-    // but we can't do async here, so just return the base
-    // The auth service will handle fetching latest
-    return `${this.baseUrl}/apps/${packageId}`;
+    return this.buildUrl(`/v1/apps/${packageId}`);
+  }
+
+  private buildUrl(path: string): string {
+    const normalizedBase = this.baseUrl.replace(/\/$/, '');
+    return `${normalizedBase}${path}`;
   }
 }
 
