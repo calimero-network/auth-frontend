@@ -34,28 +34,37 @@ async function loginIfNeeded(page: import('@playwright/test').Page) {
 }
 
 async function proceedToApprove(page: import('@playwright/test').Page) {
-  // Skip if application info is missing (cannot proceed without params)
   const missingInfo = page.getByText('Missing Application Information', { exact: false });
   if (await missingInfo.isVisible().catch(() => false)) {
     throw new Error('Unexpected Missing Application Information screen');
   }
 
-  // If an install or review button is presented, try to proceed
-  const installButtons = [
-    page.getByRole('button', { name: /Install & Continue/i }),
-    page.getByRole('button', { name: /Review Permissions/i }),
-    page.getByRole('button', { name: /Install Application/i }),
-  ];
-  for (const btn of installButtons) {
-    if (await btn.isVisible().catch(() => false)) {
-      await btn.click();
-      break;
+  const deadline = Date.now() + 30_000;
+  const installBtn = page.getByRole('button', { name: /Install (?:&|and) Continue|Install Application/i });
+  const reviewBtn = page.getByRole('button', { name: /Review Permissions/i });
+  const approveBtn = page.getByRole('button', { name: /Approve Permissions|Generate Token/i });
+
+  while (Date.now() < deadline) {
+    if (await approveBtn.isVisible().catch(() => false)) {
+      return;
     }
+
+    if (await reviewBtn.isVisible().catch(() => false)) {
+      await reviewBtn.click();
+      await page.waitForTimeout(250);
+      continue;
+    }
+
+    if (await installBtn.isVisible().catch(() => false)) {
+      await installBtn.click();
+      await page.waitForTimeout(250);
+      continue;
+    }
+
+    await page.waitForTimeout(250);
   }
 
-  // Wait for the primary CTA (Approve Permissions or Generate Token)
-  const primaryCta = page.getByRole('button', { name: /Approve Permissions|Generate Token/i });
-  await expect(primaryCta).toBeVisible({ timeout: 30000 });
+  throw new Error('Timed out waiting for primary CTA');
 }
 
 async function clickApproveAndAssertTokens(page: import('@playwright/test').Page) {
@@ -67,15 +76,36 @@ async function clickApproveAndAssertTokens(page: import('@playwright/test').Page
     )
     .catch(() => null);
 
-  const primaryCta = page.getByRole('button', { name: /Approve Permissions|Generate Token/i });
-  await expect(primaryCta).toBeVisible({ timeout: 30000 });
-  const initialLabel = (await primaryCta.innerText()).trim();
-  await primaryCta.click();
+  const deadline = Date.now() + 30_000;
+  const approveBtn = page.getByRole('button', { name: /Approve Permissions/i });
+  const reviewBtn = page.getByRole('button', { name: /Review Permissions/i });
+  const generateBtn = page.getByRole('button', { name: /Generate Token/i });
 
-  if (/Approve Permissions/i.test(initialLabel)) {
-    const finalCta = page.getByRole('button', { name: /Generate Token/i });
-    await expect(finalCta).toBeVisible({ timeout: 30000 });
-    await finalCta.click();
+  let clickedGenerate = false;
+  while (Date.now() < deadline) {
+    if (await generateBtn.isVisible().catch(() => false)) {
+      await generateBtn.click();
+      clickedGenerate = true;
+      break;
+    }
+
+    if (await approveBtn.isVisible().catch(() => false)) {
+      await approveBtn.click();
+      await page.waitForTimeout(250);
+      continue;
+    }
+
+    if (await reviewBtn.isVisible().catch(() => false)) {
+      await reviewBtn.click();
+      await page.waitForTimeout(250);
+      continue;
+    }
+
+    await page.waitForTimeout(250);
+  }
+
+  if (!clickedGenerate) {
+    throw new Error('Generate Token button did not appear after approvals');
   }
 
   // Wait until both tokens are present in the URL fragment
@@ -114,7 +144,7 @@ async function createContextIfPrompted(page: import('@playwright/test').Page) {
     for (let i = 0; i < count; i++) {
       const btn = protocolButtons.nth(i);
       const name = (await btn.innerText().catch(() => '')).trim();
-      if (!/Back|Create New Context|Install (Application|& Continue)|Approve Permissions|Generate Token|Cancel/i.test(name)) {
+      if (!/Back|Create New Context|Install (?:Application|& Continue)|Approve Permissions|Generate Token|Review Permissions|Cancel/i.test(name)) {
         await btn.click();
         break;
       }
@@ -219,15 +249,15 @@ test.describe('Auth frontend flows', () => {
 
     await loginIfNeeded(page);
 
-    // Wait for manifest card to render and expose the install CTA
-    const installButton = page.getByRole('button', { name: /Install & Continue/i });
-    await expect(installButton).toBeVisible({ timeout: 30_000 });
+    // Wait for manifest card to render and expose the install/review CTA
+    const manifestCta = page.getByRole('button', { name: /Install (?:&|and) Continue|Review Permissions/i });
+    await expect(manifestCta).toBeVisible({ timeout: 30_000 });
 
     // Verify manifest details are shown
     await expect(page.getByText('Real Test App')).toBeVisible();
     await expect(page.getByText('1.0.0')).toBeVisible();
     await expect(page.getByText('com.example.real.test')).toBeVisible();
-    await expect(installButton).toBeEnabled();
+    await expect(manifestCta).toBeEnabled();
     
     // The manifest flow is complete - we've verified it works
     // The installation can be tested manually by clicking the button
