@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { apiClient, getAppEndpointKey } from '@calimero-network/calimero-client';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ErrorView } from '../components/common/ErrorView';
 import { clearStoredUrlParams, getStoredUrlParam } from '../utils/urlParams';
+import { normalizePermissions } from '../utils/permissions';
 
 /**
  * AdminFlow - Handles admin token generation
@@ -16,12 +17,14 @@ import { clearStoredUrlParams, getStoredUrlParam } from '../utils/urlParams';
  */
 export const AdminFlow: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
+  const permissions = useMemo(() => {
+    const permissionsParam = getStoredUrlParam('permissions');
+    const rawPermissions = permissionsParam ? permissionsParam.split(',') : [];
+    return normalizePermissions('admin', rawPermissions);
+  }, []);
 
   const handlePermissionsApprove = async () => {
     try {
-      const permissionsParam = getStoredUrlParam('permissions');
-      const permissions = permissionsParam ? permissionsParam.split(',') : ['admin'];
-
       const response = await apiClient.auth().generateClientKey({
         context_id: '',
         context_identity: '',
@@ -61,14 +64,12 @@ export const AdminFlow: React.FC = () => {
     return <ErrorView message={error} onRetry={() => window.location.reload()} />;
   }
 
-  const permissionsParam = getStoredUrlParam('permissions');
-  const permissions = permissionsParam ? permissionsParam.split(',') : ['admin'];
-
   return (
     <PermissionsView
       permissions={permissions}
       selectedContext=""
       selectedIdentity=""
+      mode="admin"
       onComplete={handlePermissionsApprove}
       onBack={() => window.history.back()}
     />

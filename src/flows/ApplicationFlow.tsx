@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { apiClient, getAppEndpointKey } from '@calimero-network/calimero-client';
 import { ApplicationInstallCheck } from '../components/applications/ApplicationInstallCheck';
 import { PermissionsView } from '../components/permissions/PermissionsView';
@@ -6,6 +6,7 @@ import { ContextSelector } from '../components/context/ContextSelector';
 import { ErrorView } from '../components/common/ErrorView';
 import { AppMode } from '../types/flows';
 import { clearStoredUrlParams, getStoredUrlParam } from '../utils/urlParams';
+import { normalizePermissions } from '../utils/permissions';
 
 interface ApplicationFlowProps {
   mode: AppMode;
@@ -32,6 +33,12 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
   const [step, setStep] = useState<Step>('app-check');
   const [error, setError] = useState<string | null>(null);
 
+  const permissions = useMemo(() => {
+    const permissionsParam = getStoredUrlParam('permissions');
+    const rawPermissions = permissionsParam ? permissionsParam.split(',') : [];
+    return normalizePermissions(mode, rawPermissions);
+  }, [mode]);
+
   const handleAppCheckComplete = () => {
     setStep('permissions');
   };
@@ -49,9 +56,6 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
 
   const generateAndRedirect = async (contextId: string | null, identity: string | null) => {
     try {
-      const permissionsParam = getStoredUrlParam('permissions');
-      const permissions = permissionsParam ? permissionsParam.split(',') : [];
-
       const response = await apiClient.auth().generateClientKey({
         context_id: contextId || '',
         context_identity: identity || '',
@@ -102,9 +106,10 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
 
       {step === 'permissions' && (
         <PermissionsView
-          permissions={getStoredUrlParam('permissions')?.split(',') || []}
+          permissions={permissions}
           selectedContext=""
           selectedIdentity=""
+          mode={mode}
           onComplete={handlePermissionsApprove}
           onBack={() => setStep('app-check')}
         />

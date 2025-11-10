@@ -3,7 +3,6 @@ import { useContextSelection } from '../../hooks/useContextSelection';
 import { PROTOCOLS, PROTOCOL_DISPLAY, useContextCreation } from '../../hooks/useContextCreation';
 import { getStoredUrlParam } from '../../utils/urlParams';
 import { ErrorView } from '../common/ErrorView';
-import { PermissionsView } from '../permissions/PermissionsView';
 import {
   ContextSelectorWrapper,
 } from './styles';
@@ -54,10 +53,6 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
     handleInstallCancel,
   } = useContextCreation();
 
-  const permissions = useMemo(() => {
-    const permissionsParam = getStoredUrlParam('permissions');
-    return permissionsParam ? permissionsParam.split(',') : [];
-  }, []);
 
   useEffect(() => {
     fetchContexts();
@@ -92,6 +87,12 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
 
   const loading = selectionLoading || creationLoading;
   const error = selectionError || creationError;
+
+  useEffect(() => {
+    if (selectedContext && selectedIdentity) {
+      onComplete(selectedContext, selectedIdentity);
+    }
+  }, [selectedContext, selectedIdentity, onComplete]);
 
   if (loading) {
     return <Loader />;
@@ -451,16 +452,6 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
         )
       )}
 
-      {/* Permissions View */}
-      {selectedContext && selectedIdentity && (
-        <PermissionsView
-          permissions={permissions}
-          onComplete={(contextId, identity) => onComplete(contextId, identity)}
-          onBack={() => handleIdentitySelect(null, '')}
-          selectedContext={selectedContext}
-          selectedIdentity={selectedIdentity}
-        />
-      )}
     </ContextSelectorWrapper>
   );
 } 

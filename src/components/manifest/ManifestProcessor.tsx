@@ -33,11 +33,12 @@ interface Manifest {
 }
 
 interface ManifestProcessorProps {
-  onComplete: (contextId: string, identity: string) => void;
+  onComplete: (contextId?: string, identity?: string) => void;
   onBack: () => void;
   packageName?: string | null;
   packageVersion?: string | null;
   registryUrl?: string | null;
+  onManifestLoaded?: (manifest: Manifest) => void;
 }
 
 export function ManifestProcessor({ 
@@ -45,7 +46,8 @@ export function ManifestProcessor({
   onBack,
   packageName: propPackageName,
   packageVersion: propPackageVersion,
-  registryUrl: propRegistryUrl
+  registryUrl: propRegistryUrl,
+  onManifestLoaded
 }: ManifestProcessorProps) {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,7 +84,9 @@ export function ManifestProcessor({
           const manifestData = await client.getManifest(packageName, packageVersion || undefined);
           console.log('Fetched manifest:', manifestData);
           console.log('Registry client base URL:', client['baseUrl']);
-          setManifest(manifestData);
+          const normalized = normalizeManifest(manifestData);
+          setManifest(normalized);
+          onManifestLoaded?.(normalized);
         } else if (manifestUrl) {
           console.log('Fetching manifest from URL:', manifestUrl);
           const response = await fetch(manifestUrl);
@@ -90,7 +94,9 @@ export function ManifestProcessor({
             throw new Error(`Failed to fetch manifest: ${response.statusText}`);
           }
           const manifestData = await response.json();
-          setManifest(manifestData);
+          const normalized = normalizeManifest(manifestData);
+          setManifest(normalized);
+          onManifestLoaded?.(normalized);
         }
       } catch (err) {
         console.error('Failed to fetch manifest:', err);
@@ -113,11 +119,18 @@ export function ManifestProcessor({
         
         // Try to get latest version of this package
         const latestResponse = await apiClient.admin().getPackageLatest(manifest.id);
-        
-        if (!latestResponse.error && latestResponse.data?.application_id) {
-          console.log('Package already installed!', latestResponse.data.application_id);
+        console.log('checkExistingInstallation response:', latestResponse);
+
+        const existingId =
+          latestResponse.data?.application_id ??
+          (latestResponse.data as any)?.applicationId ??
+          (latestResponse.data as any)?.data?.applicationId ??
+          null;
+
+        if (!latestResponse.error && existingId) {
+          console.log('Package already installed!', existingId);
           setAlreadyInstalled(true);
-          setExistingAppId(latestResponse.data.application_id);
+          setExistingAppId(existingId);
         } else {
           console.log('Package not installed yet');
         }
@@ -428,7 +441,11 @@ export function ManifestProcessor({
                   borderColor: 'var(--color-border-brand)',
                 }}
               >
-                {installing ? 'Installing...' : alreadyInstalled ? 'Continue to App' : 'Install & Continue'}
+                {installing
+                  ? 'Installing...'
+                  : alreadyInstalled
+                    ? 'Review Permissions'
+                    : 'Install & Continue'}
               </Button>
             </Flex>
           </Stack>
@@ -436,4 +453,41 @@ export function ManifestProcessor({
       </Card>
     </div>
   );
+}
+
+function normalizeManifest(raw: any): Manifest {
+  if (raw?.artifact?.uri && raw?.artifact?.type) {
+    return raw as Manifest;
+  }
+
+  const artifact = raw?.artifacts?.[0] || {};
+  const digest = artifact.digest || artifact.cid || (artifact.sha256 ? `sha256:${artifact.sha256}` : '');
+  let uri = artifact.uri || artifact.mirrors?.[0] || artifact.path || '';
+
+  if (uri.startsWith('/')) {
+    // Assume same origin if registry returned relative path
+    try {
+      const registryUrl = getStoredUrlParam('registry-url');
+      if (registryUrl) {
+        uri = `${registryUrl.replace(/\/$/, '')}${uri}`;
+      }
+    } catch {
+      // fallback to returning as-is
+    }
+  }
+
+  return {
+    manifest_version: raw?.manifest_version || '1.0',
+    id: raw?.id || raw?.app?.app_id || 'unknown-app',
+    name: raw?.name || raw?.app?.name || 'Unknown Application',
+    version: raw?.version?.semver || raw?.version || '0.0.0',
+    chains: raw?.chains || raw?.supported_chains || [],
+    artifact: {
+      type: artifact.type || 'wasm',
+      target: artifact.target || 'node',
+      digest,
+      uri,
+    },
+    provides: raw?.provides,
+  };
 }

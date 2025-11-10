@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { getStoredUrlParam } from '../../utils/urlParams';
 import { tokens } from '@calimero-network/mero-tokens';
 import {
@@ -12,11 +12,14 @@ import {
   Stack,
   Text,
 } from '@calimero-network/mero-ui';
+import { normalizePermissions } from '../../utils/permissions';
+import { AppMode } from '../../types/flows';
 
 interface PermissionsViewProps {
   permissions: string[];
   selectedContext: string;
   selectedIdentity: string;
+  mode?: AppMode | string | null;
   onComplete: (context: string, identity: string) => void;
   onBack: () => void;
 }
@@ -72,13 +75,25 @@ export function PermissionsView({
   permissions,
   selectedContext,
   selectedIdentity,
+  mode: modeProp,
   onComplete,
   onBack
 }: PermissionsViewProps) {
   const [manifestData, setManifestData] = useState<any>(null);
   const [referrer, setReferrer] = useState<string>('');
   const manifestUrl = getStoredUrlParam('manifest-url');
-  const hasAdminPermission = permissions.includes('admin');
+  const storedMode = getStoredUrlParam('mode');
+  const normalizedMode = useMemo(() => {
+    const candidate = modeProp ?? storedMode ?? '';
+    return (typeof candidate === 'string' ? candidate.toLowerCase() : candidate) as AppMode;
+  }, [modeProp, storedMode]);
+  const normalizedPermissions = useMemo(
+    () => normalizePermissions(normalizedMode, permissions),
+    [normalizedMode, permissions],
+  );
+  const hasAdminPermission = normalizedPermissions.includes('admin');
+  const primaryLabel = normalizedMode === 'admin' ? 'Generate Token' : 'Approve Permissions';
+  const secondaryLabel = normalizedMode === 'admin' ? 'Cancel' : 'Deny';
   
   useEffect(() => {
     // Load manifest data if available
@@ -106,16 +121,21 @@ export function PermissionsView({
   console.log('PermissionsView props:', { selectedContext, selectedIdentity, manifestUrl, referrer });
   
   return (
-    <div style={{ 
-      position: 'fixed',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      maxWidth: 600,
-      width: '100%',
-      padding: '0 16px',
-    }}>
-      <Card variant="rounded" color="var(--color-border-brand)">
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '48px 16px 64px',
+        background: 'var(--color-background-primary)',
+      }}
+    >
+      <Card
+        variant="rounded"
+        color="var(--color-border-brand)"
+        style={{ width: '100%', maxWidth: 620 }}
+      >
         <CardHeader>
           <CardTitle>Review Permissions</CardTitle>
         </CardHeader>
@@ -156,7 +176,7 @@ export function PermissionsView({
       
             {/* Permission Cards */}
             <Stack spacing="sm">
-              {permissions.map((permission) => {
+              {normalizedPermissions.map((permission) => {
                 const info = PERMISSION_DETAILS[permission] || {
                   title: permission,
                   description: 'Permission access',
@@ -266,7 +286,7 @@ export function PermissionsView({
                 variant="secondary"
                 onClick={onBack}
               >
-                Deny
+                {secondaryLabel}
               </Button>
               
               <Button
@@ -277,7 +297,7 @@ export function PermissionsView({
                   borderColor: 'var(--color-border-brand)',
                 }}
               >
-                Approve Permissions
+                {primaryLabel}
               </Button>
             </Flex>
           </Stack>
