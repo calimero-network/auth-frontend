@@ -9,6 +9,70 @@ const PRIMARY_ACTION_SELECTOR = [
   'button:has-text("Generate Token")',
 ].join(', ');
 
+async function stubAuthEndpoints(page: import('@playwright/test').Page) {
+  await page.route('**/auth/providers', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          providers: [
+            {
+              name: 'user_password',
+              description: 'Username/Password',
+            },
+          ],
+        },
+      }),
+    });
+  });
+
+  await page.route('**/auth/request-token', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          access_token: 'mock-access-token-abcdefghijklmnopqrstuvwxyz1234567890',
+          refresh_token: 'mock-refresh-token-abcdefghijklmnopqrstuvwxyz1234567890',
+        },
+      }),
+    });
+  });
+
+  await page.route('**/auth/refresh', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          access_token: 'mock-refreshed-access-token-abcdefghijklmnopqrstuvwxyz1234567890',
+          refresh_token: 'mock-refreshed-refresh-token-abcdefghijklmnopqrstuvwxyz1234567890',
+        },
+      }),
+    });
+  });
+}
+
+test.beforeEach(async ({ page }) => {
+  await stubAuthEndpoints(page);
+});
+
 async function loginIfNeeded(page: import('@playwright/test').Page) {
   await page.waitForLoadState('domcontentloaded');
 
