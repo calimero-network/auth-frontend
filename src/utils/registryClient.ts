@@ -58,8 +58,7 @@ export class RegistryClient {
           return data.versions.map((v: any) => v.semver);
         }
       }
-      
-      return [];
+    
     return [];
   }
 
