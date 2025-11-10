@@ -31,7 +31,13 @@ export function useContextSelection() {
             }
             console.log('✅ getContexts data:', response.data);
             console.log('✅ Contexts array:', response.data?.contexts);
-            setContexts(response.data.contexts);
+            const contextsRaw = response.data?.contexts;
+            if (!Array.isArray(contextsRaw)) {
+                console.warn('⚠️ getContexts response missing contexts array, defaulting to empty list');
+                setContexts([]);
+            } else {
+                setContexts(contextsRaw as Context[]);
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to fetch contexts');
         } finally {
