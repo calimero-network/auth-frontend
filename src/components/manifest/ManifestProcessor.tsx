@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getStoredUrlParam } from '../../utils/urlParams';
 import Loader from '../common/Loader';
 import { ErrorView } from '../common/ErrorView';
-import { registryClient } from '../../utils/registryClient';
+import { registryClient, BundleManifest } from '../../utils/registryClient';
 import { apiClient, getAccessToken } from '@calimero-network/calimero-client';
 import {
   Button,
@@ -75,16 +75,45 @@ export function ManifestProcessor({
       try {
         // Prioritize package-name over old manifest-url in localStorage
         if (packageName) {
-          console.log(`Fetching manifest from registry for package: ${packageName}@${packageVersion || 'latest'}`);
+          if (!packageVersion) {
+            throw new Error('Package version is required when using package-name');
+          }
+          
+          console.log(`Fetching manifest from registry for package: ${packageName}@${packageVersion}`);
           
           const client = registryUrl ? 
             new (await import('../../utils/registryClient')).RegistryClient(registryUrl) : 
             registryClient;
           
-          const manifestData = await client.getManifest(packageName, packageVersion || undefined);
-          console.log('Fetched manifest:', manifestData);
+          const bundleInfo = await client.getBundleInfo(packageName, packageVersion);
+          if (!bundleInfo) {
+            throw new Error(`Bundle not found: ${packageName}@${packageVersion}`);
+          }
+          
+          console.log('Fetched bundle info:', bundleInfo);
           console.log('Registry client base URL:', client['baseUrl']);
-          const normalized = normalizeManifest(manifestData);
+          
+          // Convert BundleManifest to UI Manifest format
+          const artifactUri = client.getArtifactUrl(packageName, packageVersion);
+          const wasmHash = bundleInfo.wasm?.hash || null;
+          const digest = wasmHash ? (wasmHash.startsWith('sha256:') ? wasmHash : `sha256:${wasmHash}`) : '';
+          const provides = bundleInfo.interfaces?.exports || [];
+          
+          const normalized: Manifest = {
+            manifest_version: bundleInfo.version,
+            id: bundleInfo.package,
+            name: bundleInfo.metadata?.name || bundleInfo.package,
+            version: bundleInfo.appVersion,
+            chains: [],
+            artifact: {
+              type: 'mpk',
+              target: 'node',
+              digest,
+              uri: artifactUri,
+            },
+            provides: provides.length > 0 ? provides : undefined,
+          };
+          
           setManifest(normalized);
           onManifestLoaded?.(normalized);
         } else if (manifestUrl) {

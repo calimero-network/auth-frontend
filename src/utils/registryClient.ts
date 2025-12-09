@@ -1,29 +1,54 @@
 /**
- * Registry Client for fetching application manifests
- * Supports both local development registry and official registry
+ * Registry Client for fetching bundle information
+ * Uses V2 Bundle API
  */
 
-export interface RegistryManifest {
-  manifest_version: string;
-  id: string;              // Package name (e.g., "network.calimero.meropass")
-  name: string;            // Display name
-  version: string;         // Semver
-  chains: string[];
-  artifact: {
-    type: string;
-    target: string;
-    digest: string;        // "sha256:..."
-    uri: string;           // Download URL
-  };
-  provides?: string[];
-  requires?: string[];
-  dependencies?: Array<{ id: string; range: string }>;
+// V2 Bundle Manifest Types (matching Rust BundleManifest)
+export interface BundleArtifact {
+  path: string;
+  hash?: string | null;
+  size: number;
 }
 
-export interface RegistryVersionsResponse {
-  id: string;
-  versions: string[];
+export interface BundleMetadata {
+  name: string;
+  description?: string | null;
+  icon?: string | null;
+  tags?: string[];
+  license?: string | null;
 }
+
+export interface BundleInterfaces {
+  exports?: string[];
+  uses?: string[];
+}
+
+export interface BundleLinks {
+  frontend?: string | null;
+  github?: string | null;
+  docs?: string | null;
+}
+
+export interface BundleSignature {
+  alg: string;
+  sig: string;
+  pubkey: string;
+  signedAt: string;
+}
+
+export interface BundleManifest {
+  version: string;
+  package: string;
+  appVersion: string;
+  metadata?: BundleMetadata | null;
+  interfaces?: BundleInterfaces | null;
+  wasm?: BundleArtifact | null;
+  abi?: BundleArtifact | null;
+  migrations?: BundleArtifact[];
+  links?: BundleLinks | null;
+  signature?: BundleSignature | null;
+}
+
 
 export class RegistryClient {
   private baseUrl: string;
@@ -37,103 +62,59 @@ export class RegistryClient {
 
   /**
    * Get all available versions for a package
+   * TODO: Implement V2 endpoint for listing versions
+   * For now, this is a placeholder - version should be specified directly
    */
   async getPackageVersions(packageId: string): Promise<string[]> {
-    const response = await fetch(this.buildUrl(`/v1/apps/${packageId}`));
-
-    if (!response.ok) {
-      throw new Error(`Package '${packageId}' not found in registry`);
-    }
-
-    const data: RegistryVersionsResponse = await response.json();
-      
-      // Handle both formats:
-      // - Production Vercel: versions is string[] 
-      // - Local CLI: versions is Array<{semver: string, cid: string, yanked: boolean}>
-      if (data.versions && data.versions.length > 0) {
-        const firstVersion = data.versions[0];
-        if (typeof firstVersion === 'string') {
-          return data.versions as string[];
-        } else if (typeof firstVersion === 'object' && 'semver' in firstVersion) {
-          return data.versions.map((v: any) => v.semver);
-        }
-      }
-    
-    return [];
+    // V2 doesn't have a versions endpoint yet
+    // For now, require version to be specified
+    throw new Error(
+      `Package versions listing not yet implemented in V2 API. ` +
+      `Please specify a version when fetching manifests.`
+    );
   }
 
   /**
-   * Get manifest for a specific package version
-   * If version is not specified, fetches the latest version
+   * Get V2 Bundle Info
    */
-  async getManifest(packageId: string, version?: string): Promise<RegistryManifest> {
-    // If no version specified, get the latest
-    let actualVersion = version;
-    
-    if (!actualVersion) {
-      const versions = await this.getPackageVersions(packageId);
-      
-      if (versions.length === 0) {
-        throw new Error(`No versions found for package '${packageId}'`);
-      }
-      
-      // Versions are sorted newest first
-      actualVersion = versions[0];
+  async getBundleInfo(packageId: string, version: string): Promise<BundleManifest | null> {
+    if (!version) {
+      throw new Error(`Version is required for package '${packageId}'`);
     }
 
     const response = await fetch(
-      this.buildUrl(`/v1/apps/${packageId}/${actualVersion}`)
+      this.buildUrl(`/api/v2/bundles/${packageId}/${version}`)
     );
 
     if (!response.ok) {
-      throw new Error(`Manifest not found: ${packageId}@${actualVersion}`);
+      if (response.status === 404) {
+        return null;
+      }
+      throw new Error(`Failed to fetch bundle info: ${response.statusText}`);
     }
 
-    const rawManifest = await response.json();
-    return this.normalizeManifest(rawManifest);
-  }
-
-  private normalizeManifest(raw: any): RegistryManifest {
-    if (raw?.artifact?.uri) {
-      return raw as RegistryManifest;
-    }
-
-    const legacyArtifact = raw?.artifacts?.[0] || {};
-
-    let uri = legacyArtifact.uri || legacyArtifact.mirrors?.[0] || legacyArtifact.path || '';
-    if (uri.startsWith('/')) {
-      uri = `${this.baseUrl}${uri}`;
-    }
-
-    const digest = legacyArtifact.digest || legacyArtifact.cid || (legacyArtifact.sha256 ? `sha256:${legacyArtifact.sha256}` : '');
-
-    return {
-      manifest_version: raw?.manifest_version || '1.0',
-      id: raw?.id || raw?.app?.app_id || raw?.app?.id || 'unknown-app',
-      name: raw?.name || raw?.app?.name || 'Unknown Application',
-      version: raw?.version?.semver || raw?.version || '0.0.0',
-      chains: raw?.chains || raw?.supported_chains || [],
-      artifact: {
-        type: legacyArtifact.type || 'wasm',
-        target: legacyArtifact.target || 'node',
-        digest,
-        uri,
-      },
-      provides: raw?.provides || undefined,
-      requires: raw?.requires || undefined,
-      dependencies: raw?.dependencies || undefined,
-    };
+    return await response.json() as BundleManifest;
   }
 
   /**
-   * Construct manifest URL for a package
-   * Useful for passing to auth service
+   * Get artifact URL for a bundle
    */
-  getManifestUrl(packageId: string, version?: string): string {
-    if (version) {
-      return this.buildUrl(`/v1/apps/${packageId}/${version}`);
+  getArtifactUrl(packageId: string, version: string): string {
+    // Convention: /artifacts/:package/:version/:package-:version.mpk
+    const bundleFilename = `${packageId}-${version}.mpk`;
+    return this.buildUrl(`/artifacts/${packageId}/${version}/${bundleFilename}`);
+  }
+
+  /**
+   * Construct bundle info URL for a package
+   * Uses V2 Bundle API
+   * Version is required
+   */
+  getBundleInfoUrl(packageId: string, version: string): string {
+    if (!version) {
+      throw new Error('Version is required');
     }
-    return this.buildUrl(`/v1/apps/${packageId}`);
+    return this.buildUrl(`/api/v2/bundles/${packageId}/${version}`);
   }
 
   private buildUrl(path: string): string {
