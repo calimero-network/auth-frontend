@@ -98,21 +98,40 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
           const manifestData = await response.json();
           
           // Normalize legacy manifest formats (artifacts[] array -> artifact object)
-          let normalizedManifest = manifestData;
-          if (manifestData.artifacts && Array.isArray(manifestData.artifacts) && manifestData.artifacts.length > 0) {
-            // Legacy format: artifacts[] array - convert to artifact object
-            const firstArtifact = manifestData.artifacts[0];
-            normalizedManifest = {
-              ...manifestData,
-              artifact: {
+          let normalizedManifest = { ...manifestData };
+          
+          // Ensure artifact object exists (create from artifacts[] array or use defaults)
+          if (!normalizedManifest.artifact) {
+            if (manifestData.artifacts && Array.isArray(manifestData.artifacts) && manifestData.artifacts.length > 0) {
+              // Legacy format: artifacts[] array - convert to artifact object
+              const firstArtifact = manifestData.artifacts[0];
+              normalizedManifest.artifact = {
                 type: firstArtifact.type || 'wasm',
                 target: firstArtifact.target || 'node',
                 digest: firstArtifact.digest || firstArtifact.sha256 || '',
                 uri: firstArtifact.uri || firstArtifact.mirrors?.[0] || ''
-              }
-            };
-            // Remove artifacts array to avoid confusion
-            delete normalizedManifest.artifacts;
+              };
+              // Remove artifacts array to avoid confusion
+              delete normalizedManifest.artifacts;
+            } else {
+              // Fallback: create default artifact object to prevent crashes
+              normalizedManifest.artifact = {
+                type: 'wasm',
+                target: 'node',
+                digest: '',
+                uri: ''
+              };
+            }
+          }
+          
+          // Convert relative URIs to absolute using manifestUrl base
+          if (normalizedManifest.artifact.uri && normalizedManifest.artifact.uri.startsWith('/')) {
+            try {
+              const manifestBaseUrl = new URL(manifestUrl);
+              normalizedManifest.artifact.uri = new URL(normalizedManifest.artifact.uri, manifestBaseUrl.origin).toString();
+            } catch (e) {
+              console.warn('Failed to convert relative URI to absolute:', e);
+            }
           }
           
           setManifest(normalizedManifest);

@@ -100,9 +100,16 @@ export class RegistryClient {
       
       // Sort versions (newest first) using semver-like comparison
       versions.sort((a, b) => {
-        // Simple version comparison - for proper semver, use a library
-        const aParts = a.split('.').map(Number);
-        const bParts = b.split('.').map(Number);
+        // Parse version parts, handling pre-release versions (e.g., "1.0.0-beta.1")
+        const parseVersionPart = (part: string): number => {
+          // Extract numeric prefix (e.g., "0-beta" -> 0)
+          const numericMatch = part.match(/^(\d+)/);
+          return numericMatch ? parseInt(numericMatch[1], 10) : 0;
+        };
+        
+        const aParts = a.split('.').map(parseVersionPart);
+        const bParts = b.split('.').map(parseVersionPart);
+        
         for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
           const aPart = aParts[i] || 0;
           const bPart = bParts[i] || 0;
