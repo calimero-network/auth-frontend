@@ -19,3 +19,4 @@ USER 10001
 # The base image entrypoint serves /auth from embedded frontend
 
 
+

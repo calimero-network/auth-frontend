@@ -61,7 +61,9 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
   const handleManifestComplete = (contextId?: string, identity?: string) => {
     // ManifestProcessor might complete with contextId if it handled context selection
     // For now, just proceed to permissions
-    const appId = sessionStorage.getItem('installed-application-id');
+    // Check both localStorage and sessionStorage for application ID
+    const appId = localStorage.getItem('installed-application-id') || 
+                  sessionStorage.getItem('installed-application-id');
     if (appId) {
       setInstalledAppId(appId);
       setStep('permissions');
@@ -144,10 +146,6 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
         <ManifestProcessor
           onComplete={handleManifestComplete}
           onBack={() => window.history.back()}
-          packageName={packageName}
-          packageVersion={packageVersion}
-          registryUrl={registryUrl}
-          onManifestLoaded={setManifestInfo}
         />
       )}
 
