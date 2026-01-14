@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getStoredUrlParam } from '../../utils/urlParams';
 import {
   Button,
@@ -48,6 +48,7 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
   const [installStatus, setInstallStatus] = useState('');
   const [alreadyInstalled, setAlreadyInstalled] = useState(false);
   const [existingAppId, setExistingAppId] = useState<string | null>(null);
+  const completionInProgressRef = React.useRef(false);
 
   const manifestUrl = getStoredUrlParam('manifest-url');
   const packageName = getStoredUrlParam('package-name');
@@ -81,6 +82,13 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
           console.log('Fetched manifest:', manifestData);
           console.log('Registry client base URL:', client['baseUrl']);
           setManifest(manifestData);
+          
+          // Store manifest info for SummaryView
+          localStorage.setItem('manifest-info', JSON.stringify({
+            id: manifestData.id,
+            name: manifestData.name,
+            version: manifestData.version
+          }));
         } else if (manifestUrl) {
           console.log('Fetching manifest from URL:', manifestUrl);
           const response = await fetch(manifestUrl);
@@ -88,7 +96,33 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
             throw new Error(`Failed to fetch manifest: ${response.statusText}`);
           }
           const manifestData = await response.json();
-          setManifest(manifestData);
+          
+          // Normalize legacy manifest formats (artifacts[] array -> artifact object)
+          let normalizedManifest = manifestData;
+          if (manifestData.artifacts && Array.isArray(manifestData.artifacts) && manifestData.artifacts.length > 0) {
+            // Legacy format: artifacts[] array - convert to artifact object
+            const firstArtifact = manifestData.artifacts[0];
+            normalizedManifest = {
+              ...manifestData,
+              artifact: {
+                type: firstArtifact.type || 'wasm',
+                target: firstArtifact.target || 'node',
+                digest: firstArtifact.digest || firstArtifact.sha256 || '',
+                uri: firstArtifact.uri || firstArtifact.mirrors?.[0] || ''
+              }
+            };
+            // Remove artifacts array to avoid confusion
+            delete normalizedManifest.artifacts;
+          }
+          
+          setManifest(normalizedManifest);
+          
+          // Store manifest info for SummaryView
+          localStorage.setItem('manifest-info', JSON.stringify({
+            id: normalizedManifest.id,
+            name: normalizedManifest.name,
+            version: normalizedManifest.version
+          }));
         }
       } catch (err) {
         console.error('Failed to fetch manifest:', err);
@@ -214,6 +248,13 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
       setInstalling(false); // Stop showing installation progress
       setInstallStatus('Application installed successfully!');
       
+      // Prevent double completion
+      if (completionInProgressRef.current) {
+        console.warn('Completion already in progress, skipping duplicate call');
+        return;
+      }
+      completionInProgressRef.current = true;
+      
       // Get contexts
       const contextsResponse = await apiClient.admin().getContextsForApplication(applicationId);
       
@@ -228,6 +269,7 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
       // Wait a moment for UI to update with application ID before completing
       setTimeout(() => {
         onComplete(contextId, '');
+        completionInProgressRef.current = false;
       }, 500);
       
     } catch (err) {
@@ -240,6 +282,13 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
   const handleContinueWithExisting = () => {
     if (!existingAppId) return;
     
+    // Prevent double completion
+    if (completionInProgressRef.current) {
+      console.warn('Completion already in progress, skipping duplicate call');
+      return;
+    }
+    completionInProgressRef.current = true;
+    
     console.log('Continuing with existing app:', existingAppId);
     
     // Store applicationId for permission scoping in JWT generation
@@ -247,6 +296,7 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
     
     // Just complete the flow - app is already installed
     onComplete('', '');
+    completionInProgressRef.current = false;
   };
 
   if (loading) {

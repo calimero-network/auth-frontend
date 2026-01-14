@@ -66,6 +66,17 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
                   sessionStorage.getItem('installed-application-id');
     if (appId) {
       setInstalledAppId(appId);
+      
+      // Load manifest info from localStorage for SummaryView
+      const manifestInfoStr = localStorage.getItem('manifest-info');
+      if (manifestInfoStr) {
+        try {
+          setManifestInfo(JSON.parse(manifestInfoStr));
+        } catch (e) {
+          console.warn('Failed to parse manifest info:', e);
+        }
+      }
+      
       setStep('permissions');
     } else {
       setError('Application installation failed - no application ID');
@@ -124,7 +135,10 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
           fragmentParams.set('application_id', installedAppId);
         }
 
+        // Clean up storage (both localStorage and sessionStorage)
         sessionStorage.removeItem('installed-application-id');
+        localStorage.removeItem('installed-application-id');
+        localStorage.removeItem('manifest-info');
         clearStoredUrlParams();
         window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;
       } else {

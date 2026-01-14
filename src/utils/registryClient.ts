@@ -89,6 +89,12 @@ export class RegistryClient {
       
       const bundles: BundleManifest[] = await response.json();
       
+      // Validate response is an array
+      if (!Array.isArray(bundles)) {
+        console.warn('getPackageVersions: API returned non-array response:', bundles);
+        return [];
+      }
+      
       // Extract versions from bundles
       const versions = bundles.map(bundle => bundle.appVersion);
       
