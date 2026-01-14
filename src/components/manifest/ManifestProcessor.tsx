@@ -49,6 +49,17 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
   const [alreadyInstalled, setAlreadyInstalled] = useState(false);
   const [existingAppId, setExistingAppId] = useState<string | null>(null);
   const completionInProgressRef = React.useRef(false);
+  const completionTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (completionTimeoutRef.current) {
+        clearTimeout(completionTimeoutRef.current);
+        completionTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const manifestUrl = getStoredUrlParam('manifest-url');
   const packageName = getStoredUrlParam('package-name');
@@ -285,10 +296,19 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
       const contextId = contexts[0]?.id || '';
       console.log('Completing with context:', contextId || '(application-level)');
       
+      // Clear any existing timeout
+      if (completionTimeoutRef.current) {
+        clearTimeout(completionTimeoutRef.current);
+      }
+      
       // Wait a moment for UI to update with application ID before completing
-      setTimeout(() => {
-        onComplete(contextId, '');
-        completionInProgressRef.current = false;
+      completionTimeoutRef.current = setTimeout(() => {
+        // Check if completion is still in progress and component is still mounted
+        if (completionInProgressRef.current) {
+          onComplete(contextId, '');
+          completionInProgressRef.current = false;
+        }
+        completionTimeoutRef.current = null;
       }, 500);
       
     } catch (err) {
