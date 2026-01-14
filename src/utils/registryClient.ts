@@ -95,29 +95,63 @@ export class RegistryClient {
         return [];
       }
       
-      // Extract versions from bundles
-      const versions = bundles.map(bundle => bundle.appVersion);
+      // Extract versions from bundles, filtering out undefined/null values
+      const versions = bundles
+        .map(bundle => bundle.appVersion)
+        .filter((version): version is string => typeof version === 'string' && version.length > 0);
       
-      // Sort versions (newest first) using semver-like comparison
+      // Sort versions (newest first) using proper semver comparison
       versions.sort((a, b) => {
-        // Parse version parts, handling pre-release versions (e.g., "1.0.0-beta.1")
-        const parseVersionPart = (part: string): number => {
-          // Extract numeric prefix (e.g., "0-beta" -> 0)
-          const numericMatch = part.match(/^(\d+)/);
-          return numericMatch ? parseInt(numericMatch[1], 10) : 0;
+        // Parse semver: major.minor.patch[-prerelease][+build]
+        const parseSemver = (version: string) => {
+          // Remove build metadata (everything after +)
+          const withoutBuild = version.split('+')[0];
+          
+          // Split into base version and prerelease
+          const parts = withoutBuild.split('-');
+          const baseVersion = parts[0];
+          const prerelease = parts.slice(1).join('-') || null;
+          
+          // Parse major.minor.patch
+          const [major = 0, minor = 0, patch = 0] = baseVersion
+            .split('.')
+            .map(part => {
+              const num = parseInt(part, 10);
+              return isNaN(num) ? 0 : num;
+            });
+          
+          return { major, minor, patch, prerelease };
         };
         
-        const aParts = a.split('.').map(parseVersionPart);
-        const bParts = b.split('.').map(parseVersionPart);
+        const aVer = parseSemver(a);
+        const bVer = parseSemver(b);
         
-        for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
-          const aPart = aParts[i] || 0;
-          const bPart = bParts[i] || 0;
-          if (aPart !== bPart) {
-            return bPart - aPart; // Descending order
-          }
+        // Compare major.minor.patch first
+        if (aVer.major !== bVer.major) {
+          return bVer.major - aVer.major; // Descending order
         }
-        return 0;
+        if (aVer.minor !== bVer.minor) {
+          return bVer.minor - aVer.minor;
+        }
+        if (aVer.patch !== bVer.patch) {
+          return bVer.patch - aVer.patch;
+        }
+        
+        // If base versions are equal, compare prerelease
+        // Release version (no prerelease) > prerelease version
+        if (!aVer.prerelease && !bVer.prerelease) {
+          return 0; // Both are release versions
+        }
+        if (!aVer.prerelease) {
+          return -1; // a is release, b is prerelease -> a comes first
+        }
+        if (!bVer.prerelease) {
+          return 1; // b is release, a is prerelease -> b comes first
+        }
+        
+        // Both have prerelease: compare lexicographically
+        // This handles cases like: alpha < beta < rc < (empty)
+        return bVer.prerelease.localeCompare(aVer.prerelease);
       });
       
       return versions;
