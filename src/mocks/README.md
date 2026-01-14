@@ -81,3 +81,4 @@ To add a new scenario:
 - Password: `admin`
 - Any NEAR wallet auth will succeed automatically
 
+

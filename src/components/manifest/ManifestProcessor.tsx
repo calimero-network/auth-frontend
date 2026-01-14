@@ -1,21 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getStoredUrlParam } from '../../utils/urlParams';
-import Loader from '../common/Loader';
-import { ErrorView } from '../common/ErrorView';
-import { registryClient } from '../../utils/registryClient';
-import { apiClient, getAccessToken } from '@calimero-network/calimero-client';
 import {
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  Divider,
-  Flex,
-  Stack,
-  Text,
+  EmptyState,
 } from '@calimero-network/mero-ui';
-import { tokens } from '@calimero-network/mero-tokens';
+import Loader from '../common/Loader';
+import { ErrorView } from '../common/ErrorView';
+import { RegistryClient, registryClient } from '../../utils/registryClient';
+import { apiClient, getAccessToken, setAppEndpointKey } from '@calimero-network/calimero-client';
 
 interface Manifest {
   manifest_version: string;
@@ -30,25 +22,25 @@ interface Manifest {
     uri: string;
   };
   provides?: string[];
+  // Bundle metadata preserved from registry
+  _bundleMetadata?: {
+    name?: string;
+    description?: string;
+    author?: string;
+  };
+  _bundleLinks?: {
+    frontend?: string;
+    github?: string;
+    docs?: string;
+  };
 }
 
 interface ManifestProcessorProps {
   onComplete: (contextId?: string, identity?: string) => void;
   onBack: () => void;
-  packageName?: string | null;
-  packageVersion?: string | null;
-  registryUrl?: string | null;
-  onManifestLoaded?: (manifest: Manifest) => void;
 }
 
-export function ManifestProcessor({ 
-  onComplete, 
-  onBack,
-  packageName: propPackageName,
-  packageVersion: propPackageVersion,
-  registryUrl: propRegistryUrl,
-  onManifestLoaded
-}: ManifestProcessorProps) {
+export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps) {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,12 +48,28 @@ export function ManifestProcessor({
   const [installStatus, setInstallStatus] = useState('');
   const [alreadyInstalled, setAlreadyInstalled] = useState(false);
   const [existingAppId, setExistingAppId] = useState<string | null>(null);
+  const completionInProgressRef = React.useRef(false);
+  const completionTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (completionTimeoutRef.current) {
+        clearTimeout(completionTimeoutRef.current);
+        completionTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
-  // Use props (from state) if provided, otherwise fall back to URL params
   const manifestUrl = getStoredUrlParam('manifest-url');
-  const packageName = propPackageName || getStoredUrlParam('package-name');
-  const packageVersion = propPackageVersion || getStoredUrlParam('package-version');
-  const registryUrl = propRegistryUrl || getStoredUrlParam('registry-url');
+  const packageName = getStoredUrlParam('package-name');
+
+  // Auth frontend runs on the node's domain, so use window.location.origin for admin API calls
+  useEffect(() => {
+    setAppEndpointKey(window.location.origin);
+  }, []);
+  const packageVersion = getStoredUrlParam('package-version');
+  const registryUrl = getStoredUrlParam('registry-url');
 
   // Fetch manifest
   useEffect(() => {
@@ -78,15 +86,20 @@ export function ManifestProcessor({
           console.log(`Fetching manifest from registry for package: ${packageName}@${packageVersion || 'latest'}`);
           
           const client = registryUrl ? 
-            new (await import('../../utils/registryClient')).RegistryClient(registryUrl) : 
+            new RegistryClient(registryUrl) : 
             registryClient;
           
           const manifestData = await client.getManifest(packageName, packageVersion || undefined);
           console.log('Fetched manifest:', manifestData);
           console.log('Registry client base URL:', client['baseUrl']);
-          const normalized = normalizeManifest(manifestData);
-          setManifest(normalized);
-          onManifestLoaded?.(normalized);
+          setManifest(manifestData);
+          
+          // Store manifest info for SummaryView
+          localStorage.setItem('manifest-info', JSON.stringify({
+            id: manifestData.id,
+            name: manifestData.name,
+            version: manifestData.version
+          }));
         } else if (manifestUrl) {
           console.log('Fetching manifest from URL:', manifestUrl);
           const response = await fetch(manifestUrl);
@@ -94,9 +107,52 @@ export function ManifestProcessor({
             throw new Error(`Failed to fetch manifest: ${response.statusText}`);
           }
           const manifestData = await response.json();
-          const normalized = normalizeManifest(manifestData);
-          setManifest(normalized);
-          onManifestLoaded?.(normalized);
+          
+          // Normalize legacy manifest formats (artifacts[] array -> artifact object)
+          let normalizedManifest = { ...manifestData };
+          
+          // Ensure artifact object exists (create from artifacts[] array or use defaults)
+          if (!normalizedManifest.artifact) {
+            if (manifestData.artifacts && Array.isArray(manifestData.artifacts) && manifestData.artifacts.length > 0) {
+              // Legacy format: artifacts[] array - convert to artifact object
+              const firstArtifact = manifestData.artifacts[0];
+              normalizedManifest.artifact = {
+                type: firstArtifact.type || 'wasm',
+                target: firstArtifact.target || 'node',
+                digest: firstArtifact.digest || firstArtifact.sha256 || '',
+                uri: firstArtifact.uri || firstArtifact.mirrors?.[0] || ''
+              };
+              // Remove artifacts array to avoid confusion
+              delete normalizedManifest.artifacts;
+            } else {
+              // Fallback: create default artifact object to prevent crashes
+              normalizedManifest.artifact = {
+                type: 'wasm',
+                target: 'node',
+                digest: '',
+                uri: ''
+              };
+            }
+          }
+          
+          // Convert relative URIs to absolute using manifestUrl base
+          if (normalizedManifest.artifact.uri && normalizedManifest.artifact.uri.startsWith('/')) {
+            try {
+              const manifestBaseUrl = new URL(manifestUrl);
+              normalizedManifest.artifact.uri = new URL(normalizedManifest.artifact.uri, manifestBaseUrl.origin).toString();
+            } catch (e) {
+              console.warn('Failed to convert relative URI to absolute:', e);
+            }
+          }
+          
+          setManifest(normalizedManifest);
+          
+          // Store manifest info for SummaryView
+          localStorage.setItem('manifest-info', JSON.stringify({
+            id: normalizedManifest.id,
+            name: normalizedManifest.name,
+            version: normalizedManifest.version
+          }));
         }
       } catch (err) {
         console.error('Failed to fetch manifest:', err);
@@ -119,20 +175,22 @@ export function ManifestProcessor({
         
         // Try to get latest version of this package
         const latestResponse = await apiClient.admin().getPackageLatest(manifest.id);
-        console.log('checkExistingInstallation response:', latestResponse);
-
-        const existingId =
-          latestResponse.data?.application_id ??
-          (latestResponse.data as any)?.applicationId ??
-          (latestResponse.data as any)?.data?.applicationId ??
-          null;
-
-        if (!latestResponse.error && existingId) {
-          console.log('Package already installed!', existingId);
+        
+        console.log('getPackageLatest response:', latestResponse);
+        console.log('Response data:', latestResponse.data);
+        console.log('Response error:', latestResponse.error);
+        
+        // Backend returns { applicationId: "..." } directly (no data wrapper)
+        // HTTP client should unwrap it, so latestResponse.data should be { applicationId: string | null }
+        const responseData = latestResponse.data as { applicationId: string | null } | undefined;
+        const applicationId = responseData?.applicationId || null;
+        
+        if (!latestResponse.error && applicationId) {
+          console.log('Package already installed!', applicationId);
           setAlreadyInstalled(true);
-          setExistingAppId(existingId);
+          setExistingAppId(applicationId);
         } else {
-          console.log('Package not installed yet');
+          console.log('Package not installed yet', latestResponse.error ? `Error: ${latestResponse.error.message}` : `No applicationId in response. Data: ${JSON.stringify(latestResponse.data)}`);
         }
       } catch (err) {
         console.warn('Could not check existing installation:', err);
@@ -154,11 +212,48 @@ export function ManifestProcessor({
       // Install the package
       setInstallStatus(`Installing ${manifest.id}@${manifest.version}...`);
       
+      // Extract metadata from manifest for installation
+      // The bundle manifest from registry contains rich metadata (name, description, author, links)
+      // We serialize it as JSON bytes (Vec<u8> format expected by backend)
+      const metadataObj: Record<string, any> = {
+        name: manifest._bundleMetadata?.name || manifest.name,
+        version: manifest.version,
+        package: manifest.id,
+      };
+      
+      // Add description from bundle metadata if available
+      if (manifest._bundleMetadata?.description) {
+        metadataObj.description = manifest._bundleMetadata.description;
+      }
+      
+      // Add author if available
+      if (manifest._bundleMetadata?.author) {
+        metadataObj.author = manifest._bundleMetadata.author;
+      }
+      
+      // Add links if available
+      if (manifest._bundleLinks) {
+        metadataObj.links = manifest._bundleLinks;
+      }
+      
+      // Add description from provides as fallback
+      if (!metadataObj.description && manifest.provides && manifest.provides.length > 0) {
+        metadataObj.description = manifest.provides.join(', ');
+      }
+      
+      // Add chains if available
+      if (manifest.chains && manifest.chains.length > 0) {
+        metadataObj.chains = manifest.chains;
+      }
+      
+      const metadataJson = JSON.stringify(metadataObj);
+      const metadataBytes = Array.from(new TextEncoder().encode(metadataJson));
+      
       const installResponse = await apiClient.admin().installApplication({
         url: manifest.artifact.uri,
         package: manifest.id,
         version: manifest.version,
-        metadata: []
+        metadata: metadataBytes
       });
       
       if (installResponse.error) {
@@ -173,23 +268,48 @@ export function ManifestProcessor({
       }
       
       console.log('Installation successful! App ID:', applicationId);
-      setInstallStatus('Application installed successfully!');
       
       // Store applicationId for permission scoping in JWT generation
-      sessionStorage.setItem('installed-application-id', applicationId);
+      localStorage.setItem('installed-application-id', applicationId);
+      
+      // Set the application ID so it displays in the UI BEFORE completing
+      setExistingAppId(applicationId);
+      setAlreadyInstalled(true);
+      setInstalling(false); // Stop showing installation progress
+      setInstallStatus('Application installed successfully!');
+      
+      // Prevent double completion
+      if (completionInProgressRef.current) {
+        console.warn('Completion already in progress, skipping duplicate call');
+        return;
+      }
+      completionInProgressRef.current = true;
       
       // Get contexts
-      setInstallStatus('Fetching contexts...');
       const contextsResponse = await apiClient.admin().getContextsForApplication(applicationId);
       
       const contexts = (contextsResponse.data as any)?.contexts || [];
       console.log('Application contexts:', contexts);
       
       // Complete with first context or empty for application-level token
+      // Add small delay to ensure UI updates before navigation
       const contextId = contexts[0]?.id || '';
       console.log('Completing with context:', contextId || '(application-level)');
       
-      onComplete(contextId, '');
+      // Clear any existing timeout
+      if (completionTimeoutRef.current) {
+        clearTimeout(completionTimeoutRef.current);
+      }
+      
+      // Wait a moment for UI to update with application ID before completing
+      completionTimeoutRef.current = setTimeout(() => {
+        // Check if completion is still in progress and component is still mounted
+        if (completionInProgressRef.current) {
+          onComplete(contextId, '');
+          completionInProgressRef.current = false;
+        }
+        completionTimeoutRef.current = null;
+      }, 500);
       
     } catch (err) {
       console.error('Installation failed:', err);
@@ -201,13 +321,21 @@ export function ManifestProcessor({
   const handleContinueWithExisting = () => {
     if (!existingAppId) return;
     
+    // Prevent double completion
+    if (completionInProgressRef.current) {
+      console.warn('Completion already in progress, skipping duplicate call');
+      return;
+    }
+    completionInProgressRef.current = true;
+    
     console.log('Continuing with existing app:', existingAppId);
     
     // Store applicationId for permission scoping in JWT generation
-    sessionStorage.setItem('installed-application-id', existingAppId);
+    localStorage.setItem('installed-application-id', existingAppId);
     
     // Just complete the flow - app is already installed
     onComplete('', '');
+    completionInProgressRef.current = false;
   };
 
   if (loading) {
@@ -230,264 +358,207 @@ export function ManifestProcessor({
 
   if (!manifest) {
     return (
-      <Card variant="rounded" color="var(--color-border-brand)" style={{ maxWidth: 600, margin: '0 auto' }}>
-        <CardHeader>
-          <CardTitle>No Manifest Found</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Stack spacing="md" align="center">
-            <Text color="muted">Unable to load manifest information.</Text>
-            <Button variant="secondary" onClick={onBack}>
-              Back
-            </Button>
-          </Stack>
-        </CardContent>
-      </Card>
+      <EmptyState
+        title="No Manifest Found"
+        description="Unable to load manifest information."
+        action={
+          <Button onClick={onBack}>Back</Button>
+        }
+      />
     );
   }
 
   return (
     <div style={{ 
-      position: 'fixed',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      maxWidth: 600,
-      width: '100%',
-      padding: '0 16px',
+      maxWidth: '600px', 
+      margin: '0 auto', 
+      padding: '32px 24px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     }}>
-      <Card variant="rounded" color="var(--color-border-brand)">
-        <CardContent>
-          <Stack spacing="lg">
-            {/* Development Registry Warning */}
-            {propRegistryUrl && propRegistryUrl !== 'https://apps.calimero.network/api' && (
+      {/* App Header Card */}
+      <div style={{
+        backgroundColor: '#ffffff',
+        border: '2px solid #e2e8f0',
+        borderRadius: '12px',
+        padding: '24px',
+        marginBottom: '24px',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'start', gap: '16px' }}>
+          {/* App Icon */}
+          <div style={{
+            width: '64px',
+            height: '64px',
+            backgroundColor: '#f1f5f9',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '32px',
+            flexShrink: 0
+          }}>
+            📦
+          </div>
+          
+          {/* App Info */}
+          <div style={{ flex: 1 }}>
+            <h2 style={{ 
+              fontSize: '20px', 
+              fontWeight: '700', 
+              color: '#1e293b',
+              marginBottom: '4px'
+            }}>
+              {manifest.name}
+            </h2>
+            <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}>
+              v{manifest.version}
+            </div>
+            
+            {/* Already Installed Badge */}
+            {alreadyInstalled && (
               <div style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '12px',
-                padding: '12px 14px',
-                borderRadius: 'var(--radius-md)',
-                border: `1px solid ${tokens.color.semantic.warning.value}`,
-                background: `${tokens.color.semantic.warning.value}14`,
-                color: 'var(--color-text-primary)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: '#d1fae5',
+                color: '#065f46',
+                fontSize: '12px',
+                fontWeight: '600',
+                padding: '4px 12px',
+                borderRadius: '12px',
+                marginTop: '8px'
               }}>
-                <span style={{ fontSize: '20px', flexShrink: 0 }}>⚠️</span>
-                <Stack spacing="xs">
-                  <Text weight="semibold" size="sm" style={{ color: tokens.color.semantic.warning.value }}>
-                    Development Registry
-                  </Text>
-                  <Text size="xs">
-                    This application is being installed from a development registry:{' '}
-                    <code style={{
-                      backgroundColor: tokens.color.background.tertiary.value,
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      fontSize: '11px',
-                      color: tokens.color.semantic.warning.value,
-                      wordBreak: 'break-all'
-                    }}>
-                      {propRegistryUrl}
-                    </code>
-                  </Text>
-                  <Text size="xs" color="muted">
-                    This is NOT the official Calimero registry. Only proceed if you trust this source.
-                  </Text>
-                </Stack>
+                <span>✓</span>
+                Already Installed
               </div>
             )}
-
-            {/* App Header */}
-            <Flex align="flex-start" gap="md" data-testid="manifest-info">
-              {/* App Icon */}
-              <div style={{
-                width: '64px',
-                height: '64px',
-                backgroundColor: tokens.color.background.tertiary.value,
-                borderRadius: tokens.radius.lg.value,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '32px',
-                flexShrink: 0
-              }}>
-                📦
-              </div>
-              
-              {/* App Info */}
-              <Stack spacing="xs" style={{ flex: 1 }}>
-                <Text size="lg" weight="bold">
-                  {manifest.name}
-                </Text>
-                <Text size="sm" color="muted">
-                  v{manifest.version}
-                </Text>
-                
-                {/* Already Installed Badge */}
-                {alreadyInstalled && (
-                  <div style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    backgroundColor: tokens.color.semantic.success.value + '20',
-                    color: tokens.color.semantic.success.value,
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    padding: '4px 10px',
-                    borderRadius: tokens.radius.sm.value,
-                    width: 'fit-content'
-                  }}>
-                    <span>✓</span>
-                    Already Installed
-                  </div>
-                )}
-              </Stack>
-            </Flex>
-
-            <Divider color="muted" />
-            
-            {/* Installation Details */}
-            <Stack spacing="sm">
-              <Text size="sm" weight="semibold">Package Details</Text>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <Flex justify="space-between">
-                  <Text size="xs" color="secondary">Package ID:</Text>
-                  <Text size="xs" style={{ fontFamily: 'monospace' }}>
-                    {manifest.id}
-                  </Text>
-                </Flex>
-                <Flex justify="space-between">
-                  <Text size="xs" color="secondary">Type:</Text>
-                  <Text size="xs">{manifest.artifact.type}</Text>
-                </Flex>
-                <Flex justify="space-between">
-                  <Text size="xs" color="secondary">Target:</Text>
-                  <Text size="xs">{manifest.artifact.target}</Text>
-                </Flex>
-                {manifest.chains && manifest.chains.length > 0 && (
-                  <Flex justify="space-between">
-                    <Text size="xs" color="secondary">Chains:</Text>
-                    <Text size="xs">{manifest.chains.join(', ')}</Text>
-                  </Flex>
-                )}
-                {manifest.provides && manifest.provides.length > 0 && (
-                  <Flex justify="space-between">
-                    <Text size="xs" color="secondary">Provides:</Text>
-                    <Text size="xs">{manifest.provides.join(', ')}</Text>
-                  </Flex>
-                )}
-                {alreadyInstalled && existingAppId && (
-                  <>
-                    <Divider color="subtle" spacing="sm" />
-                    <Flex justify="space-between">
-                      <Text size="xs" color="secondary">Application ID:</Text>
-                      <Text size="xs" style={{ 
-                        fontFamily: 'monospace',
-                        color: tokens.color.semantic.success.value
-                      }}>
-                        {existingAppId}
-                      </Text>
-                    </Flex>
-                  </>
-                )}
-              </div>
-            </Stack>
-            
-            {/* Installation Progress */}
-            {installing && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px 14px',
-                borderRadius: 'var(--radius-md)',
-                border: `1px solid ${tokens.color.brand['600'].value}`,
-                background: `${tokens.color.brand['600'].value}14`,
-                color: 'var(--color-text-primary)',
-              }}>
-                <div style={{
-                  width: '16px',
-                  height: '16px',
-                  border: `2px solid ${tokens.color.brand['600'].value}`,
-                  borderTopColor: 'transparent',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite',
-                  flexShrink: 0,
-                }} />
-                <Text size="xs">{installStatus}</Text>
-                <style>{`
-                  @keyframes spin {
-                    to { transform: rotate(360deg); }
-                  }
-                `}</style>
-              </div>
-            )}
-            
-            {/* Action Buttons */}
-            <Flex justify="flex-end" gap="sm">
-              <Button
-                variant="secondary"
-                onClick={onBack}
-                disabled={installing}
-              >
-                Back
-              </Button>
-              
-              <Button
-                variant="primary"
-                onClick={alreadyInstalled ? handleContinueWithExisting : handleInstallAndContinue}
-                disabled={installing}
-                style={{
-                  color: 'var(--color-text-brand)',
-                  borderColor: 'var(--color-border-brand)',
-                }}
-              >
-                {installing
-                  ? 'Installing...'
-                  : alreadyInstalled
-                    ? 'Review Permissions'
-                    : 'Install & Continue'}
-              </Button>
-            </Flex>
-          </Stack>
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      </div>
+      
+      {/* Installation Details */}
+      <div style={{
+        backgroundColor: '#f8fafc',
+        border: '1px solid #e2e8f0',
+        borderRadius: '8px',
+        padding: '16px',
+        marginBottom: '24px'
+      }}>
+        <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '12px' }}>
+          Package Details
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+            <span style={{ color: '#64748b' }}>Package ID:</span>
+            <span style={{ color: '#1e293b', fontWeight: '500', fontFamily: 'monospace', fontSize: '12px' }}>
+              {manifest.id}
+            </span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+            <span style={{ color: '#64748b' }}>Type:</span>
+            <span style={{ color: '#1e293b', fontWeight: '500' }}>{manifest.artifact.type}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+            <span style={{ color: '#64748b' }}>Target:</span>
+            <span style={{ color: '#1e293b', fontWeight: '500' }}>{manifest.artifact.target}</span>
+          </div>
+          {manifest.chains && manifest.chains.length > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+              <span style={{ color: '#64748b' }}>Chains:</span>
+              <span style={{ color: '#1e293b', fontWeight: '500' }}>{manifest.chains.join(', ')}</span>
+            </div>
+          )}
+          {manifest.provides && manifest.provides.length > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+              <span style={{ color: '#64748b' }}>Provides:</span>
+              <span style={{ color: '#1e293b', fontWeight: '500' }}>{manifest.provides.join(', ')}</span>
+            </div>
+          )}
+          {existingAppId && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #e2e8f0' }}>
+              <span style={{ color: '#64748b' }}>Application ID:</span>
+              <span style={{ color: '#10b981', fontWeight: '500', fontFamily: 'monospace', fontSize: '11px' }}>
+                {existingAppId}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* Installation Progress */}
+      {installing && (
+        <div style={{
+          backgroundColor: '#eff6ff',
+          border: '1px solid #3b82f6',
+          borderRadius: '8px',
+          padding: '16px',
+          marginBottom: '24px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '20px',
+              height: '20px',
+              border: '2px solid #3b82f6',
+              borderTopColor: 'transparent',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite'
+            }} />
+            <div style={{ fontSize: '14px', color: '#1e40af' }}>
+              {installStatus}
+            </div>
+          </div>
+          <style>{`
+            @keyframes spin {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      )}
+      
+      {/* Action Buttons */}
+      <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+        <button
+          onClick={onBack}
+          disabled={installing}
+          style={{
+            padding: '10px 20px',
+            fontSize: '14px',
+            fontWeight: '500',
+            color: '#64748b',
+            backgroundColor: '#f1f5f9',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: installing ? 'not-allowed' : 'pointer',
+            opacity: installing ? 0.5 : 1,
+            transition: 'all 0.2s'
+          }}
+          onMouseOver={(e) => !installing && (e.currentTarget.style.backgroundColor = '#e2e8f0')}
+          onMouseOut={(e) => !installing && (e.currentTarget.style.backgroundColor = '#f1f5f9')}
+        >
+          Back
+        </button>
+        
+        <button
+          onClick={alreadyInstalled ? handleContinueWithExisting : handleInstallAndContinue}
+          disabled={installing}
+          style={{
+            padding: '10px 24px',
+            fontSize: '14px',
+            fontWeight: '500',
+            color: '#ffffff',
+            backgroundColor: alreadyInstalled ? '#10b981' : '#3b82f6',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: installing ? 'not-allowed' : 'pointer',
+            opacity: installing ? 0.7 : 1,
+            transition: 'all 0.2s'
+          }}
+          onMouseOver={(e) => !installing && (e.currentTarget.style.backgroundColor = alreadyInstalled ? '#059669' : '#2563eb')}
+          onMouseOut={(e) => !installing && (e.currentTarget.style.backgroundColor = alreadyInstalled ? '#10b981' : '#3b82f6')}
+        >
+          {installing ? 'Installing...' : alreadyInstalled ? 'Continue to App' : 'Install & Continue'}
+        </button>
+      </div>
     </div>
   );
-}
-
-function normalizeManifest(raw: any): Manifest {
-  if (raw?.artifact?.uri && raw?.artifact?.type) {
-    return raw as Manifest;
-  }
-
-  const artifact = raw?.artifacts?.[0] || {};
-  const digest = artifact.digest || artifact.cid || (artifact.sha256 ? `sha256:${artifact.sha256}` : '');
-  let uri = artifact.uri || artifact.mirrors?.[0] || artifact.path || '';
-
-  if (uri.startsWith('/')) {
-    // Assume same origin if registry returned relative path
-    try {
-      const registryUrl = getStoredUrlParam('registry-url');
-      if (registryUrl) {
-        uri = `${registryUrl.replace(/\/$/, '')}${uri}`;
-      }
-    } catch {
-      // fallback to returning as-is
-    }
-  }
-
-  return {
-    manifest_version: raw?.manifest_version || '1.0',
-    id: raw?.id || raw?.app?.app_id || 'unknown-app',
-    name: raw?.name || raw?.app?.name || 'Unknown Application',
-    version: raw?.version?.semver || raw?.version || '0.0.0',
-    chains: raw?.chains || raw?.supported_chains || [],
-    artifact: {
-      type: artifact.type || 'wasm',
-      target: artifact.target || 'node',
-      digest,
-      uri,
-    },
-    provides: raw?.provides,
-  };
 }

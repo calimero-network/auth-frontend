@@ -646,9 +646,6 @@ const LoginView: React.FC = () => {
           <ManifestProcessor
             onComplete={handleContextAndIdentitySelect}
             onBack={handleBack}
-            packageName={packageName}
-            packageVersion={packageVersion}
-            registryUrl={registryUrl}
           />
         </>
       )}

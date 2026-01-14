@@ -61,9 +61,22 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
   const handleManifestComplete = (contextId?: string, identity?: string) => {
     // ManifestProcessor might complete with contextId if it handled context selection
     // For now, just proceed to permissions
-    const appId = sessionStorage.getItem('installed-application-id');
+    // Check both localStorage and sessionStorage for application ID
+    const appId = localStorage.getItem('installed-application-id') || 
+                  sessionStorage.getItem('installed-application-id');
     if (appId) {
       setInstalledAppId(appId);
+      
+      // Load manifest info from localStorage for SummaryView
+      const manifestInfoStr = localStorage.getItem('manifest-info');
+      if (manifestInfoStr) {
+        try {
+          setManifestInfo(JSON.parse(manifestInfoStr));
+        } catch (e) {
+          console.warn('Failed to parse manifest info:', e);
+        }
+      }
+      
       setStep('permissions');
     } else {
       setError('Application installation failed - no application ID');
@@ -122,7 +135,10 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
           fragmentParams.set('application_id', installedAppId);
         }
 
+        // Clean up storage (both localStorage and sessionStorage)
         sessionStorage.removeItem('installed-application-id');
+        localStorage.removeItem('installed-application-id');
+        localStorage.removeItem('manifest-info');
         clearStoredUrlParams();
         window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;
       } else {
@@ -144,10 +160,6 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
         <ManifestProcessor
           onComplete={handleManifestComplete}
           onBack={() => window.history.back()}
-          packageName={packageName}
-          packageVersion={packageVersion}
-          registryUrl={registryUrl}
-          onManifestLoaded={setManifestInfo}
         />
       )}
 

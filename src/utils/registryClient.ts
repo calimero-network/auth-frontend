@@ -1,11 +1,39 @@
 /**
  * Registry Client for fetching application manifests
- * Supports both local development registry and official registry
+ * Uses V2 Bundle API: /api/v2/bundles
  */
 
+// V2 Bundle Manifest format (from registry)
+export interface BundleManifest {
+  version: string;           // Bundle format version (e.g., "1.0")
+  package: string;           // Package name (e.g., "com.calimero.kvstore")
+  appVersion: string;        // App version (semver)
+  metadata?: {
+    name?: string;
+    description?: string;
+    author?: string;
+  };
+  wasm: {
+    path?: string;
+    hash?: string;           // "sha256:..."
+    size?: number;
+  };
+  links?: {
+    frontend?: string;
+    github?: string;
+    docs?: string;
+  };
+  signature?: {
+    pubkey?: string;
+    signature?: string;
+    signed_at?: string;
+  };
+}
+
+// Transformed manifest format (for compatibility with existing code)
 export interface RegistryManifest {
   manifest_version: string;
-  id: string;              // Package name (e.g., "network.calimero.meropass")
+  id: string;              // Package name (e.g., "com.calimero.kvstore")
   name: string;            // Display name
   version: string;         // Semver
   chains: string[];
@@ -18,11 +46,17 @@ export interface RegistryManifest {
   provides?: string[];
   requires?: string[];
   dependencies?: Array<{ id: string; range: string }>;
-}
-
-export interface RegistryVersionsResponse {
-  id: string;
-  versions: string[];
+  // Bundle metadata preserved from registry (for installation metadata)
+  _bundleMetadata?: {
+    name?: string;
+    description?: string;
+    author?: string;
+  };
+  _bundleLinks?: {
+    frontend?: string;
+    github?: string;
+    docs?: string;
+  };
 }
 
 export class RegistryClient {
@@ -32,38 +66,103 @@ export class RegistryClient {
     // Priority: 1. Passed URL, 2. Environment variable, 3. Default production
     this.baseUrl = baseUrl || 
                    import.meta.env.VITE_REGISTRY_URL || 
-                   'https://apps.calimero.network/api';
+                   'https://apps.calimero.network';
+    
+    // Ensure baseUrl doesn't end with /api (v2 API is at /api/v2/bundles)
+    this.baseUrl = this.baseUrl.replace(/\/api$/, '');
   }
 
   /**
-   * Get all available versions for a package
+   * Get all available versions for a package using V2 API
    */
   async getPackageVersions(packageId: string): Promise<string[]> {
-    const response = await fetch(this.buildUrl(`/v1/apps/${packageId}`));
-
-    if (!response.ok) {
-      throw new Error(`Package '${packageId}' not found in registry`);
-    }
-
-    const data: RegistryVersionsResponse = await response.json();
-      
-      // Handle both formats:
-      // - Production Vercel: versions is string[] 
-      // - Local CLI: versions is Array<{semver: string, cid: string, yanked: boolean}>
-      if (data.versions && data.versions.length > 0) {
-        const firstVersion = data.versions[0];
-        if (typeof firstVersion === 'string') {
-          return data.versions as string[];
-        } else if (typeof firstVersion === 'object' && 'semver' in firstVersion) {
-          return data.versions.map((v: any) => v.semver);
-        }
-      }
+    // V2 API: GET /api/v2/bundles?package={packageId}
+    const url = new URL('/api/v2/bundles', this.baseUrl);
+    url.searchParams.set('package', packageId);
     
-    return [];
+    try {
+      const response = await fetch(url.toString());
+      
+      if (!response.ok) {
+        throw new Error(`Package '${packageId}' not found in registry`);
+      }
+      
+      const bundles: BundleManifest[] = await response.json();
+      
+      // Validate response is an array
+      if (!Array.isArray(bundles)) {
+        console.warn('getPackageVersions: API returned non-array response:', bundles);
+        return [];
+      }
+      
+      // Extract versions from bundles, filtering out undefined/null values
+      const versions = bundles
+        .map(bundle => bundle.appVersion)
+        .filter((version): version is string => typeof version === 'string' && version.length > 0);
+      
+      // Sort versions (newest first) using proper semver comparison
+      versions.sort((a, b) => {
+        // Parse semver: major.minor.patch[-prerelease][+build]
+        const parseSemver = (version: string) => {
+          // Remove build metadata (everything after +)
+          const withoutBuild = version.split('+')[0];
+          
+          // Split into base version and prerelease
+          const parts = withoutBuild.split('-');
+          const baseVersion = parts[0];
+          const prerelease = parts.slice(1).join('-') || null;
+          
+          // Parse major.minor.patch
+          const [major = 0, minor = 0, patch = 0] = baseVersion
+            .split('.')
+            .map(part => {
+              const num = parseInt(part, 10);
+              return isNaN(num) ? 0 : num;
+            });
+          
+          return { major, minor, patch, prerelease };
+        };
+        
+        const aVer = parseSemver(a);
+        const bVer = parseSemver(b);
+        
+        // Compare major.minor.patch first
+        if (aVer.major !== bVer.major) {
+          return bVer.major - aVer.major; // Descending order
+        }
+        if (aVer.minor !== bVer.minor) {
+          return bVer.minor - aVer.minor;
+        }
+        if (aVer.patch !== bVer.patch) {
+          return bVer.patch - aVer.patch;
+        }
+        
+        // If base versions are equal, compare prerelease
+        // Release version (no prerelease) > prerelease version
+        if (!aVer.prerelease && !bVer.prerelease) {
+          return 0; // Both are release versions
+        }
+        if (!aVer.prerelease) {
+          return -1; // a is release, b is prerelease -> a comes first
+        }
+        if (!bVer.prerelease) {
+          return 1; // b is release, a is prerelease -> b comes first
+        }
+        
+        // Both have prerelease: compare lexicographically
+        // This handles cases like: alpha < beta < rc < (empty)
+        return bVer.prerelease.localeCompare(aVer.prerelease);
+      });
+      
+      return versions;
+    } catch (error) {
+      console.error(`Failed to fetch versions for ${packageId}:`, error);
+      throw error;
+    }
   }
 
   /**
-   * Get manifest for a specific package version
+   * Get manifest for a specific package version using V2 API
    * If version is not specified, fetches the latest version
    */
   async getManifest(packageId: string, version?: string): Promise<RegistryManifest> {
@@ -81,47 +180,79 @@ export class RegistryClient {
       actualVersion = versions[0];
     }
 
-    const response = await fetch(
-      this.buildUrl(`/v1/apps/${packageId}/${actualVersion}`)
-    );
-
-    if (!response.ok) {
-      throw new Error(`Manifest not found: ${packageId}@${actualVersion}`);
+    // V2 API: GET /api/v2/bundles?package={packageId}&version={version}
+    // Returns array with single bundle
+    const url = new URL('/api/v2/bundles', this.baseUrl);
+    url.searchParams.set('package', packageId);
+    url.searchParams.set('version', actualVersion);
+    
+    try {
+      const response = await fetch(url.toString());
+      
+      if (!response.ok) {
+        throw new Error(`Manifest not found: ${packageId}@${actualVersion}`);
+      }
+      
+      const bundles: BundleManifest[] = await response.json();
+      
+      if (!bundles || bundles.length === 0) {
+        throw new Error(`Manifest not found: ${packageId}@${actualVersion}`);
+      }
+      
+      // V2 API returns array, get first bundle
+      const bundle = bundles[0];
+      
+      // Transform V2 bundle format to RegistryManifest format
+      return this.transformBundleToManifest(bundle);
+    } catch (error) {
+      console.error(`Failed to fetch manifest for ${packageId}@${actualVersion}:`, error);
+      throw error;
     }
-
-    const rawManifest = await response.json();
-    return this.normalizeManifest(rawManifest);
   }
 
-  private normalizeManifest(raw: any): RegistryManifest {
-    if (raw?.artifact?.uri) {
-      return raw as RegistryManifest;
-    }
+  /**
+   * Transform V2 BundleManifest to RegistryManifest format
+   */
+  private transformBundleToManifest(bundle: BundleManifest): RegistryManifest {
+    // Construct artifact URI
+    // V2 API serves artifacts at: /artifacts/{package}/{version}/{filename}
+    // For bundles, we should use MPK (Mero Package Kit) files, not the WASM path
+    // The wasm.path in the bundle manifest is the path INSIDE the MPK, not the artifact URL
+    
+    // V2 bundles should always use MPK format for installation
+    // MPK files contain the WASM, ABI, and other artifacts bundled together
+    const filename = `${bundle.package}-${bundle.appVersion}.mpk`;
+    
+    // Construct artifact URI
+    const artifactUri = `/artifacts/${bundle.package}/${bundle.appVersion}/${filename}`;
+    
+    // Make it absolute if needed
+    const artifactUrl = artifactUri.startsWith('http') 
+      ? artifactUri 
+      : `${this.baseUrl}${artifactUri}`;
 
-    const legacyArtifact = raw?.artifacts?.[0] || {};
-
-    let uri = legacyArtifact.uri || legacyArtifact.mirrors?.[0] || legacyArtifact.path || '';
-    if (uri.startsWith('/')) {
-      uri = `${this.baseUrl}${uri}`;
-    }
-
-    const digest = legacyArtifact.digest || legacyArtifact.cid || (legacyArtifact.sha256 ? `sha256:${legacyArtifact.sha256}` : '');
+    // Bundles use MPK format
+    const artifactType = 'mpk';
 
     return {
-      manifest_version: raw?.manifest_version || '1.0',
-      id: raw?.id || raw?.app?.app_id || raw?.app?.id || 'unknown-app',
-      name: raw?.name || raw?.app?.name || 'Unknown Application',
-      version: raw?.version?.semver || raw?.version || '0.0.0',
-      chains: raw?.chains || raw?.supported_chains || [],
+      manifest_version: bundle.version || '2.0',
+      id: bundle.package,
+      name: bundle.metadata?.name || bundle.package,
+      version: bundle.appVersion,
+      chains: [], // V2 bundles don't specify chains
       artifact: {
-        type: legacyArtifact.type || 'wasm',
-        target: legacyArtifact.target || 'node',
-        digest,
-        uri,
+        type: artifactType,
+        target: 'wasm32-unknown-unknown',
+        digest: bundle.wasm?.hash || '',
+        uri: artifactUrl,
       },
-      provides: raw?.provides || undefined,
-      requires: raw?.requires || undefined,
-      dependencies: raw?.dependencies || undefined,
+      provides: [],
+      requires: [],
+      dependencies: [],
+      // Preserve bundle metadata for use in installation
+      // Store the full bundle metadata object for reference
+      _bundleMetadata: bundle.metadata,
+      _bundleLinks: bundle.links,
     };
   }
 
@@ -130,15 +261,12 @@ export class RegistryClient {
    * Useful for passing to auth service
    */
   getManifestUrl(packageId: string, version?: string): string {
+    const url = new URL('/api/v2/bundles', this.baseUrl);
+    url.searchParams.set('package', packageId);
     if (version) {
-      return this.buildUrl(`/v1/apps/${packageId}/${version}`);
+      url.searchParams.set('version', version);
     }
-    return this.buildUrl(`/v1/apps/${packageId}`);
-  }
-
-  private buildUrl(path: string): string {
-    const normalizedBase = this.baseUrl.replace(/\/$/, '');
-    return `${normalizedBase}${path}`;
+    return url.toString();
   }
 }
 
