@@ -27,8 +27,8 @@ export const AdminFlow: React.FC = () => {
     try {
       const mero = getMero();
       const response = await mero.auth.generateClientKey({
-        contextId: '',
-        contextIdentity: '',
+        context_id: '',
+        context_identity: '',
         permissions,
       });
 

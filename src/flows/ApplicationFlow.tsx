@@ -58,8 +58,8 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
     try {
       const mero = getMero();
       const response = await mero.auth.generateClientKey({
-        contextId: contextId || '',
-        contextIdentity: identity || '',
+        context_id: contextId || '',
+        context_identity: identity || '',
         permissions,
       });
 
