@@ -79,6 +79,16 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
         const fragmentParams = new URLSearchParams();
         fragmentParams.set('access_token', response.data.access_token);
         fragmentParams.set('refresh_token', response.data.refresh_token);
+        
+        // Include context_id so the client app knows which context to use
+        if (contextId) {
+          fragmentParams.set('context_id', contextId);
+        }
+        
+        // Include identity so the client app knows which executor to use
+        if (identity) {
+          fragmentParams.set('context_identity', identity);
+        }
 
         clearStoredUrlParams();
         window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;

@@ -134,6 +134,16 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
         if (installedAppId) {
           fragmentParams.set('application_id', installedAppId);
         }
+        
+        // Include context_id so the client app knows which context to use
+        if (contextId) {
+          fragmentParams.set('context_id', contextId);
+        }
+        
+        // Include identity so the client app knows which executor to use
+        if (identity) {
+          fragmentParams.set('context_identity', identity);
+        }
 
         // Clean up storage (both localStorage and sessionStorage)
         sessionStorage.removeItem('installed-application-id');
