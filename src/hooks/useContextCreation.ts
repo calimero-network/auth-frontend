@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { getStoredUrlParam } from '../utils/urlParams';
-import { apiClient } from '@calimero-network/calimero-client';
+import { getMero } from '../lib/mero';
 
 export const PROTOCOLS = ['near', 'starknet', 'icp', 'stellar', 'ethereum'] as const;
 export const PROTOCOL_DISPLAY = {
@@ -66,31 +66,30 @@ export function useContextCreation(): UseContextCreationReturn {
         return true;
       }
 
-      const application = await apiClient
-        .node()
-        .getInstalledApplicationDetails(targetApplicationId);
-
-      const applicationMissing =
-        application.error || !application.data;
-
-      if (applicationMissing) {
-        const installResponse = await apiClient
-          .node()
-          .installApplication(applicationPath, new Uint8Array(), targetApplicationId);
-
-        if (installResponse.error) {
-          if(installResponse.error.message === 'fatal: blob hash mismatch') {
+      const mero = getMero();
+      
+      try {
+        await mero.admin.applications.getApplication(targetApplicationId);
+        // Application exists
+        return true;
+      } catch {
+        // Application doesn't exist, try to install
+        try {
+          await mero.admin.applications.installApplication({
+            url: applicationPath,
+            metadata: [],
+          });
+          return true;
+        } catch (installErr) {
+          const errorMessage = installErr instanceof Error ? installErr.message : '';
+          if (errorMessage === 'fatal: blob hash mismatch') {
             setApplicationMismatch(true);
             setShowInstallPrompt(true);
             return false;
           }
-
-          throw new Error(installResponse.error.message);
+          throw installErr;
         }
-        return true;
       }
-      // Application exists
-      return true;
     } catch (err) {
       throw err;
     }
@@ -104,6 +103,7 @@ export function useContextCreation(): UseContextCreationReturn {
     setError(null);
     
     try {
+      const mero = getMero();
       const applicationPath = getStoredApplicationPath();
       let applicationId = applicationIdOverride || getStoredApplicationId();
       
@@ -113,16 +113,18 @@ export function useContextCreation(): UseContextCreationReturn {
 
       // Install application when application path is available (legacy flow)
       if (applicationPath) {
-        const installResponse = await apiClient
-          .node()
-          .installApplication(applicationPath, new Uint8Array());
-        if (installResponse.error) {
-          setError(installResponse.error.message);
+        try {
+          const installResponse = await mero.admin.applications.installApplication({
+            url: applicationPath,
+            metadata: [],
+          });
+          const newApplicationId = installResponse.applicationId;
+          applicationId = newApplicationId;
+          sessionStorage.setItem('application-id', newApplicationId);
+        } catch (installErr) {
+          setError(installErr instanceof Error ? installErr.message : 'Failed to install application');
           return;
         }
-        const newApplicationId = installResponse.data.applicationId;
-        applicationId = newApplicationId;
-        sessionStorage.setItem('application-id', newApplicationId);
       }
 
       if (!applicationId) {
@@ -130,21 +132,22 @@ export function useContextCreation(): UseContextCreationReturn {
       }
 
       // Create context using finalized application ID
-      const createContextResponse = await apiClient
-        .node()
-        .createContext(applicationId, initArgs || '{}', selectedProtocol);
-      if (createContextResponse.error) {
-        setError(createContextResponse.error.message);
-        return;
-      }
+      try {
+        const createContextResponse = await mero.admin.contexts.createContext({
+          protocol: selectedProtocol,
+          applicationId,
+          initializationParams: '{}',
+        });
 
-      // Handle successful context creation
-      if (createContextResponse.data) {
-        const { contextId, memberPublicKey } = createContextResponse.data;
+        // Handle successful context creation
+        const { contextId, memberPublicKey } = createContextResponse;
         setSelectedProtocol(null);
         setShowInstallPrompt(false);
         setApplicationMismatch(false);
         return { contextId, memberPublicKey };
+      } catch (createErr) {
+        setError(createErr instanceof Error ? createErr.message : 'Failed to create context');
+        return;
       }
     } catch (err: any) {
       setError(err.message || 'Failed to install application');

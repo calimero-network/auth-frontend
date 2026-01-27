@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { apiClient, getAppEndpointKey } from '@calimero-network/calimero-client';
+import { getMero, getAppEndpointKey } from '../lib/mero';
 import { ApplicationInstallCheck } from '../components/applications/ApplicationInstallCheck';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ContextSelector } from '../components/context/ContextSelector';
@@ -56,19 +56,17 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
 
   const generateAndRedirect = async (contextId: string | null, identity: string | null) => {
     try {
-      const response = await apiClient.auth().generateClientKey({
-        context_id: contextId || '',
-        context_identity: identity || '',
+      const mero = getMero();
+      const response = await mero.auth.generateClientKey({
+        contextId: contextId || '',
+        contextIdentity: identity || '',
         permissions,
-        target_node_url: getAppEndpointKey() || ''
       });
 
-      if (response.error) {
-        setError(response.error.message);
-        return;
-      }
+      // Cast response to access tokens
+      const responseAny = response as any;
 
-      if (response.data.access_token && response.data.refresh_token) {
+      if (responseAny.access_token && responseAny.refresh_token) {
         const callback = getStoredUrlParam('callback-url');
         if (!callback) {
           setError('Missing callback URL');
@@ -77,8 +75,8 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
 
         const returnUrl = new URL(callback);
         const fragmentParams = new URLSearchParams();
-        fragmentParams.set('access_token', response.data.access_token);
-        fragmentParams.set('refresh_token', response.data.refresh_token);
+        fragmentParams.set('access_token', responseAny.access_token);
+        fragmentParams.set('refresh_token', responseAny.refresh_token);
         
         // Include context_id so the client app knows which context to use
         if (contextId) {

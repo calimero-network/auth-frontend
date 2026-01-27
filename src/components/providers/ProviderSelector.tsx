@@ -1,5 +1,5 @@
 import React from 'react';
-import { Provider } from '@calimero-network/calimero-client/lib/api/authApi';
+import type { AuthProvider as Provider } from '@calimero-network/mero-js/api/auth';
 import {
   Card,
   CardContent,
@@ -88,9 +88,9 @@ const ProviderSelector: React.FC<ProviderSelectorProps> = ({
               >
                 <Stack spacing="xs">
                   <Text weight="medium">
-                    {PROVIDER_DISPLAY_NAMES[provider.name] || provider.description || provider.name}
+                    {PROVIDER_DISPLAY_NAMES[provider.name] || provider.name}
                   </Text>
-                  {provider.name !== provider.description && (
+                  {PROVIDER_DISPLAY_NAMES[provider.name] && (
                     <Text size="xs" color="muted">
                       {provider.name}
                     </Text>

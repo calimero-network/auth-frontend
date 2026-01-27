@@ -1,14 +1,14 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { 
-  apiClient, 
+  getMero, 
   getAccessToken, 
   getRefreshToken, 
   setAccessToken, 
   setRefreshToken,
   clearAccessToken,
   clearRefreshToken 
-} from '@calimero-network/calimero-client';
-import { Provider } from '@calimero-network/calimero-client/lib/api/authApi';
+} from '../../lib/mero';
+import type { AuthProvider as Provider } from '@calimero-network/mero-js/api/auth';
 import ProviderSelector from '../providers/ProviderSelector';
 import { UsernamePasswordForm } from './UsernamePasswordForm';
 import Loader from '../common/Loader';
@@ -45,17 +45,12 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
    */
   const loadProviders = useCallback(async () => {
     try {
-      const response = await apiClient.auth().getProviders();
-      
-      if (response.error) {
-        setError(response.error.message);
-        return;
-      }
-      
-      setProviders(response.data.providers);
+      const mero = getMero();
+      const response = await mero.auth.getProviders();
+      setProviders(response.providers);
     } catch (err) {
       console.error('Failed to load providers:', err);
-      setError('Failed to load authentication providers');
+      setError(err instanceof Error ? err.message : 'Failed to load authentication providers');
     }
   }, []);
 
@@ -64,25 +59,27 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
    */
   const validateToken = useCallback(async (accessToken: string, refreshToken: string): Promise<boolean> => {
     try {
-      const response = await apiClient.auth().refreshToken({
+      const mero = getMero();
+      const response = await mero.auth.refreshToken({
         access_token: accessToken,
         refresh_token: refreshToken
       });
-      
-      // Token is still valid
-      if (response.error?.message?.includes('Access token still valid')) {
-        return true;
-      }
 
       // Token was refreshed successfully
-      if (response.data?.access_token && response.data?.refresh_token) {
-        setAccessToken(response.data.access_token);
-        setRefreshToken(response.data.refresh_token);
+      if (response.access_token && response.refresh_token) {
+        setAccessToken(response.access_token);
+        setRefreshToken(response.refresh_token);
         return true;
       }
 
       return false;
     } catch (err) {
+      // Check if error message indicates token is still valid
+      const errorMessage = err instanceof Error ? err.message : '';
+      if (errorMessage.includes('Access token still valid') || errorMessage.includes('token valid')) {
+        return true;
+      }
+      
       console.error('Token validation failed:', err);
       return false;
     }
@@ -142,28 +139,24 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
     setError(null);
     
     try {
+      const mero = getMero();
       const tokenPayload = {
-        auth_method: 'user_password',
+        auth_method: 'user_password' as const,
         public_key: username,
         client_name: window.location.href,
         timestamp: Date.now(),
-        permissions: [],
+        permissions: [] as string[],
         provider_data: {
           username,
           password
         }
       };
 
-      const response = await apiClient.auth().requestToken(tokenPayload);
+      const response = await mero.auth.getToken(tokenPayload);
 
-      if (response.error) {
-        setError(response.error.message);
-        return;
-      }
-
-      if (response.data.access_token && response.data.refresh_token) {
-        setAccessToken(response.data.access_token);
-        setRefreshToken(response.data.refresh_token);
+      if (response.access_token && response.refresh_token) {
+        setAccessToken(response.access_token);
+        setRefreshToken(response.refresh_token);
         setHasAdminToken(true);
         setShowUsernamePasswordForm(false);
         onReady?.();

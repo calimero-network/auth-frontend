@@ -23,7 +23,7 @@ export default defineConfig({
     server: {
       deps: {
         inline: [
-          '@calimero-network/calimero-client',
+          '@calimero-network/mero-js',
           '@calimero-network/mero-ui',
           '@calimero-network/mero-icons',
           '@calimero-network/mero-tokens',

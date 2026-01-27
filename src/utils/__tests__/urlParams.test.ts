@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// Mock the SDK functions that cause import issues
-vi.mock('@calimero-network/calimero-client', () => ({
+// Mock the mero lib functions that cause import issues
+vi.mock('../../lib/mero', () => ({
   setAppEndpointKey: vi.fn(),
   setAuthEndpointURL: vi.fn(),
   clearAppEndpoint: vi.fn(),
