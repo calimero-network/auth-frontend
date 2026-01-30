@@ -72,9 +72,6 @@ importers:
         specifier: ^1.1.2
         version: 1.1.2
     devDependencies:
-      '@calimero-network/merobox-js':
-        specifier: 0.0.3
-        version: 0.0.3
       '@testing-library/react':
         specifier: ^16.3.0
         version: 16.3.0(@testing-library/dom@10.4.1)(@types/react-dom@19.1.6(@types/react@19.1.8))(@types/react@19.1.8)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -233,11 +230,6 @@ packages:
     peerDependencies:
       react: '>=19.0.0'
       react-dom: '>=19.0.0'
-
-  '@calimero-network/merobox-js@0.0.3':
-    resolution: {integrity: sha512-Lmhg95TcC+6+O7hWEZpQW/bREYRWGUeyK5Dq+lUTWaD/erqu/+aCzfsh89hsuj8ENtXBsOqhyyDQCfKSVdTgCQ==}
-    engines: {node: '>=18'}
-    hasBin: true
 
   '@csstools/color-helpers@5.1.0':
     resolution: {integrity: sha512-S11EXWJyy0Mz5SYvRmY8nJYTFFd1LCNV+7cXyAgQtOOuzb4EsgfqDufL+9esx72/eLhsRdGZwaldu/h+E4t4BA==}
@@ -2909,8 +2901,6 @@ snapshots:
       - '@tiptap/pm'
       - '@types/react'
       - '@types/react-dom'
-
-  '@calimero-network/merobox-js@0.0.3': {}
 
   '@csstools/color-helpers@5.1.0': {}
 
