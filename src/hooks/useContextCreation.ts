@@ -24,7 +24,8 @@ interface UseContextCreationReturn {
     applicationPath?: string | null
   ) => Promise<boolean>;
   handleContextCreation: (
-    applicationIdOverride?: string | null
+    applicationIdOverride?: string | null,
+    initArgs?: string | null
   ) => Promise<{ contextId: string; memberPublicKey: string } | undefined>;
   handleInstallCancel: () => void;
 }
@@ -96,7 +97,8 @@ export function useContextCreation(): UseContextCreationReturn {
   };
 
   const handleContextCreation = async (
-    applicationIdOverride?: string | null
+    applicationIdOverride?: string | null,
+    initArgs?: string | null
   ) => {
     setIsLoading(true);
     setError(null);
@@ -130,7 +132,7 @@ export function useContextCreation(): UseContextCreationReturn {
       // Create context using finalized application ID
       const createContextResponse = await apiClient
         .node()
-        .createContext(applicationId, '{}', selectedProtocol);
+        .createContext(applicationId, initArgs || '{}', selectedProtocol);
       if (createContextResponse.error) {
         setError(createContextResponse.error.message);
         return;
