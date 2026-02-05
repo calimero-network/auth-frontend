@@ -49,6 +49,13 @@ const LoginView: React.FC = () => {
 
       if (availableProviders.error) {
         setError(availableProviders.error.message);
+        setProviders([]);
+        return;
+      }
+
+      if (!availableProviders.data || !availableProviders.data.providers) {
+        setError('No authentication providers available');
+        setProviders([]);
         return;
       }
 
@@ -56,6 +63,7 @@ const LoginView: React.FC = () => {
     } catch (err) {
       console.error('Failed to load providers:', err);
       setError('Failed to load authentication providers');
+      setProviders([]);
     }
   }, []);
 

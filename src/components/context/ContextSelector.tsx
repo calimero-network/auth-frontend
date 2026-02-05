@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useContextSelection } from '../../hooks/useContextSelection';
-import { PROTOCOLS, PROTOCOL_DISPLAY, useContextCreation } from '../../hooks/useContextCreation';
-import { getStoredUrlParam } from '../../utils/urlParams';
-import { ErrorView } from '../common/ErrorView';
+import { useEffect, useMemo, useState } from "react";
+import { useContextSelection } from "../../hooks/useContextSelection";
 import {
-  ContextSelectorWrapper,
-} from './styles';
-import Loader from '../common/Loader';
+  PROTOCOLS,
+  PROTOCOL_DISPLAY,
+  useContextCreation,
+} from "../../hooks/useContextCreation";
+import { getStoredUrlParam } from "../../utils/urlParams";
+import { ErrorView } from "../common/ErrorView";
+import { ContextSelectorWrapper } from "./styles";
+import Loader from "../common/Loader";
 import {
   Button,
   Card,
@@ -20,7 +22,7 @@ import {
   MenuItem,
   Stack,
   Text,
-} from '@calimero-network/mero-ui';
+} from "@calimero-network/mero-ui";
 
 interface ContextSelectorProps {
   onComplete: (contextId: string, identity: string) => void;
@@ -53,21 +55,47 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
     handleInstallCancel,
   } = useContextCreation();
 
-
   useEffect(() => {
     fetchContexts();
   }, [fetchContexts]);
 
   // Filter contexts based on applicationId URL parameter
-  const applicationId = getStoredUrlParam('application-id');
-  const applicationPath = getStoredUrlParam('application-path');
-  const installedApplicationId = sessionStorage.getItem('installed-application-id') || 
-                                  localStorage.getItem('installed-application-id'); // Fallback
+  const applicationId = getStoredUrlParam("application-id");
+  const applicationPath = getStoredUrlParam("application-path");
+  const installedApplicationId =
+    sessionStorage.getItem("installed-application-id") ||
+    localStorage.getItem("installed-application-id"); // Fallback
   const targetApplicationId = applicationId || installedApplicationId;
-  
+
+  const [initArgs, setInitArgs] = useState("{}");
+  const [jsonError, setJsonError] = useState<string | null>(null);
+
+  const formatJson = () => {
+    try {
+      const parsed = JSON.parse(initArgs);
+      setInitArgs(JSON.stringify(parsed, null, 2));
+      setJsonError(null);
+    } catch (e) {
+      setJsonError("Invalid JSON format");
+    }
+  };
+
+  const validateJson = (value: string) => {
+    try {
+      JSON.parse(value);
+      setJsonError(null);
+      return true;
+    } catch (e) {
+      setJsonError("Invalid JSON format");
+      return false;
+    }
+  };
+
   const filteredContexts = useMemo(() => {
     if (!targetApplicationId) return contexts;
-    return contexts.filter(context => context.applicationId === targetApplicationId);
+    return contexts.filter(
+      (context) => context.applicationId === targetApplicationId,
+    );
   }, [contexts, targetApplicationId]);
 
   const selectedContextDetails = useMemo(
@@ -77,7 +105,7 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
 
   const formatPublicKey = (key: string) => {
     if (!key) {
-      return '';
+      return "";
     }
     if (key.length <= 16) {
       return key;
@@ -101,10 +129,7 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
   if (error) {
     return (
       <ContextSelectorWrapper>
-        <ErrorView 
-          message={error} 
-          onRetry={fetchContexts}
-        />
+        <ErrorView message={error} onRetry={fetchContexts} />
       </ContextSelectorWrapper>
     );
   }
@@ -113,14 +138,19 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
   if (showInstallPrompt) {
     return (
       <ContextSelectorWrapper>
-        <Card variant="rounded" color="var(--color-border-brand)" style={{ maxWidth: 520 }}>
+        <Card
+          variant="rounded"
+          color="var(--color-border-brand)"
+          style={{ maxWidth: 520 }}
+        >
           <CardHeader>
             <CardTitle>Application ID mismatch</CardTitle>
           </CardHeader>
           <CardContent>
             <Stack spacing="md" align="center">
               <Text align="center" color="muted">
-                The application ID in the request does not match the installed application. Do you want to proceed with installation anyway?
+                The application ID in the request does not match the installed
+                application. Do you want to proceed with installation anyway?
               </Text>
               <Flex justify="center" gap="sm">
                 <Button variant="secondary" onClick={handleInstallCancel}>
@@ -130,15 +160,20 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                   variant="primary"
                   disabled={loading}
                   onClick={async () => {
-                    const contextData = await handleContextCreation(applicationId || targetApplicationId);
+                    const contextData = await handleContextCreation(
+                      applicationId || targetApplicationId,
+                    );
                     if (contextData) {
                       handleContextSelect(contextData.contextId);
-                      handleIdentitySelect(contextData.contextId, contextData.memberPublicKey);
+                      handleIdentitySelect(
+                        contextData.contextId,
+                        contextData.memberPublicKey,
+                      );
                     }
                   }}
                   style={{
-                    color: 'var(--color-text-brand)',
-                    borderColor: 'var(--color-border-brand)',
+                    color: "var(--color-text-brand)",
+                    borderColor: "var(--color-border-brand)",
                   }}
                 >
                   Install anyway
@@ -152,17 +187,27 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
   }
 
   // No contexts available and applicationPath is present - show create context prompt
-  if (!filteredContexts.length && targetApplicationId && !selectedContext && !selectedIdentity) {
+  if (
+    !filteredContexts.length &&
+    targetApplicationId &&
+    !selectedContext &&
+    !selectedIdentity
+  ) {
     return (
       <ContextSelectorWrapper>
-        <Card variant="rounded" color="var(--color-border-brand)" style={{ maxWidth: 520 }}>
+        <Card
+          variant="rounded"
+          color="var(--color-border-brand)"
+          style={{ maxWidth: 520 }}
+        >
           <CardHeader>
             <CardTitle>Create a new context</CardTitle>
           </CardHeader>
           <CardContent>
             <Stack spacing="lg" align="center">
               <Text align="center" color="muted">
-                There are no contexts available for this application yet. Create one to continue.
+                There are no contexts available for this application yet. Create
+                one to continue.
               </Text>
 
               {!showProtocolSelection && (
@@ -170,8 +215,8 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                   variant="primary"
                   onClick={() => setShowProtocolSelection(true)}
                   style={{
-                    color: 'var(--color-text-brand)',
-                    borderColor: 'var(--color-border-brand)',
+                    color: "var(--color-text-brand)",
+                    borderColor: "var(--color-border-brand)",
                   }}
                 >
                   Create new context
@@ -179,9 +224,16 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
               )}
 
               {showProtocolSelection && !selectedProtocol && (
-                <Stack spacing="md" align="center" style={{ width: '100%' }}>
-                  <Text color="secondary">Select a protocol for the new context</Text>
-                  <Flex wrap="wrap" justify="center" gap="sm" style={{ width: '100%' }}>
+                <Stack spacing="md" align="center" style={{ width: "100%" }}>
+                  <Text color="secondary">
+                    Select a protocol for the new context
+                  </Text>
+                  <Flex
+                    wrap="wrap"
+                    justify="center"
+                    gap="sm"
+                    style={{ width: "100%" }}
+                  >
                     {PROTOCOLS.map((protocol) => (
                       <Button
                         key={protocol}
@@ -192,7 +244,10 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                       </Button>
                     ))}
                   </Flex>
-                  <Button variant="secondary" onClick={() => setShowProtocolSelection(false)}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setShowProtocolSelection(false)}
+                  >
                     Back
                   </Button>
                 </Stack>
@@ -203,34 +258,80 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                   <Text size="sm" color="secondary">
                     Selected protocol: {PROTOCOL_DISPLAY[selectedProtocol]}
                   </Text>
-                  <Flex justify="center" gap="sm">
-                    <Button variant="secondary" onClick={() => setSelectedProtocol(null)}>
-                      Change protocol
-                    </Button>
-                    <Button
-                      variant="primary"
-                      disabled={loading}
-                      onClick={async () => {
-                        if (applicationId && applicationPath) {
-                          const success = await checkAndInstallApplication(applicationId, applicationPath);
-                          if (!success) {
-                            return;
-                          }
-                        }
-
-                        const result = await handleContextCreation(targetApplicationId);
-                        if (result) {
-                          onComplete(result.contextId, result.memberPublicKey);
-                        }
-                      }}
-                      style={{
-                        color: 'var(--color-text-brand)',
-                        borderColor: 'var(--color-border-brand)',
-                      }}
-                    >
-                      {loading ? 'Creating…' : 'Create context'}
-                    </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setSelectedProtocol(null)}
+                  >
+                    Change protocol
+                  </Button>
+                  <Flex justify="center" gap="sm" className="relative">
+                    <Stack spacing="md" style={{ width: "100%" }}>
+                      <Text size="sm" weight="medium" color="secondary">
+                        Initialization Arguments (JSON)
+                      </Text>
+                      <textarea
+                        value={initArgs}
+                        onChange={(e) => {
+                          setInitArgs(e.target.value);
+                          validateJson(e.target.value);
+                        }}
+                        placeholder="Enter JSON initialization arguments"
+                        style={{
+                          width: "100%",
+                          minHeight: "120px",
+                          padding: "8px 12px",
+                          borderRadius: "6px",
+                          border: "1px solid var(--color-border-default)",
+                          backgroundColor: "#1a1a1a",
+                          color: "var(--color-text-default)",
+                          outline: "none",
+                          fontFamily: "monospace",
+                          fontSize: "13px",
+                          resize: "vertical",
+                        }}
+                      />
+                      <Flex justify="space-between" align="center">
+                        {jsonError && (
+                          <Text size="sm" color="error">
+                            {jsonError}
+                          </Text>
+                        )}
+                      </Flex>
+                    </Stack>
                   </Flex>
+                  <Button
+                    variant="primary"
+                    disabled={loading}
+                    onClick={async () => {
+                      if (!validateJson(initArgs)) {
+                        setJsonError("Invalid JSON format");
+                        return;
+                      }
+                      if (applicationId && applicationPath) {
+                        const success = await checkAndInstallApplication(
+                          applicationId,
+                          applicationPath,
+                        );
+                        if (!success) {
+                          return;
+                        }
+                      }
+
+                      const result = await handleContextCreation(
+                        targetApplicationId,
+                        initArgs,
+                      );
+                      if (result) {
+                        onComplete(result.contextId, result.memberPublicKey);
+                      }
+                    }}
+                    style={{
+                      color: "var(--color-text-brand)",
+                      borderColor: "var(--color-border-brand)",
+                    }}
+                  >
+                    {loading ? "Creating…" : "Create context"}
+                  </Button>
                 </Stack>
               )}
             </Stack>
@@ -243,76 +344,105 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
   return (
     <ContextSelectorWrapper>
       {/* Create new context flow when contexts already exist */}
-      {showProtocolSelection && !selectedContext && filteredContexts.length > 0 && (
-        <Card variant="rounded" color="var(--color-border-brand)" style={{ maxWidth: 520 }}>
-          <CardHeader>
-            <CardTitle>Create a new context</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Stack spacing="lg" align="center">
-              {!selectedProtocol ? (
-                <>
-                  <Text align="center" color="muted">
-                    Choose a protocol to create a fresh context for this application.
-                  </Text>
-                  <Flex wrap="wrap" justify="center" gap="sm" style={{ width: '100%' }}>
-                    {PROTOCOLS.map((protocol) => (
-                      <Button
-                        key={protocol}
-                        variant="secondary"
-                        onClick={() => setSelectedProtocol(protocol)}
-                      >
-                        {PROTOCOL_DISPLAY[protocol]}
-                      </Button>
-                    ))}
-                  </Flex>
-                  <Button variant="secondary" onClick={() => setShowProtocolSelection(false)}>
-                    Back to contexts
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Text size="sm" color="secondary">
-                    Selected protocol: {PROTOCOL_DISPLAY[selectedProtocol]}
-                  </Text>
-                  <Flex justify="center" gap="sm">
-                    <Button variant="secondary" onClick={() => setSelectedProtocol(null)}>
-                      Change protocol
-                    </Button>
-                    <Button
-                      variant="primary"
-                      disabled={loading}
-                      onClick={async () => {
-                        if (applicationId && applicationPath) {
-                          const success = await checkAndInstallApplication(applicationId, applicationPath);
-                          if (!success) {
-                            return;
-                          }
-                        }
-
-                        const result = await handleContextCreation(targetApplicationId);
-                        if (result) {
-                          onComplete(result.contextId, result.memberPublicKey);
-                        }
-                      }}
-                      style={{
-                        color: 'var(--color-text-brand)',
-                        borderColor: 'var(--color-border-brand)',
-                      }}
+      {showProtocolSelection &&
+        !selectedContext &&
+        filteredContexts.length > 0 && (
+          <Card
+            variant="rounded"
+            color="var(--color-border-brand)"
+            style={{ maxWidth: 520 }}
+          >
+            <CardHeader>
+              <CardTitle>Create a new context</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Stack spacing="lg" align="center">
+                {!selectedProtocol ? (
+                  <>
+                    <Text align="center" color="muted">
+                      Choose a protocol to create a fresh context for this
+                      application.
+                    </Text>
+                    <Flex
+                      wrap="wrap"
+                      justify="center"
+                      gap="sm"
+                      style={{ width: "100%" }}
                     >
-                      {loading ? 'Creating…' : 'Create context'}
+                      {PROTOCOLS.map((protocol) => (
+                        <Button
+                          key={protocol}
+                          variant="secondary"
+                          onClick={() => setSelectedProtocol(protocol)}
+                        >
+                          {PROTOCOL_DISPLAY[protocol]}
+                        </Button>
+                      ))}
+                    </Flex>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setShowProtocolSelection(false)}
+                    >
+                      Back to contexts
                     </Button>
-                  </Flex>
-                </>
-              )}
-            </Stack>
-          </CardContent>
-        </Card>
-      )}
+                  </>
+                ) : (
+                  <>
+                    <Text size="sm" color="secondary">
+                      Selected protocol: {PROTOCOL_DISPLAY[selectedProtocol]}
+                    </Text>
+                    <Flex justify="center" gap="sm">
+                      <Button
+                        variant="secondary"
+                        onClick={() => setSelectedProtocol(null)}
+                      >
+                        Change protocol
+                      </Button>
+                      <Button
+                        variant="primary"
+                        disabled={loading}
+                        onClick={async () => {
+                          if (applicationId && applicationPath) {
+                            const success = await checkAndInstallApplication(
+                              applicationId,
+                              applicationPath,
+                            );
+                            if (!success) {
+                              return;
+                            }
+                          }
+
+                          const result =
+                            await handleContextCreation(targetApplicationId);
+                          if (result) {
+                            onComplete(
+                              result.contextId,
+                              result.memberPublicKey,
+                            );
+                          }
+                        }}
+                        style={{
+                          color: "var(--color-text-brand)",
+                          borderColor: "var(--color-border-brand)",
+                        }}
+                      >
+                        {loading ? "Creating…" : "Create context"}
+                      </Button>
+                    </Flex>
+                  </>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
 
       {/* Context selection */}
       {!selectedContext && !showProtocolSelection && (
-        <Card variant="rounded" color="var(--color-border-brand)" style={{ maxWidth: 520 }}>
+        <Card
+          variant="rounded"
+          color="var(--color-border-brand)"
+          style={{ maxWidth: 520 }}
+        >
           <CardHeader>
             <CardTitle>Select a context</CardTitle>
           </CardHeader>
@@ -327,13 +457,19 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                       onClick={() => handleContextSelect(context.id)}
                     >
                       <Stack spacing="xs">
-                        <Text weight="medium">{(context as any).name || context.id}</Text>
+                        <Text weight="medium">
+                          {(context as any).name || context.id}
+                        </Text>
                         <Text size="xs" color="muted">
                           ID: {context.id}
                         </Text>
                         {(context as any).protocol && (
                           <Text size="xs" color="secondary">
-                            Protocol: {PROTOCOL_DISPLAY[(context as any).protocol as keyof typeof PROTOCOL_DISPLAY] ?? (context as any).protocol}
+                            Protocol:{" "}
+                            {PROTOCOL_DISPLAY[
+                              (context as any)
+                                .protocol as keyof typeof PROTOCOL_DISPLAY
+                            ] ?? (context as any).protocol}
                           </Text>
                         )}
                       </Stack>
@@ -343,10 +479,19 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                 <Divider color="muted" spacing="sm" />
                 <Stack spacing="sm" align="center">
                   <Text size="sm" color="muted" align="center">
-                    Need a fresh workspace? Create a new context for better privacy and isolation.
+                    Need a fresh workspace? Create a new context for better
+                    privacy and isolation.
                   </Text>
-                  <Flex justify="space-between" gap="sm" style={{ width: '100%' }}>
-                    <Button variant="secondary" onClick={onBack} style={{ flex: 1 }}>
+                  <Flex
+                    justify="space-between"
+                    gap="sm"
+                    style={{ width: "100%" }}
+                  >
+                    <Button
+                      variant="secondary"
+                      onClick={onBack}
+                      style={{ flex: 1 }}
+                    >
                       Back
                     </Button>
                     <Button
@@ -357,8 +502,8 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                       }}
                       style={{
                         flex: 1,
-                        color: 'var(--color-text-brand)',
-                        borderColor: 'var(--color-border-brand)',
+                        color: "var(--color-text-brand)",
+                        borderColor: "var(--color-border-brand)",
                       }}
                     >
                       + Create new context
@@ -378,8 +523,8 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                       setShowProtocolSelection(true);
                     }}
                     style={{
-                      color: 'var(--color-text-brand)',
-                      borderColor: 'var(--color-border-brand)',
+                      color: "var(--color-text-brand)",
+                      borderColor: "var(--color-border-brand)",
                     }}
                   >
                     Create new context
@@ -392,9 +537,14 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
       )}
 
       {/* Identity selection */}
-      {selectedContext && !selectedIdentity && (
-        identities.length > 0 ? (
-          <Card variant="rounded" color="var(--color-border-brand)" style={{ maxWidth: 520 }}>
+      {selectedContext &&
+        !selectedIdentity &&
+        (identities.length > 0 ? (
+          <Card
+            variant="rounded"
+            color="var(--color-border-brand)"
+            style={{ maxWidth: 520 }}
+          >
             <CardHeader>
               <CardTitle>Select an identity</CardTitle>
             </CardHeader>
@@ -403,9 +553,13 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                 {selectedContextDetails && (
                   <Stack spacing="xs">
                     <Text size="sm" color="secondary">
-                      Context: {(selectedContextDetails as any).name || selectedContextDetails.id}
+                      Context:{" "}
+                      {(selectedContextDetails as any).name ||
+                        selectedContextDetails.id}
                     </Text>
-                    <Text size="xs" color="muted">ID: {selectedContextDetails.id}</Text>
+                    <Text size="xs" color="muted">
+                      ID: {selectedContextDetails.id}
+                    </Text>
                   </Stack>
                 )}
 
@@ -414,7 +568,9 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                     <MenuItem
                       key={identity}
                       selected={selectedIdentity === identity}
-                      onClick={() => handleIdentitySelect(selectedContext, identity)}
+                      onClick={() =>
+                        handleIdentitySelect(selectedContext, identity)
+                      }
                     >
                       <Stack spacing="xs">
                         <Text weight="medium">{formatPublicKey(identity)}</Text>
@@ -426,14 +582,21 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                   ))}
                 </Menu>
 
-                <Button variant="secondary" onClick={() => handleContextSelect(null)}>
+                <Button
+                  variant="secondary"
+                  onClick={() => handleContextSelect(null)}
+                >
                   Back to contexts
                 </Button>
               </Stack>
             </CardContent>
           </Card>
         ) : (
-          <Card variant="rounded" color="var(--color-border-brand)" style={{ maxWidth: 520 }}>
+          <Card
+            variant="rounded"
+            color="var(--color-border-brand)"
+            style={{ maxWidth: 520 }}
+          >
             <CardHeader>
               <CardTitle>No identities found</CardTitle>
             </CardHeader>
@@ -442,16 +605,17 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                 title="This context has no identities yet"
                 description="Create an identity for this context in the node dashboard and try again."
                 action={
-                  <Button variant="secondary" onClick={() => handleContextSelect(null)}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleContextSelect(null)}
+                  >
                     Back to contexts
                   </Button>
                 }
               />
             </CardContent>
           </Card>
-        )
-      )}
-
+        ))}
     </ContextSelectorWrapper>
   );
-} 
+}
