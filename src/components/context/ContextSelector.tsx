@@ -70,16 +70,6 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
   const [initArgs, setInitArgs] = useState("{}");
   const [jsonError, setJsonError] = useState<string | null>(null);
 
-  const formatJson = () => {
-    try {
-      const parsed = JSON.parse(initArgs);
-      setInitArgs(JSON.stringify(parsed, null, 2));
-      setJsonError(null);
-    } catch (e) {
-      setJsonError("Invalid JSON format");
-    }
-  };
-
   const validateJson = (value: string) => {
     try {
       JSON.parse(value);
@@ -162,6 +152,7 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                   onClick={async () => {
                     const contextData = await handleContextCreation(
                       applicationId || targetApplicationId,
+                      initArgs,
                     );
                     if (contextData) {
                       handleContextSelect(contextData.contextId);
@@ -254,7 +245,7 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
               )}
 
               {showProtocolSelection && selectedProtocol && (
-                <Stack spacing="md" align="center">
+                <Stack spacing="md" align="center" style={{ width: "100%" }}>
                   <Text size="sm" color="secondary">
                     Selected protocol: {PROTOCOL_DISPLAY[selectedProtocol]}
                   </Text>
@@ -264,41 +255,38 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                   >
                     Change protocol
                   </Button>
-                  <Flex justify="center" gap="sm" className="relative">
-                    <Stack spacing="md" style={{ width: "100%" }}>
-                      <Text size="sm" weight="medium" color="secondary">
-                        Initialization Arguments (JSON)
-                      </Text>
-                      <textarea
-                        value={initArgs}
-                        onChange={(e) => {
-                          setInitArgs(e.target.value);
-                          validateJson(e.target.value);
-                        }}
-                        placeholder="Enter JSON initialization arguments"
-                        style={{
-                          width: "100%",
-                          minHeight: "120px",
-                          padding: "8px 12px",
-                          borderRadius: "6px",
-                          border: "1px solid var(--color-border-default)",
-                          backgroundColor: "#1a1a1a",
-                          color: "var(--color-text-default)",
-                          outline: "none",
-                          fontFamily: "monospace",
-                          fontSize: "13px",
-                          resize: "vertical",
-                        }}
-                      />
-                      <Flex justify="space-between" align="center">
-                        {jsonError && (
-                          <Text size="sm" color="error">
-                            {jsonError}
-                          </Text>
-                        )}
-                      </Flex>
-                    </Stack>
-                  </Flex>
+                  <Stack spacing="md" style={{ width: "100%" }}>
+                    <Text size="sm" weight="medium">
+                      Initialization Arguments (JSON)
+                    </Text>
+                    <textarea
+                      value={initArgs}
+                      onChange={(e) => {
+                        setInitArgs(e.target.value);
+                        validateJson(e.target.value);
+                      }}
+                      placeholder="Enter JSON initialization arguments"
+                      style={{
+                        width: "100%",
+                        minHeight: "120px",
+                        padding: "8px 12px",
+                        borderRadius: "6px",
+                        border: "1px solid var(--color-border-default)",
+                        backgroundColor: "var(--color-bg-surface)",
+                        color: "var(--color-text-default)",
+                        fontFamily: "monospace",
+                        fontSize: "13px",
+                        resize: "vertical"
+                      }}
+                    />
+                    <Flex justify="space-between" align="center">
+                      {jsonError && (
+                        <Text size="sm" color="error">
+                          {jsonError}
+                        </Text>
+                      )}
+                    </Flex>
+                  </Stack>
                   <Button
                     variant="primary"
                     disabled={loading}
@@ -387,49 +375,82 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                     </Button>
                   </>
                 ) : (
-                  <>
+                  <Stack spacing="md" style={{ width: "100%" }}>
                     <Text size="sm" color="secondary">
                       Selected protocol: {PROTOCOL_DISPLAY[selectedProtocol]}
                     </Text>
-                    <Flex justify="center" gap="sm">
-                      <Button
-                        variant="secondary"
-                        onClick={() => setSelectedProtocol(null)}
-                      >
-                        Change protocol
-                      </Button>
-                      <Button
-                        variant="primary"
-                        disabled={loading}
-                        onClick={async () => {
-                          if (applicationId && applicationPath) {
-                            const success = await checkAndInstallApplication(
-                              applicationId,
-                              applicationPath,
-                            );
-                            if (!success) {
-                              return;
-                            }
-                          }
-
-                          const result =
-                            await handleContextCreation(targetApplicationId);
-                          if (result) {
-                            onComplete(
-                              result.contextId,
-                              result.memberPublicKey,
-                            );
-                          }
+                    <Button
+                      variant="secondary"
+                      onClick={() => setSelectedProtocol(null)}
+                    >
+                      Change protocol
+                    </Button>
+                    <Stack spacing="md" style={{ width: "100%" }}>
+                      <Text size="sm" weight="medium">
+                        Initialization Arguments (JSON)
+                      </Text>
+                      <textarea
+                        value={initArgs}
+                        onChange={(e) => {
+                          setInitArgs(e.target.value);
+                          validateJson(e.target.value);
                         }}
+                        placeholder="Enter JSON initialization arguments"
                         style={{
-                          color: "var(--color-text-brand)",
-                          borderColor: "var(--color-border-brand)",
+                          width: "100%",
+                          minHeight: "120px",
+                          padding: "8px 12px",
+                          borderRadius: "6px",
+                          border: "1px solid var(--color-border-default)",
+                          backgroundColor: "var(--color-bg-surface)",
+                          color: "var(--color-text-default)",
+                          fontFamily: "monospace",
+                          fontSize: "13px",
+                          resize: "vertical"
                         }}
-                      >
-                        {loading ? "Creating…" : "Create context"}
-                      </Button>
-                    </Flex>
-                  </>
+                      />
+                      <Flex justify="space-between" align="center">
+                        {jsonError && (
+                          <Text size="sm" color="error">
+                            {jsonError}
+                          </Text>
+                        )}
+                      </Flex>
+                    </Stack>
+                    <Button
+                      variant="primary"
+                      disabled={loading}
+                      onClick={async () => {
+                        if (!validateJson(initArgs)) {
+                          setJsonError("Invalid JSON format");
+                          return;
+                        }
+                        if (applicationId && applicationPath) {
+                          const success = await checkAndInstallApplication(
+                            applicationId,
+                            applicationPath,
+                          );
+                          if (!success) {
+                            return;
+                          }
+                        }
+
+                        const result = await handleContextCreation(
+                          targetApplicationId,
+                          initArgs,
+                        );
+                        if (result) {
+                          onComplete(result.contextId, result.memberPublicKey);
+                        }
+                      }}
+                      style={{
+                        color: "var(--color-text-brand)",
+                        borderColor: "var(--color-border-brand)",
+                      }}
+                    >
+                      {loading ? "Creating…" : "Create context"}
+                    </Button>
+                  </Stack>
                 )}
               </Stack>
             </CardContent>
