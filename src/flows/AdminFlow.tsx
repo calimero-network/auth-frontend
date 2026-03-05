@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { getMero, getAppEndpointKey } from '../lib/mero';
+import { getMero } from '../lib/mero';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ErrorView } from '../components/common/ErrorView';
 import { clearStoredUrlParams, getStoredUrlParam } from '../utils/urlParams';

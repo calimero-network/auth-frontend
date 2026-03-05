@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { getMero, getAppEndpointKey } from '../lib/mero';
+import { getMero } from '../lib/mero';
 import { ManifestProcessor } from '../components/manifest/ManifestProcessor';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ContextSelector } from '../components/context/ContextSelector';
