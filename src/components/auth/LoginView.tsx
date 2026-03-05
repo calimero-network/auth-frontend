@@ -373,8 +373,8 @@ const LoginView: React.FC = () => {
     try {
       const mero = getMero();
       const response = await mero.auth.generateClientKey({
-        context_id: '', // Admin permissions don't require specific context
-        context_identity: '', // Admin permissions don't require specific identity
+        contextId: '', // Admin permissions don't require specific context
+        contextIdentity: '', // Admin permissions don't require specific identity
         permissions,
       });
 
@@ -460,8 +460,8 @@ const LoginView: React.FC = () => {
 
       const mero = getMero();
       const response = await mero.auth.generateClientKey({
-        context_id: contextId || '',
-        context_identity: identity || '',
+        contextId: contextId || '',
+        contextIdentity: identity || '',
         permissions,
       });
 

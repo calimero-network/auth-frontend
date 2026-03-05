@@ -109,8 +109,8 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
 
       const mero = getMero();
       const response = await mero.auth.generateClientKey({
-        context_id: contextId || '',
-        context_identity: identity || '',
+        contextId: contextId || '',
+        contextIdentity: identity || '',
         permissions: scopedPermissions,
       });
 
