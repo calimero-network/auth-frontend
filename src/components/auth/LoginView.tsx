@@ -4,8 +4,17 @@ import { NetworkId, setupWalletSelector } from '@near-wallet-selector/core';
 import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet';
 import { Buffer } from 'buffer';
 import { handleUrlParams, getStoredUrlParam, clearStoredUrlParams } from '../../utils/urlParams';
-import { apiClient, clearAccessToken, clearRefreshToken, getAccessToken, getAppEndpointKey, getRefreshToken, setAccessToken, setRefreshToken } from '@calimero-network/calimero-client';
-import { Provider } from '@calimero-network/calimero-client/lib/api/authApi';
+import { 
+  getMero, 
+  clearAccessToken, 
+  clearRefreshToken, 
+  getAccessToken, 
+  getAppEndpointKey, 
+  getRefreshToken, 
+  setAccessToken, 
+  setRefreshToken 
+} from '../../lib/mero';
+import type { AuthProvider as Provider } from '@calimero-network/mero-js/api/auth';
 import { ErrorView } from '../common/ErrorView';
 import Loader from '../common/Loader';
 import { PermissionsView } from '../permissions/PermissionsView';
@@ -45,25 +54,12 @@ const LoginView: React.FC = () => {
    */
   const loadProviders = useCallback(async () => {
     try {
-      const availableProviders = await apiClient.auth().getProviders();
-
-      if (availableProviders.error) {
-        setError(availableProviders.error.message);
-        setProviders([]);
-        return;
-      }
-
-      if (!availableProviders.data || !availableProviders.data.providers) {
-        setError('No authentication providers available');
-        setProviders([]);
-        return;
-      }
-
-      setProviders(availableProviders.data.providers);
+      const mero = getMero();
+      const response = await mero.auth.getProviders();
+      setProviders(response.providers);
     } catch (err) {
       console.error('Failed to load providers:', err);
-      setError('Failed to load authentication providers');
-      setProviders([]);
+      setError(err instanceof Error ? err.message : 'Failed to load authentication providers');
     }
   }, []);
 
@@ -76,25 +72,28 @@ const LoginView: React.FC = () => {
    */
   const checkIfTokenIsValid = async (accessToken: string, refreshToken: string) => {
     try {
-      const response = await apiClient.auth().refreshToken({
+      const mero = getMero();
+      const response = await mero.auth.refreshToken({
         access_token: accessToken,
         refresh_token: refreshToken
       });
       
-      if (response.error?.message?.includes('Access token still valid')) {
+      if (response.access_token && response.refresh_token) {
+        setAccessToken(response.access_token);
+        setRefreshToken(response.refresh_token);
         setShowProviders(false);
         return true;
       }
 
-      if (response.data?.access_token && response.data?.refresh_token) {
-        setAccessToken(response.data.access_token);
-        setRefreshToken(response.data.refresh_token)
-        setShowProviders(false);
-        return true;
-      }
-
-      throw new Error(response.error?.message || 'Failed to validate token');
+      throw new Error('Failed to validate token');
     } catch (err) {
+      // Check if error message indicates token is still valid
+      const errorMessage = err instanceof Error ? err.message : '';
+      if (errorMessage.includes('Access token still valid') || errorMessage.includes('token valid')) {
+        setShowProviders(false);
+        return true;
+      }
+      
       console.error('Token validation failed:', err);
       clearAccessToken();
       clearRefreshToken();
@@ -218,28 +217,24 @@ const LoginView: React.FC = () => {
       setUsernamePasswordLoading(true);
       setError(null);
 
+      const mero = getMero();
       const tokenPayload = {
-        auth_method: 'user_password',
+        auth_method: 'user_password' as const,
         public_key: username, // Use username as public key for user_password provider
         client_name: window.location.href,
         timestamp: Date.now(),
-        permissions: [],
+        permissions: [] as string[],
         provider_data: {
           username: username,
           password: password
         }
       };
 
-      const tokenResponse = await apiClient.auth().requestToken(tokenPayload);
+      const tokenResponse = await mero.auth.getToken(tokenPayload);
 
-      if (tokenResponse.error) {
-        setError(tokenResponse.error.message);
-        return;
-      }
-
-      if (tokenResponse.data.access_token && tokenResponse.data.refresh_token) {
-        setAccessToken(tokenResponse.data.access_token);
-        setRefreshToken(tokenResponse.data.refresh_token);
+      if (tokenResponse.access_token && tokenResponse.refresh_token) {
+        setAccessToken(tokenResponse.access_token);
+        setRefreshToken(tokenResponse.refresh_token);
         
         // Check for manifest/package flows after authentication
         const manifestUrl = getStoredUrlParam('manifest-url');
@@ -287,16 +282,15 @@ const LoginView: React.FC = () => {
    */
   const handleProviderSelect = async (provider: Provider) => {
     try {
+      const mero = getMero();
+      
       if (provider.name === 'near_wallet') {
-        const challengeResponse = await apiClient.auth().getChallenge();
-
-        if (challengeResponse.error) {
-          setError(challengeResponse.error.message);
-          return;
-        }
+        const challengeResponse = await mero.auth.getChallenge();
         
+        // Provider config may have network info - cast to any for flexibility
+        const providerConfig = (provider as any).config;
         const selector = await setupWalletSelector({
-          network: provider.config?.network as NetworkId,
+          network: providerConfig?.network as NetworkId,
           modules: [setupMyNearWallet()]
         });
 
@@ -305,8 +299,8 @@ const LoginView: React.FC = () => {
         let signature;
         try {
           signature = await wallet.signMessage({
-            message: challengeResponse.data.challenge,
-            nonce: Buffer.from(challengeResponse.data.nonce, 'base64'),
+            message: challengeResponse.challenge,
+            nonce: Buffer.from(challengeResponse.nonce, 'base64'),
             recipient: 'calimero',
             callbackUrl: window.location.href
           }) as SignedMessage;
@@ -320,46 +314,41 @@ const LoginView: React.FC = () => {
         }
 
         const tokenPayload = {
-          auth_method: provider.name,
+          auth_method: provider.name as 'near_wallet',
           public_key: signature.publicKey,
           client_name: window.location.href,
           timestamp: Date.now(),
-          permissions: [],
+          permissions: [] as string[],
           provider_data: {
             wallet_address: signature.accountId,
-            message: challengeResponse.data.challenge,
+            message: challengeResponse.challenge,
             signature: signature.signature,
             recipient: 'calimero'
           }
         };
 
-        const tokenResponse = await apiClient.auth().requestToken(tokenPayload);
+        const tokenResponse = await mero.auth.getToken(tokenPayload);
 
-        if (tokenResponse.error) {
-          setError(tokenResponse.error.message);
-          return;
-        }
-
-        if (tokenResponse.data.access_token && tokenResponse.data.refresh_token) {
-          setAccessToken(tokenResponse.data.access_token);
-          setRefreshToken(tokenResponse.data.refresh_token);
+        if (tokenResponse.access_token && tokenResponse.refresh_token) {
+          setAccessToken(tokenResponse.access_token);
+          setRefreshToken(tokenResponse.refresh_token);
           
           const permissionsParam = getStoredUrlParam('permissions');
           const permissions = permissionsParam ? permissionsParam.split(',') : [];
           const hasAdminPermissions = permissions.includes('admin');
           
-        // Check for manifest flows after authentication
-        const manifestUrl = getStoredUrlParam('manifest-url');
-        
-        // For manifest flows, we need admin permissions, so show PermissionsView first
-        if (manifestUrl && hasAdminPermissions) {
-          console.log('DEBUG: After provider auth, showing PermissionsView for manifest flow');
-          setShowPermissionsView(true);
-        } else if (hasAdminPermissions) {
-          setShowPermissionsView(true);
-        } else {
-          setShowApplicationInstallCheck(true);
-        }
+          // Check for manifest flows after authentication
+          const manifestUrl = getStoredUrlParam('manifest-url');
+          
+          // For manifest flows, we need admin permissions, so show PermissionsView first
+          if (manifestUrl && hasAdminPermissions) {
+            console.log('DEBUG: After provider auth, showing PermissionsView for manifest flow');
+            setShowPermissionsView(true);
+          } else if (hasAdminPermissions) {
+            setShowPermissionsView(true);
+          } else {
+            setShowApplicationInstallCheck(true);
+          }
         } else {
           throw new Error('Failed to get access token');
         }
@@ -382,26 +371,27 @@ const LoginView: React.FC = () => {
    */
   const handleAdminClientKeyGeneration = async (permissions: string[]) => {
     try {
-      const response = await apiClient.auth().generateClientKey({
-        context_id: '', // Admin permissions don't require specific context
-        context_identity: '', // Admin permissions don't require specific identity
+      const mero = getMero();
+      const response = await mero.auth.generateClientKey({
+        contextId: '', // Admin permissions don't require specific context
+        contextIdentity: '', // Admin permissions don't require specific identity
         permissions,
-        target_node_url: getAppEndpointKey() || ''
       });
 
-      if (response.error) {
-        setError(response.error.message);
-        return;
-      }
-
-      if (response.data.access_token && response.data.refresh_token) {
+      // mero-js generateClientKey returns ClientKey, not tokens
+      // For admin flow, we need to get tokens differently
+      // The response contains keyId, rootKeyId, etc. but not access_token
+      // Let's check if the API returns tokens or we need a different approach
+      const responseAny = response as any;
+      
+      if (responseAny.access_token && responseAny.refresh_token) {
         const callback = getStoredUrlParam('callback-url');
         if (callback) {
           const returnUrl = new URL(callback);
           // Create fragment params for tokens
           const fragmentParams = new URLSearchParams();
-          fragmentParams.set('access_token', response.data.access_token);
-          fragmentParams.set('refresh_token', response.data.refresh_token);
+          fragmentParams.set('access_token', responseAny.access_token);
+          fragmentParams.set('refresh_token', responseAny.refresh_token);
           
           // Include applicationId for package-based flows
           const installedAppId = localStorage.getItem('installed-application-id');
@@ -468,34 +458,32 @@ const LoginView: React.FC = () => {
         console.log('Application-scoped permissions:', permissions);
       }
 
-      const response = await apiClient.auth().generateClientKey({
-        context_id: contextId || '',
-        context_identity: identity || '',
+      const mero = getMero();
+      const response = await mero.auth.generateClientKey({
+        contextId: contextId || '',
+        contextIdentity: identity || '',
         permissions,
-        target_node_url: getAppEndpointKey() || ''
       });
 
-      if (response.error) {
-        setError(response.error.message);
-        return;
-      }
-
-      if (response.data.access_token && response.data.refresh_token) {
+      // Cast response to access tokens (mero-js may return them in the response)
+      const responseAny = response as any;
+      
+      if (responseAny.access_token && responseAny.refresh_token) {
         const callback = getStoredUrlParam('callback-url');
         if (callback) {
           const returnUrl = new URL(callback);
           // Create fragment params for tokens
           const fragmentParams = new URLSearchParams();
-          fragmentParams.set('access_token', response.data.access_token);
-          fragmentParams.set('refresh_token', response.data.refresh_token);
+          fragmentParams.set('access_token', responseAny.access_token);
+          fragmentParams.set('refresh_token', responseAny.refresh_token);
           
           // Include applicationId for package-based flows (before cleanup!)
-          const installedAppId = localStorage.getItem('installed-application-id');
-          console.log('🔍 DEBUG: Reading installed-application-id from localStorage:', installedAppId);
+          const installedAppIdForRedirect = localStorage.getItem('installed-application-id');
+          console.log('🔍 DEBUG: Reading installed-application-id from localStorage:', installedAppIdForRedirect);
           console.log('🔍 DEBUG: All localStorage keys:', Object.keys(localStorage));
-          if (installedAppId) {
-            console.log('✅ DEBUG: Adding application_id to fragmentParams:', installedAppId);
-            fragmentParams.set('application_id', installedAppId);
+          if (installedAppIdForRedirect) {
+            console.log('✅ DEBUG: Adding application_id to fragmentParams:', installedAppIdForRedirect);
+            fragmentParams.set('application_id', installedAppIdForRedirect);
           } else {
             console.warn('❌ DEBUG: No installed-application-id in localStorage!');
           }

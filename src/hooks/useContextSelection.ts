@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
-// import { Context, ContextIdentity } from '../types/api';
-import { apiClient, getAccessToken, getRefreshToken } from '@calimero-network/calimero-client';
-import { Context } from '@calimero-network/calimero-client/lib/api/nodeApi';
+import { getMero, getAccessToken, getRefreshToken } from '../lib/mero';
+import type { Context } from '@calimero-network/mero-js/api/admin';
 
 export function useContextSelection() {
     const [contexts, setContexts] = useState<Context[]>([]);
@@ -22,16 +21,11 @@ export function useContextSelection() {
             setLoading(true);
             setError(null);
             console.log('🔍 Fetching contexts...');
-            const response = await apiClient.node().getContexts();
+            const mero = getMero();
+            const response = await mero.admin.contexts.listContexts();
             console.log('🔍 getContexts response:', response);
-            if (response.error) {
-                console.error('❌ getContexts error:', response.error);
-                setError(response.error.message);
-                return;
-            }
-            console.log('✅ getContexts data:', response.data);
-            console.log('✅ Contexts array:', response.data?.contexts);
-            const contextsRaw = response.data?.contexts;
+            console.log('✅ Contexts array:', response.contexts);
+            const contextsRaw = response.contexts;
             if (!Array.isArray(contextsRaw)) {
                 console.warn('⚠️ getContexts response missing contexts array, defaulting to empty list');
                 setContexts([]);
@@ -39,6 +33,7 @@ export function useContextSelection() {
                 setContexts(contextsRaw as Context[]);
             }
         } catch (err) {
+            console.error('❌ getContexts error:', err);
             setError(err instanceof Error ? err.message : 'Failed to fetch contexts');
         } finally {
             setLoading(false);
@@ -55,12 +50,9 @@ export function useContextSelection() {
         try {
             setLoading(true);
             setError(null);
-            const response = await apiClient.node().fetchContextIdentities(contextId);
-            if (response.error) {
-                setError(response.error.message);
-                return;
-            }
-            setIdentities(response.data.identities);
+            const mero = getMero();
+            const response = await mero.admin.contexts.getContextIdentities(contextId);
+            setIdentities(response.identities);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to fetch identities');
         } finally {

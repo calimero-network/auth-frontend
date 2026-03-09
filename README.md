@@ -91,7 +91,7 @@ src/
 ## Dependencies
 
 ### Core Dependencies
-- **@calimero-network/calimero-client**: Calimero Network integration
+- **@calimero-network/mero-js**: Calimero Network JavaScript SDK
 - **@near-wallet-selector**: NEAR wallet connection and management
 - **near-api-js**: NEAR Protocol JavaScript API
 - **react-router-dom**: Client-side routing

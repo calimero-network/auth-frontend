@@ -7,7 +7,7 @@ import {
 import Loader from '../common/Loader';
 import { ErrorView } from '../common/ErrorView';
 import { RegistryClient, registryClient } from '../../utils/registryClient';
-import { apiClient, getAccessToken, setAppEndpointKey } from '@calimero-network/calimero-client';
+import { getMero, getAccessToken, setAppEndpointKey } from '../../lib/mero';
 
 interface Manifest {
   manifest_version: string;
@@ -173,24 +173,22 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
       try {
         console.log('Checking if package is already installed:', manifest.id);
         
+        const mero = getMero();
+        
         // Try to get latest version of this package
-        const latestResponse = await apiClient.admin().getPackageLatest(manifest.id);
+        const latestResponse = await mero.admin.applications.getLatestVersion(manifest.id);
         
-        console.log('getPackageLatest response:', latestResponse);
-        console.log('Response data:', latestResponse.data);
-        console.log('Response error:', latestResponse.error);
+        console.log('getLatestVersion response:', latestResponse);
         
-        // Backend returns { applicationId: "..." } directly (no data wrapper)
-        // HTTP client should unwrap it, so latestResponse.data should be { applicationId: string | null }
-        const responseData = latestResponse.data as { applicationId: string | null } | undefined;
-        const applicationId = responseData?.applicationId || null;
+        // mero-js returns unwrapped response
+        const applicationId = latestResponse.applicationId || null;
         
-        if (!latestResponse.error && applicationId) {
+        if (applicationId) {
           console.log('Package already installed!', applicationId);
           setAlreadyInstalled(true);
           setExistingAppId(applicationId);
         } else {
-          console.log('Package not installed yet', latestResponse.error ? `Error: ${latestResponse.error.message}` : `No applicationId in response. Data: ${JSON.stringify(latestResponse.data)}`);
+          console.log('Package not installed yet - no applicationId in response');
         }
       } catch (err) {
         console.warn('Could not check existing installation:', err);
@@ -209,6 +207,8 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
     setInstallStatus('Installing application...');
     
     try {
+      const mero = getMero();
+      
       // Install the package
       setInstallStatus(`Installing ${manifest.id}@${manifest.version}...`);
       
@@ -249,19 +249,14 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
       const metadataJson = JSON.stringify(metadataObj);
       const metadataBytes = Array.from(new TextEncoder().encode(metadataJson));
       
-      const installResponse = await apiClient.admin().installApplication({
+      const installResponse = await mero.admin.applications.installApplication({
         url: manifest.artifact.uri,
         package: manifest.id,
         version: manifest.version,
         metadata: metadataBytes
       });
       
-      if (installResponse.error) {
-        throw new Error(`Failed to install: ${installResponse.error.message}`);
-      }
-      
-      const applicationId = installResponse.data?.data?.applicationId || 
-                           (installResponse.data as any)?.applicationId;
+      const applicationId = (installResponse as any)?.applicationId;
       
       if (!applicationId) {
         throw new Error('Installation succeeded but no application ID returned');
@@ -286,9 +281,9 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
       completionInProgressRef.current = true;
       
       // Get contexts
-      const contextsResponse = await apiClient.admin().getContextsForApplication(applicationId);
+      const contextsResponse = await mero.admin.contexts.getContextsForApplication(applicationId);
       
-      const contexts = (contextsResponse.data as any)?.contexts || [];
+      const contexts = (contextsResponse as any)?.contexts || [];
       console.log('Application contexts:', contexts);
       
       // Complete with first context or empty for application-level token

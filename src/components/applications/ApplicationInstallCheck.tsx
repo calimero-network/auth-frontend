@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useContextCreation } from '../../hooks/useContextCreation';
 import { getStoredUrlParam } from '../../utils/urlParams';
-import { apiClient } from '@calimero-network/calimero-client';
+import { getMero } from '../../lib/mero';
 import {
   Button,
   Card,
@@ -43,24 +43,22 @@ export function ApplicationInstallCheck({ onComplete, onBack }: ApplicationInsta
       }
 
       try {
-        // Check if the application is already installed
-        const response = await apiClient.node().getInstalledApplicationDetails(applicationId);
-        if (!response.error && response.data) {
-          // Application exists, proceed to permissions
-          onComplete('', '');
-          return;
-        }
+        const mero = getMero();
         
-        // Application doesn't exist, show installation prompt
-        setIsCheckingInstallation(false);
+        // Check if the application is already installed
+        await mero.admin.applications.getApplication(applicationId);
+        // If we get here without error, application exists
+        onComplete('', '');
+        return;
       } catch (err) {
+        // Application doesn't exist or error, show installation prompt
         console.error('Failed to check application:', err);
         setIsCheckingInstallation(false);
       }
     };
 
     checkApplication();
-  }, [applicationId, onComplete]);
+  }, [applicationId, applicationPath, onComplete]);
 
   if (isLoading || isCheckingInstallation) {
     return <Loader />;

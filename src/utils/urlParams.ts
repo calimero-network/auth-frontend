@@ -3,7 +3,7 @@ import {
   setAuthEndpointURL,
   clearAppEndpoint, 
   clearAccessToken 
-} from '@calimero-network/calimero-client';
+} from '../lib/mero';
 
 export const handleUrlParams = () => {
   // Get URL search params
