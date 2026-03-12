@@ -207,8 +207,8 @@ export function clearAppEndpoint(): void {
 // ============================================================================
 
 export interface GenerateClientKeyRequest {
-  contextId: string;
-  contextIdentity: string;
+  context_id: string;
+  context_identity: string;
   permissions: string[];
 }
 

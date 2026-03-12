@@ -57,8 +57,8 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
   const generateAndRedirect = async (contextId: string | null, identity: string | null) => {
     try {
       const response = await generateClientKeyDirect({
-        contextId: contextId || '',
-        contextIdentity: identity || '',
+        context_id: contextId || '',
+        context_identity: identity || '',
         permissions,
       });
 
@@ -73,12 +73,12 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
         const fragmentParams = new URLSearchParams();
         fragmentParams.set('access_token', response.access_token);
         fragmentParams.set('refresh_token', response.refresh_token);
-        
+
         // Include context_id so the client app knows which context to use
         if (contextId) {
           fragmentParams.set('context_id', contextId);
         }
-        
+
         // Include identity so the client app knows which executor to use
         if (identity) {
           fragmentParams.set('context_identity', identity);

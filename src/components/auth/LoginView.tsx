@@ -373,8 +373,8 @@ const LoginView: React.FC = () => {
   const handleAdminClientKeyGeneration = async (permissions: string[]) => {
     try {
       const response = await generateClientKeyDirect({
-        contextId: '',
-        contextIdentity: '',
+        context_id: '',
+        context_identity: '',
         permissions,
       });
 
@@ -452,8 +452,8 @@ const LoginView: React.FC = () => {
       }
 
       const response = await generateClientKeyDirect({
-        contextId: contextId || '',
-        contextIdentity: identity || '',
+        context_id: contextId || '',
+        context_identity: identity || '',
         permissions,
       });
 

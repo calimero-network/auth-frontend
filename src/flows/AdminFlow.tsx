@@ -26,8 +26,8 @@ export const AdminFlow: React.FC = () => {
   const handlePermissionsApprove = async () => {
     try {
       const response = await generateClientKeyDirect({
-        contextId: '',
-        contextIdentity: '',
+        context_id: '',
+        context_identity: '',
         permissions,
       });
 

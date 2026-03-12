@@ -108,8 +108,8 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
       }
 
       const response = await generateClientKeyDirect({
-        contextId: contextId || '',
-        contextIdentity: identity || '',
+        context_id: contextId || '',
+        context_identity: identity || '',
         permissions: scopedPermissions,
       });
 
@@ -124,16 +124,16 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
         const fragmentParams = new URLSearchParams();
         fragmentParams.set('access_token', response.access_token);
         fragmentParams.set('refresh_token', response.refresh_token);
-        
+
         if (installedAppId) {
           fragmentParams.set('application_id', installedAppId);
         }
-        
+
         // Include context_id so the client app knows which context to use
         if (contextId) {
           fragmentParams.set('context_id', contextId);
         }
-        
+
         // Include identity so the client app knows which executor to use
         if (identity) {
           fragmentParams.set('context_identity', identity);
