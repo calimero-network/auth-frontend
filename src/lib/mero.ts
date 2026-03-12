@@ -233,11 +233,13 @@ export async function generateClientKeyDirect(
     body: JSON.stringify(request),
   });
 
+  const json = await response.json().catch(() => null);
+
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    const message = json?.error?.message ?? json?.error ?? json?.message ?? `HTTP ${response.status}`;
+    throw new Error(message);
   }
 
-  const json = await response.json();
   // Node wraps responses in { data: { ... }, error: null }
   return json?.data ?? json;
 }
