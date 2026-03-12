@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { getMero } from '../lib/mero';
+import { generateClientKeyDirect } from '../lib/mero';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ErrorView } from '../components/common/ErrorView';
 import { clearStoredUrlParams, getStoredUrlParam } from '../utils/urlParams';
@@ -25,17 +25,13 @@ export const AdminFlow: React.FC = () => {
 
   const handlePermissionsApprove = async () => {
     try {
-      const mero = getMero();
-      const response = await mero.auth.generateClientKey({
-        contextId: '',
-        contextIdentity: '',
+      const response = await generateClientKeyDirect({
+        context_id: '',
+        context_identity: '',
         permissions,
       });
 
-      // Cast response to access tokens
-      const responseAny = response as any;
-      
-      if (responseAny.access_token && responseAny.refresh_token) {
+      if (response.access_token && response.refresh_token) {
         const callback = getStoredUrlParam('callback-url');
         if (!callback) {
           setError('Missing callback URL');
@@ -44,8 +40,8 @@ export const AdminFlow: React.FC = () => {
 
         const returnUrl = new URL(callback);
         const fragmentParams = new URLSearchParams();
-        fragmentParams.set('access_token', responseAny.access_token);
-        fragmentParams.set('refresh_token', responseAny.refresh_token);
+        fragmentParams.set('access_token', response.access_token);
+        fragmentParams.set('refresh_token', response.refresh_token);
 
         clearStoredUrlParams();
         window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;

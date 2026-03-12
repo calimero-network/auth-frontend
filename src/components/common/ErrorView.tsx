@@ -1,4 +1,15 @@
-import { ErrorView as DSErrorView } from '@calimero-network/mero-ui';
+import React from 'react';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Flex,
+  Stack,
+  Text,
+} from '@calimero-network/mero-ui';
+import { tokens } from '@calimero-network/mero-tokens';
 
 interface ErrorViewProps {
   message: string;
@@ -7,7 +18,7 @@ interface ErrorViewProps {
 }
 
 export function ErrorView({ message, onRetry, buttonText }: ErrorViewProps) {
-  const handleRefresh = () => {
+  const handleAction = () => {
     if (onRetry) {
       onRetry();
     } else {
@@ -16,13 +27,62 @@ export function ErrorView({ message, onRetry, buttonText }: ErrorViewProps) {
   };
 
   return (
-    <div data-testid="error-view">
-      <DSErrorView
-        message={message}
-        actionLabel={buttonText || 'Try Again'}
-        onAction={handleRefresh}
-        showAction
-      />
+    <div
+      data-testid="error-view"
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '48px 16px 64px',
+        background: 'var(--color-background-primary)',
+      }}
+    >
+      <Card
+        variant="rounded"
+        color={tokens.color.semantic.error.value}
+        style={{ width: '100%', maxWidth: 520 }}
+      >
+        <CardHeader>
+          <Flex align="center" gap="sm">
+            <span style={{ fontSize: '22px', lineHeight: 1 }}>⚠️</span>
+            <CardTitle>Something went wrong</CardTitle>
+          </Flex>
+        </CardHeader>
+        <CardContent>
+          <Stack spacing="lg">
+            <div
+              style={{
+                padding: '12px 16px',
+                borderRadius: 'var(--radius-md)',
+                background: `${tokens.color.semantic.error.value}14`,
+                border: `1px solid ${tokens.color.semantic.error.value}40`,
+              }}
+            >
+              <Text size="sm" style={{ fontFamily: 'monospace', wordBreak: 'break-word' }}>
+                {message}
+              </Text>
+            </div>
+
+            <Text size="sm" color="muted">
+              If the problem persists, check that your node is running and reachable.
+            </Text>
+
+            <Flex justify="flex-end">
+              <Button
+                variant="primary"
+                onClick={handleAction}
+                style={{
+                  borderColor: 'var(--color-border-brand)',
+                  color: 'var(--color-text-brand)',
+                }}
+              >
+                {buttonText || 'Try Again'}
+              </Button>
+            </Flex>
+          </Stack>
+        </CardContent>
+      </Card>
     </div>
   );
 }
