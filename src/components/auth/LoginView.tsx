@@ -4,15 +4,16 @@ import { NetworkId, setupWalletSelector } from '@near-wallet-selector/core';
 import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet';
 import { Buffer } from 'buffer';
 import { handleUrlParams, getStoredUrlParam, clearStoredUrlParams } from '../../utils/urlParams';
-import { 
-  getMero, 
-  clearAccessToken, 
-  clearRefreshToken, 
-  getAccessToken, 
-  getAppEndpointKey, 
-  getRefreshToken, 
-  setAccessToken, 
-  setRefreshToken 
+import {
+  getMero,
+  generateClientKeyDirect,
+  clearAccessToken,
+  clearRefreshToken,
+  getAccessToken,
+  getAppEndpointKey,
+  getRefreshToken,
+  setAccessToken,
+  setRefreshToken
 } from '../../lib/mero';
 import type { AuthProvider as Provider } from '@calimero-network/mero-js/api/auth';
 import { ErrorView } from '../common/ErrorView';
@@ -371,27 +372,19 @@ const LoginView: React.FC = () => {
    */
   const handleAdminClientKeyGeneration = async (permissions: string[]) => {
     try {
-      const mero = getMero();
-      const response = await mero.auth.generateClientKey({
-        contextId: '', // Admin permissions don't require specific context
-        contextIdentity: '', // Admin permissions don't require specific identity
+      const response = await generateClientKeyDirect({
+        contextId: '',
+        contextIdentity: '',
         permissions,
       });
 
-      // mero-js generateClientKey returns ClientKey, not tokens
-      // For admin flow, we need to get tokens differently
-      // The response contains keyId, rootKeyId, etc. but not access_token
-      // Let's check if the API returns tokens or we need a different approach
-      const responseAny = response as any;
-      
-      if (responseAny.access_token && responseAny.refresh_token) {
+      if (response.access_token && response.refresh_token) {
         const callback = getStoredUrlParam('callback-url');
         if (callback) {
           const returnUrl = new URL(callback);
-          // Create fragment params for tokens
           const fragmentParams = new URLSearchParams();
-          fragmentParams.set('access_token', responseAny.access_token);
-          fragmentParams.set('refresh_token', responseAny.refresh_token);
+          fragmentParams.set('access_token', response.access_token);
+          fragmentParams.set('refresh_token', response.refresh_token);
           
           // Include applicationId for package-based flows
           const installedAppId = localStorage.getItem('installed-application-id');
@@ -458,24 +451,19 @@ const LoginView: React.FC = () => {
         console.log('Application-scoped permissions:', permissions);
       }
 
-      const mero = getMero();
-      const response = await mero.auth.generateClientKey({
+      const response = await generateClientKeyDirect({
         contextId: contextId || '',
         contextIdentity: identity || '',
         permissions,
       });
 
-      // Cast response to access tokens (mero-js may return them in the response)
-      const responseAny = response as any;
-      
-      if (responseAny.access_token && responseAny.refresh_token) {
+      if (response.access_token && response.refresh_token) {
         const callback = getStoredUrlParam('callback-url');
         if (callback) {
           const returnUrl = new URL(callback);
-          // Create fragment params for tokens
           const fragmentParams = new URLSearchParams();
-          fragmentParams.set('access_token', responseAny.access_token);
-          fragmentParams.set('refresh_token', responseAny.refresh_token);
+          fragmentParams.set('access_token', response.access_token);
+          fragmentParams.set('refresh_token', response.refresh_token);
           
           // Include applicationId for package-based flows (before cleanup!)
           const installedAppIdForRedirect = localStorage.getItem('installed-application-id');

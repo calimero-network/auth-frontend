@@ -198,6 +198,51 @@ export function clearAppEndpoint(): void {
 }
 
 // ============================================================================
+// generateClientKey — direct call to /admin/client-key
+//
+// mero-js AuthApiClient.generateClientKey() calls getAuthPath('/admin/client-key')
+// which in embedded mode (default) prepends /auth/, producing /auth/admin/client-key.
+// The node exposes this endpoint at /admin/client-key (not /auth/admin/client-key),
+// so we bypass the mero-js auth client and make the request directly.
+// ============================================================================
+
+export interface GenerateClientKeyRequest {
+  contextId: string;
+  contextIdentity: string;
+  permissions: string[];
+}
+
+export interface GenerateClientKeyResponse {
+  access_token: string;
+  refresh_token: string;
+  [key: string]: unknown;
+}
+
+export async function generateClientKeyDirect(
+  request: GenerateClientKeyRequest,
+): Promise<GenerateClientKeyResponse> {
+  const baseUrl = (getAppEndpointKey() || window.location.origin).replace(/\/$/, '');
+  const token = getAccessToken();
+
+  const response = await fetch(`${baseUrl}/admin/client-key`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} ${response.statusText}`);
+  }
+
+  const json = await response.json();
+  // Node wraps responses in { data: { ... }, error: null }
+  return json?.data ?? json;
+}
+
+// ============================================================================
 // Type Re-exports for convenience
 // ============================================================================
 

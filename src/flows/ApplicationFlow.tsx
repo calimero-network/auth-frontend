@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { getMero } from '../lib/mero';
+import { generateClientKeyDirect } from '../lib/mero';
 import { ApplicationInstallCheck } from '../components/applications/ApplicationInstallCheck';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ContextSelector } from '../components/context/ContextSelector';
@@ -56,17 +56,13 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
 
   const generateAndRedirect = async (contextId: string | null, identity: string | null) => {
     try {
-      const mero = getMero();
-      const response = await mero.auth.generateClientKey({
+      const response = await generateClientKeyDirect({
         contextId: contextId || '',
         contextIdentity: identity || '',
         permissions,
       });
 
-      // Cast response to access tokens
-      const responseAny = response as any;
-
-      if (responseAny.access_token && responseAny.refresh_token) {
+      if (response.access_token && response.refresh_token) {
         const callback = getStoredUrlParam('callback-url');
         if (!callback) {
           setError('Missing callback URL');
@@ -75,8 +71,8 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
 
         const returnUrl = new URL(callback);
         const fragmentParams = new URLSearchParams();
-        fragmentParams.set('access_token', responseAny.access_token);
-        fragmentParams.set('refresh_token', responseAny.refresh_token);
+        fragmentParams.set('access_token', response.access_token);
+        fragmentParams.set('refresh_token', response.refresh_token);
         
         // Include context_id so the client app knows which context to use
         if (contextId) {
