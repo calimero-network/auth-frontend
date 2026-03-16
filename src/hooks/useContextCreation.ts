@@ -136,7 +136,9 @@ export function useContextCreation(): UseContextCreationReturn {
         const createContextResponse = await mero.admin.contexts.createContext({
           protocol: selectedProtocol,
           applicationId,
-          initializationParams: initArgs ?? '{}',
+          initializationParams: initArgs
+            ? Array.from(new TextEncoder().encode(initArgs))
+            : [],
         });
 
         // Handle successful context creation
