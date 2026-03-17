@@ -2,13 +2,9 @@ import { useState } from 'react';
 import { getStoredUrlParam } from '../utils/urlParams';
 import { getMero } from '../lib/mero';
 
-export const PROTOCOLS = ['near', 'starknet', 'icp', 'stellar', 'ethereum'] as const;
+export const PROTOCOLS = ['near'] as const;
 export const PROTOCOL_DISPLAY = {
   near: 'NEAR',
-  starknet: 'Starknet',
-  icp: 'ICP',
-  stellar: 'Stellar',
-  ethereum: 'Ethereum'
 } as const;
 
 export type Protocol = typeof PROTOCOLS[number];
@@ -136,7 +132,9 @@ export function useContextCreation(): UseContextCreationReturn {
         const createContextResponse = await mero.admin.contexts.createContext({
           protocol: selectedProtocol,
           applicationId,
-          initializationParams: initArgs ?? '{}',
+          initializationParams: initArgs
+            ? Array.from(new TextEncoder().encode(initArgs))
+            : [],
         });
 
         // Handle successful context creation

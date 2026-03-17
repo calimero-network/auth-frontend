@@ -63,18 +63,33 @@ let meroInstance: MeroJs | null = null;
 export function getMero(): MeroJs {
   const baseUrl = getAppEndpointKey() || window.location.origin;
   const authUrl = getAuthEndpointURL() || baseUrl;
-  
-  // Create new instance if none exists or if endpoint changed
+
   if (!meroInstance) {
     meroInstance = new MeroJs({
       baseUrl,
       authBaseUrl: authUrl,
       tokenStorage,
     });
-    // Initialize from storage (sync call, but MeroJs will handle this)
+
+    // Synchronously seed tokens from localStorage so the instance is auth-ready
+    // immediately — before the async init() completes. This prevents a race where
+    // API calls fire before init() has loaded tokens and get rejected with 401.
+    const accessToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+    const refreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+    if (accessToken && refreshToken) {
+      let expiresAt: number;
+      try {
+        const payload = JSON.parse(atob(accessToken.split('.')[1]));
+        expiresAt = payload.exp * 1000;
+      } catch {
+        expiresAt = Date.now() + 3_600_000;
+      }
+      meroInstance.setToken({ access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt });
+    }
+
     meroInstance.init().catch(console.error);
   }
-  
+
   return meroInstance;
 }
 
@@ -168,9 +183,13 @@ export function getAppEndpointKey(): string | null {
  * Set the app endpoint URL
  */
 export function setAppEndpointKey(url: string): void {
+  const current = localStorage.getItem(STORAGE_KEYS.APP_ENDPOINT);
   localStorage.setItem(STORAGE_KEYS.APP_ENDPOINT, url);
-  // Reset MeroJs instance so it picks up the new URL
-  resetMero();
+  // Only reset the instance when the URL actually changes — resetting with the
+  // same URL needlessly destroys the authenticated instance and causes 401s.
+  if (current !== url) {
+    resetMero();
+  }
 }
 
 /**

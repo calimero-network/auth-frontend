@@ -2,21 +2,22 @@ import React, { useMemo, useState } from 'react';
 import { generateClientKeyDirect } from '../lib/mero';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ErrorView } from '../components/common/ErrorView';
+import Loader from '../components/common/Loader';
 import { clearStoredUrlParams, getStoredUrlParam } from '../utils/urlParams';
 import { normalizePermissions } from '../utils/permissions';
 
 /**
  * AdminFlow - Handles admin token generation
- * 
+ *
  * Flow:
  * 1. Review admin permissions
  * 2. Generate admin-scoped client key
  * 3. Redirect to callback with tokens
- * 
- * No app installation, no context selection required.
  */
 export const AdminFlow: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+
   const permissions = useMemo(() => {
     const permissionsParam = getStoredUrlParam('permissions');
     const rawPermissions = permissionsParam ? permissionsParam.split(',') : [];
@@ -24,6 +25,7 @@ export const AdminFlow: React.FC = () => {
   }, []);
 
   const handlePermissionsApprove = async () => {
+    setGenerating(true);
     try {
       const response = await generateClientKeyDirect({
         context_id: '',
@@ -35,6 +37,7 @@ export const AdminFlow: React.FC = () => {
         const callback = getStoredUrlParam('callback-url');
         if (!callback) {
           setError('Missing callback URL');
+          setGenerating(false);
           return;
         }
 
@@ -51,11 +54,21 @@ export const AdminFlow: React.FC = () => {
     } catch (err) {
       console.error('Failed to generate admin token:', err);
       setError(err instanceof Error ? err.message : 'Failed to generate admin token');
+      setGenerating(false);
     }
   };
 
+  if (generating) {
+    return <Loader />;
+  }
+
   if (error) {
-    return <ErrorView message={error} onRetry={() => window.location.reload()} />;
+    return (
+      <ErrorView
+        message={error}
+        onRetry={() => setError(null)}
+      />
+    );
   }
 
   return (
@@ -69,7 +82,3 @@ export const AdminFlow: React.FC = () => {
     />
   );
 };
-
-
-
-

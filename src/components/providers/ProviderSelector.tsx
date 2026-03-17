@@ -12,6 +12,7 @@ import {
   Stack,
   Text,
 } from '@calimero-network/mero-ui';
+import { PageShell } from '../common/PageShell';
 
 interface ProviderSelectorProps {
   providers: Provider[];
@@ -38,15 +39,7 @@ const ProviderSelector: React.FC<ProviderSelectorProps> = ({
 
   if (providers.length === 0) {
     return (
-      <div style={{ 
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        maxWidth: 520,
-        width: '100%',
-        padding: '0 16px',
-      }}>
+      <PageShell>
         <Card variant="rounded" color="var(--color-border-brand)">
           <CardContent>
             <EmptyState
@@ -56,20 +49,12 @@ const ProviderSelector: React.FC<ProviderSelectorProps> = ({
             />
           </CardContent>
         </Card>
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div style={{ 
-      position: 'fixed',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      maxWidth: 520,
-      width: '100%',
-      padding: '0 16px',
-    }}>
+    <PageShell>
       <Card variant="rounded" color="var(--color-border-brand)">
         <CardHeader>
           <CardTitle>Choose an authentication method</CardTitle>
@@ -101,7 +86,7 @@ const ProviderSelector: React.FC<ProviderSelectorProps> = ({
           </Menu>
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 };
 

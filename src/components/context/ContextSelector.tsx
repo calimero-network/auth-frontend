@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useContextSelection } from "../../hooks/useContextSelection";
 import {
-  PROTOCOLS,
   PROTOCOL_DISPLAY,
   useContextCreation,
 } from "../../hooks/useContextCreation";
@@ -9,6 +8,7 @@ import { getStoredUrlParam } from "../../utils/urlParams";
 import { ErrorView } from "../common/ErrorView";
 import { ContextSelectorWrapper } from "./styles";
 import Loader from "../common/Loader";
+import { PageShell } from "../common/PageShell";
 import {
   Button,
   Card,
@@ -29,8 +29,15 @@ interface ContextSelectorProps {
   onBack: () => void;
 }
 
+const PRIMARY_BTN = {
+  backgroundColor: '#A5FF11',
+  color: '#0A0E13',
+  border: 'none',
+  fontWeight: 600,
+} as const;
+
 export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
-  const [showProtocolSelection, setShowProtocolSelection] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const {
     contexts,
@@ -59,13 +66,24 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
     fetchContexts();
   }, [fetchContexts]);
 
-  // Filter contexts based on applicationId URL parameter
   const applicationId = getStoredUrlParam("application-id");
   const applicationPath = getStoredUrlParam("application-path");
   const installedApplicationId =
     sessionStorage.getItem("installed-application-id") ||
-    localStorage.getItem("installed-application-id"); // Fallback
+    localStorage.getItem("installed-application-id");
   const targetApplicationId = applicationId || installedApplicationId;
+
+  // Try to get a display name for the app from stored manifest info
+  const appDisplayName = useMemo(() => {
+    try {
+      const stored = localStorage.getItem("manifest-info");
+      if (stored) {
+        const info = JSON.parse(stored);
+        return info.name || null;
+      }
+    } catch {}
+    return null;
+  }, []);
 
   const [initArgs, setInitArgs] = useState("{}");
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -94,12 +112,7 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
   );
 
   const formatPublicKey = (key: string) => {
-    if (!key) {
-      return "";
-    }
-    if (key.length <= 16) {
-      return key;
-    }
+    if (!key || key.length <= 16) return key;
     return `${key.slice(0, 10)}…${key.slice(-6)}`;
   };
 
@@ -118,193 +131,218 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
 
   if (error) {
     return (
-      <ContextSelectorWrapper>
-        <ErrorView message={error} onRetry={fetchContexts} />
-      </ContextSelectorWrapper>
+      <PageShell>
+        <ContextSelectorWrapper>
+          <ErrorView message={error} onRetry={fetchContexts} />
+        </ContextSelectorWrapper>
+      </PageShell>
     );
   }
 
-  // Show install prompt if there's an application mismatch
+  // Application ID mismatch prompt
   if (showInstallPrompt) {
     return (
-      <ContextSelectorWrapper>
-        <Card
-          variant="rounded"
-          color="var(--color-border-brand)"
-          style={{ maxWidth: 520 }}
-        >
-          <CardHeader>
-            <CardTitle>Application ID mismatch</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Stack spacing="md" align="center">
-              <Text align="center" color="muted">
-                The application ID in the request does not match the installed
-                application. Do you want to proceed with installation anyway?
-              </Text>
-              <Flex justify="center" gap="sm">
-                <Button variant="secondary" onClick={handleInstallCancel}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="primary"
-                  disabled={loading}
-                  onClick={async () => {
-                    const contextData = await handleContextCreation(
-                      applicationId || targetApplicationId,
-                      initArgs,
-                    );
-                    if (contextData) {
-                      handleContextSelect(contextData.contextId);
-                      handleIdentitySelect(
-                        contextData.contextId,
-                        contextData.memberPublicKey,
-                      );
-                    }
-                  }}
-                  style={{
-                    color: "var(--color-text-brand)",
-                    borderColor: "var(--color-border-brand)",
-                  }}
-                >
-                  Install anyway
-                </Button>
-              </Flex>
-            </Stack>
-          </CardContent>
-        </Card>
-      </ContextSelectorWrapper>
-    );
-  }
-
-  // No contexts available and applicationPath is present - show create context prompt
-  if (
-    !filteredContexts.length &&
-    targetApplicationId &&
-    !selectedContext &&
-    !selectedIdentity
-  ) {
-    return (
-      <ContextSelectorWrapper>
-        <Card
-          variant="rounded"
-          color="var(--color-border-brand)"
-          style={{ maxWidth: 520 }}
-        >
-          <CardHeader>
-            <CardTitle>Create a new context</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Stack spacing="lg" align="center">
-              <Text align="center" color="muted">
-                There are no contexts available for this application yet. Create
-                one to continue.
-              </Text>
-
-              {!showProtocolSelection && (
-                <Button
-                  variant="primary"
-                  onClick={() => setShowProtocolSelection(true)}
-                  style={{
-                    color: "var(--color-text-brand)",
-                    borderColor: "var(--color-border-brand)",
-                  }}
-                >
-                  Create new context
-                </Button>
-              )}
-
-              {showProtocolSelection && !selectedProtocol && (
-                <Stack spacing="md" align="center" style={{ width: "100%" }}>
-                  <Text color="secondary">
-                    Select a protocol for the new context
-                  </Text>
-                  <Flex
-                    wrap="wrap"
-                    justify="center"
-                    gap="sm"
-                    style={{ width: "100%" }}
-                  >
-                    {PROTOCOLS.map((protocol) => (
-                      <Button
-                        key={protocol}
-                        variant="secondary"
-                        onClick={() => setSelectedProtocol(protocol)}
-                      >
-                        {PROTOCOL_DISPLAY[protocol]}
-                      </Button>
-                    ))}
-                  </Flex>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setShowProtocolSelection(false)}
-                  >
-                    Back
+      <PageShell>
+        <ContextSelectorWrapper>
+          <Card variant="rounded" color="var(--color-border-brand)">
+            <CardHeader>
+              <CardTitle>Application ID mismatch</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Stack spacing="md" align="center">
+                <Text align="center" color="muted">
+                  The application ID in the request does not match the installed
+                  application. Do you want to proceed with installation anyway?
+                </Text>
+                <Flex justify="center" gap="sm">
+                  <Button variant="secondary" onClick={handleInstallCancel}>
+                    Cancel
                   </Button>
-                </Stack>
-              )}
-
-              {showProtocolSelection && selectedProtocol && (
-                <Stack spacing="md" align="center" style={{ width: "100%" }}>
-                  <Text size="sm" color="secondary">
-                    Selected protocol: {PROTOCOL_DISPLAY[selectedProtocol]}
-                  </Text>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setSelectedProtocol(null)}
-                  >
-                    Change protocol
-                  </Button>
-                  <Stack spacing="md" style={{ width: "100%" }}>
-                    <Text size="sm" weight="medium">
-                      Initialization Arguments (JSON)
-                    </Text>
-                    <textarea
-                      value={initArgs}
-                      onChange={(e) => {
-                        setInitArgs(e.target.value);
-                        validateJson(e.target.value);
-                      }}
-                      placeholder="Enter JSON initialization arguments"
-                      style={{
-                        width: "100%",
-                        minHeight: "120px",
-                        padding: "8px 12px",
-                        borderRadius: "6px",
-                        border: "1px solid var(--color-border-default)",
-                        backgroundColor: "var(--color-bg-surface)",
-                        color: "var(--color-text-default)",
-                        fontFamily: "monospace",
-                        fontSize: "13px",
-                        resize: "vertical"
-                      }}
-                    />
-                    <Flex justify="space-between" align="center">
-                      {jsonError && (
-                        <Text size="sm" color="error">
-                          {jsonError}
-                        </Text>
-                      )}
-                    </Flex>
-                  </Stack>
                   <Button
                     variant="primary"
                     disabled={loading}
                     onClick={async () => {
-                      if (!validateJson(initArgs)) {
-                        setJsonError("Invalid JSON format");
-                        return;
+                      const contextData = await handleContextCreation(
+                        applicationId || targetApplicationId,
+                        initArgs,
+                      );
+                      if (contextData) {
+                        handleContextSelect(contextData.contextId);
+                        handleIdentitySelect(
+                          contextData.contextId,
+                          contextData.memberPublicKey,
+                        );
                       }
+                    }}
+                    style={PRIMARY_BTN}
+                  >
+                    Install anyway
+                  </Button>
+                </Flex>
+              </Stack>
+            </CardContent>
+          </Card>
+        </ContextSelectorWrapper>
+      </PageShell>
+    );
+  }
+
+  // Create context form
+  if (showCreateForm || (!filteredContexts.length && targetApplicationId && !selectedContext && !selectedIdentity)) {
+    if (!selectedProtocol) {
+      setSelectedProtocol("near");
+    }
+
+    return (
+      <PageShell>
+        <ContextSelectorWrapper>
+          <Card variant="rounded" color="var(--color-border-brand)">
+            <CardHeader>
+              <Stack spacing="sm">
+                <CardTitle>Create a new context</CardTitle>
+                {appDisplayName && (
+                  <Text size="sm" color="muted">
+                    for{" "}
+                    <span style={{ color: "#A5FF11", fontWeight: 600 }}>
+                      {appDisplayName}
+                    </span>
+                  </Text>
+                )}
+              </Stack>
+            </CardHeader>
+
+            <CardContent>
+              <Stack spacing="lg">
+                {/* Protocol row */}
+                <Flex align="center" justify="space-between">
+                  <Text size="sm" color="muted">
+                    Protocol
+                  </Text>
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "4px 12px",
+                      borderRadius: "999px",
+                      background: "rgba(165, 255, 17, 0.1)",
+                      border: "1px solid rgba(165, 255, 17, 0.3)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "6px",
+                        height: "6px",
+                        borderRadius: "50%",
+                        background: "#A5FF11",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        color: "#A5FF11",
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {PROTOCOL_DISPLAY["near"]}
+                    </span>
+                  </div>
+                </Flex>
+
+                <Divider color="muted" spacing="sm" />
+
+                {/* Init args */}
+                <Stack spacing="sm">
+                  <Flex align="center" justify="space-between">
+                    <Text size="sm" weight="medium">
+                      Initialization Arguments
+                    </Text>
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        color: "rgba(255,255,255,0.35)",
+                        fontFamily: "monospace",
+                        background: "rgba(255,255,255,0.06)",
+                        padding: "2px 7px",
+                        borderRadius: "4px",
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      JSON
+                    </span>
+                  </Flex>
+
+                  <textarea
+                    value={initArgs}
+                    onChange={(e) => {
+                      setInitArgs(e.target.value);
+                      validateJson(e.target.value);
+                    }}
+                    placeholder='{"key": "value"}'
+                    rows={4}
+                    style={{
+                      width: "100%",
+                      padding: "12px 14px",
+                      borderRadius: "10px",
+                      border: `1px solid ${
+                        jsonError
+                          ? "var(--color-semantic-error, #ef4444)"
+                          : "rgba(255,255,255,0.1)"
+                      }`,
+                      background: "#0A0E13",
+                      color: "#ffffff",
+                      fontFamily: "monospace",
+                      fontSize: "13px",
+                      lineHeight: "1.6",
+                      resize: "vertical",
+                      boxSizing: "border-box",
+                      outline: "none",
+                      transition: "border-color 0.15s ease",
+                    }}
+                    onFocus={(e) => {
+                      if (!jsonError)
+                        e.target.style.borderColor = "rgba(165, 255, 17, 0.5)";
+                    }}
+                    onBlur={(e) => {
+                      if (!jsonError)
+                        e.target.style.borderColor = "rgba(255,255,255,0.1)";
+                    }}
+                  />
+                  {jsonError && (
+                    <Text size="xs" color="error">
+                      {jsonError}
+                    </Text>
+                  )}
+                </Stack>
+
+                <Flex justify="space-between" gap="sm">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setShowCreateForm(false);
+                      setSelectedProtocol(null);
+                    }}
+                    style={{ flex: 1 }}
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    variant="primary"
+                    disabled={creationLoading || !!jsonError}
+                    onClick={async () => {
+                      if (!validateJson(initArgs)) return;
                       if (applicationId && applicationPath) {
                         const success = await checkAndInstallApplication(
                           applicationId,
                           applicationPath,
                         );
-                        if (!success) {
-                          return;
-                        }
+                        if (!success) return;
                       }
-
                       const result = await handleContextCreation(
                         targetApplicationId,
                         initArgs,
@@ -313,201 +351,98 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                         onComplete(result.contextId, result.memberPublicKey);
                       }
                     }}
-                    style={{
-                      color: "var(--color-text-brand)",
-                      borderColor: "var(--color-border-brand)",
-                    }}
+                    style={{ flex: 1, ...PRIMARY_BTN }}
                   >
-                    {loading ? "Creating…" : "Create context"}
+                    {creationLoading ? (
+                      <Flex align="center" gap="xs" justify="center">
+                        <span
+                          style={{
+                            display: "inline-block",
+                            width: "12px",
+                            height: "12px",
+                            border: "2px solid currentColor",
+                            borderTopColor: "transparent",
+                            borderRadius: "50%",
+                            animation: "spin 0.7s linear infinite",
+                          }}
+                        />
+                        Creating…
+                      </Flex>
+                    ) : (
+                      "Create context"
+                    )}
                   </Button>
-                </Stack>
-              )}
-            </Stack>
-          </CardContent>
-        </Card>
-      </ContextSelectorWrapper>
+                </Flex>
+              </Stack>
+            </CardContent>
+          </Card>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </ContextSelectorWrapper>
+      </PageShell>
     );
   }
 
   return (
-    <ContextSelectorWrapper>
-      {/* Create new context flow when contexts already exist */}
-      {showProtocolSelection &&
-        !selectedContext &&
-        filteredContexts.length > 0 && (
-          <Card
-            variant="rounded"
-            color="var(--color-border-brand)"
-            style={{ maxWidth: 520 }}
-          >
+    <PageShell>
+      <ContextSelectorWrapper>
+        {/* Context selection */}
+        {!selectedContext && (
+          <Card variant="rounded" color="var(--color-border-brand)">
             <CardHeader>
-              <CardTitle>Create a new context</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Stack spacing="lg" align="center">
-                {!selectedProtocol ? (
-                  <>
-                    <Text align="center" color="muted">
-                      Choose a protocol to create a fresh context for this
-                      application.
-                    </Text>
-                    <Flex
-                      wrap="wrap"
-                      justify="center"
-                      gap="sm"
-                      style={{ width: "100%" }}
-                    >
-                      {PROTOCOLS.map((protocol) => (
-                        <Button
-                          key={protocol}
-                          variant="secondary"
-                          onClick={() => setSelectedProtocol(protocol)}
-                        >
-                          {PROTOCOL_DISPLAY[protocol]}
-                        </Button>
-                      ))}
-                    </Flex>
-                    <Button
-                      variant="secondary"
-                      onClick={() => setShowProtocolSelection(false)}
-                    >
-                      Back to contexts
-                    </Button>
-                  </>
-                ) : (
-                  <Stack spacing="md" style={{ width: "100%" }}>
-                    <Text size="sm" color="secondary">
-                      Selected protocol: {PROTOCOL_DISPLAY[selectedProtocol]}
-                    </Text>
-                    <Button
-                      variant="secondary"
-                      onClick={() => setSelectedProtocol(null)}
-                    >
-                      Change protocol
-                    </Button>
-                    <Stack spacing="md" style={{ width: "100%" }}>
-                      <Text size="sm" weight="medium">
-                        Initialization Arguments (JSON)
-                      </Text>
-                      <textarea
-                        value={initArgs}
-                        onChange={(e) => {
-                          setInitArgs(e.target.value);
-                          validateJson(e.target.value);
-                        }}
-                        placeholder="Enter JSON initialization arguments"
-                        style={{
-                          width: "100%",
-                          minHeight: "120px",
-                          padding: "8px 12px",
-                          borderRadius: "6px",
-                          border: "1px solid var(--color-border-default)",
-                          backgroundColor: "var(--color-bg-surface)",
-                          color: "var(--color-text-default)",
-                          fontFamily: "monospace",
-                          fontSize: "13px",
-                          resize: "vertical"
-                        }}
-                      />
-                      <Flex justify="space-between" align="center">
-                        {jsonError && (
-                          <Text size="sm" color="error">
-                            {jsonError}
-                          </Text>
-                        )}
-                      </Flex>
-                    </Stack>
-                    <Button
-                      variant="primary"
-                      disabled={loading}
-                      onClick={async () => {
-                        if (!validateJson(initArgs)) {
-                          setJsonError("Invalid JSON format");
-                          return;
-                        }
-                        if (applicationId && applicationPath) {
-                          const success = await checkAndInstallApplication(
-                            applicationId,
-                            applicationPath,
-                          );
-                          if (!success) {
-                            return;
-                          }
-                        }
-
-                        const result = await handleContextCreation(
-                          targetApplicationId,
-                          initArgs,
-                        );
-                        if (result) {
-                          onComplete(result.contextId, result.memberPublicKey);
-                        }
-                      }}
-                      style={{
-                        color: "var(--color-text-brand)",
-                        borderColor: "var(--color-border-brand)",
-                      }}
-                    >
-                      {loading ? "Creating…" : "Create context"}
-                    </Button>
-                  </Stack>
+              <Stack spacing="sm">
+                <CardTitle>Select a context</CardTitle>
+                {appDisplayName && (
+                  <Text size="sm" color="muted">
+                    for{" "}
+                    <span style={{ color: "#A5FF11", fontWeight: 600 }}>
+                      {appDisplayName}
+                    </span>
+                  </Text>
                 )}
               </Stack>
-            </CardContent>
-          </Card>
-        )}
-
-      {/* Context selection */}
-      {!selectedContext && !showProtocolSelection && (
-        <Card
-          variant="rounded"
-          color="var(--color-border-brand)"
-          style={{ maxWidth: 520 }}
-        >
-          <CardHeader>
-            <CardTitle>Select a context</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {filteredContexts.length > 0 ? (
-              <Stack spacing="lg">
-                <Menu variant="compact" size="md">
-                  {filteredContexts.map((context) => (
-                    <MenuItem
-                      key={context.id}
-                      selected={selectedContext === context.id}
-                      onClick={() => handleContextSelect(context.id)}
-                    >
-                      <Stack spacing="xs">
-                        <Text weight="medium">
-                          {(context as any).name || context.id}
-                        </Text>
-                        <Text size="xs" color="muted">
-                          ID: {context.id}
-                        </Text>
-                        {(context as any).protocol && (
-                          <Text size="xs" color="secondary">
-                            Protocol:{" "}
-                            {PROTOCOL_DISPLAY[
-                              (context as any)
-                                .protocol as keyof typeof PROTOCOL_DISPLAY
-                            ] ?? (context as any).protocol}
+            </CardHeader>
+            <CardContent>
+              {filteredContexts.length > 0 ? (
+                <Stack spacing="lg">
+                  <Menu variant="compact" size="md">
+                    {filteredContexts.map((context) => (
+                      <MenuItem
+                        key={context.id}
+                        selected={selectedContext === context.id}
+                        onClick={() => handleContextSelect(context.id)}
+                      >
+                        <Stack spacing="sm">
+                          <Text weight="medium">
+                            {(context as any).name || context.id}
                           </Text>
-                        )}
-                      </Stack>
-                    </MenuItem>
-                  ))}
-                </Menu>
-                <Divider color="muted" spacing="sm" />
-                <Stack spacing="sm" align="center">
-                  <Text size="sm" color="muted" align="center">
-                    Need a fresh workspace? Create a new context for better
-                    privacy and isolation.
-                  </Text>
-                  <Flex
-                    justify="space-between"
-                    gap="sm"
-                    style={{ width: "100%" }}
-                  >
+                          <Text size="xs" color="muted">
+                            {context.id}
+                          </Text>
+                          {(context as any).protocol && (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                color: "#A5FF11",
+                                background: "rgba(165,255,17,0.08)",
+                                border: "1px solid rgba(165,255,17,0.2)",
+                                padding: "1px 7px",
+                                borderRadius: "999px",
+                                width: "fit-content",
+                              }}
+                            >
+                              {PROTOCOL_DISPLAY[(context as any).protocol as keyof typeof PROTOCOL_DISPLAY] ?? (context as any).protocol}
+                            </span>
+                          )}
+                        </Stack>
+                      </MenuItem>
+                    ))}
+                  </Menu>
+                  <Divider color="muted" spacing="sm" />
+                  <Flex justify="space-between" gap="sm">
                     <Button
                       variant="secondary"
                       onClick={onBack}
@@ -518,125 +453,115 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                     <Button
                       variant="primary"
                       onClick={() => {
-                        setSelectedProtocol(null);
-                        setShowProtocolSelection(true);
+                        setSelectedProtocol("near");
+                        setShowCreateForm(true);
                       }}
-                      style={{
-                        flex: 1,
-                        color: "var(--color-text-brand)",
-                        borderColor: "var(--color-border-brand)",
-                      }}
+                      style={{ flex: 1, ...PRIMARY_BTN }}
                     >
-                      + Create new context
+                      + New context
                     </Button>
                   </Flex>
                 </Stack>
-              </Stack>
-            ) : (
-              <EmptyState
-                title="No contexts found"
-                description="Create a context to link this application to your node."
-                action={
-                  <Button
-                    variant="primary"
-                    onClick={() => {
-                      setSelectedProtocol(null);
-                      setShowProtocolSelection(true);
-                    }}
-                    style={{
-                      color: "var(--color-text-brand)",
-                      borderColor: "var(--color-border-brand)",
-                    }}
-                  >
-                    Create new context
-                  </Button>
-                }
-              />
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Identity selection */}
-      {selectedContext &&
-        !selectedIdentity &&
-        (identities.length > 0 ? (
-          <Card
-            variant="rounded"
-            color="var(--color-border-brand)"
-            style={{ maxWidth: 520 }}
-          >
-            <CardHeader>
-              <CardTitle>Select an identity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Stack spacing="lg">
-                {selectedContextDetails && (
-                  <Stack spacing="xs">
-                    <Text size="sm" color="secondary">
-                      Context:{" "}
-                      {(selectedContextDetails as any).name ||
-                        selectedContextDetails.id}
-                    </Text>
-                    <Text size="xs" color="muted">
-                      ID: {selectedContextDetails.id}
-                    </Text>
-                  </Stack>
-                )}
-
-                <Menu variant="compact" size="md">
-                  {identities.map((identity) => (
-                    <MenuItem
-                      key={identity}
-                      selected={selectedIdentity === identity}
-                      onClick={() =>
-                        handleIdentitySelect(selectedContext, identity)
-                      }
+              ) : (
+                <EmptyState
+                  title="No contexts found"
+                  description="Create a context to link this application to your node."
+                  action={
+                    <Button
+                      variant="primary"
+                      onClick={() => {
+                        setSelectedProtocol("near");
+                        setShowCreateForm(true);
+                      }}
+                      style={PRIMARY_BTN}
                     >
-                      <Stack spacing="xs">
-                        <Text weight="medium">{formatPublicKey(identity)}</Text>
-                        <Text size="xs" color="muted">
-                          {identity}
-                        </Text>
-                      </Stack>
-                    </MenuItem>
-                  ))}
-                </Menu>
-
-                <Button
-                  variant="secondary"
-                  onClick={() => handleContextSelect(null)}
-                >
-                  Back to contexts
-                </Button>
-              </Stack>
+                      Create new context
+                    </Button>
+                  }
+                />
+              )}
             </CardContent>
           </Card>
-        ) : (
-          <Card
-            variant="rounded"
-            color="var(--color-border-brand)"
-            style={{ maxWidth: 520 }}
-          >
-            <CardHeader>
-              <CardTitle>No identities found</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <EmptyState
-                title="This context has no identities yet"
-                description="Create an identity for this context in the node dashboard and try again."
-                action={
+        )}
+
+        {/* Identity selection */}
+        {selectedContext &&
+          !selectedIdentity &&
+          (identities.length > 0 ? (
+            <Card variant="rounded" color="var(--color-border-brand)">
+              <CardHeader>
+                <CardTitle>Select an identity</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Stack spacing="lg">
+                  {selectedContextDetails && (
+                    <div
+                      style={{
+                        padding: "10px 12px",
+                        background: "#0A0E13",
+                        border: "1px solid rgba(255,255,255,0.07)",
+                        borderRadius: "8px",
+                      }}
+                    >
+                      <Text size="xs" color="muted" style={{ marginBottom: "2px", display: "block" }}>
+                        Context
+                      </Text>
+                      <Text size="sm" weight="medium">
+                        {(selectedContextDetails as any).name || selectedContextDetails.id}
+                      </Text>
+                    </div>
+                  )}
+
+                  <Menu variant="compact" size="md">
+                    {identities.map((identity) => (
+                      <MenuItem
+                        key={identity}
+                        selected={selectedIdentity === identity}
+                        onClick={() =>
+                          handleIdentitySelect(selectedContext, identity)
+                        }
+                      >
+                        <Stack spacing="sm">
+                          <Text weight="medium">{formatPublicKey(identity)}</Text>
+                          <Text size="xs" color="muted">
+                            {identity}
+                          </Text>
+                        </Stack>
+                      </MenuItem>
+                    ))}
+                  </Menu>
+
                   <Button
                     variant="secondary"
                     onClick={() => handleContextSelect(null)}
                   >
                     Back to contexts
                   </Button>
-                }
-              />
-            </CardContent>
-          </Card>
-        ))}
-    </ContextSelectorWrapper>
+                </Stack>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card variant="rounded" color="var(--color-border-brand)">
+              <CardHeader>
+                <CardTitle>No identities found</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <EmptyState
+                  title="This context has no identities yet"
+                  description="Create an identity for this context in the node dashboard and try again."
+                  action={
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleContextSelect(null)}
+                    >
+                      Back to contexts
+                    </Button>
+                  }
+                />
+              </CardContent>
+            </Card>
+          ))}
+      </ContextSelectorWrapper>
+    </PageShell>
   );
 }

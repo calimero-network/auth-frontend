@@ -7,7 +7,7 @@ export function useContextSelection() {
     const [selectedContext, setSelectedContext] = useState<string | null>(null);
     const [identities, setIdentities] = useState<string[]>([]);
     const [selectedIdentity, setSelectedIdentity] = useState<string | null>(null);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     // Fetch available contexts

@@ -1,21 +1,7 @@
 import styled from 'styled-components';
 
 export const ContextSelectorWrapper = styled.div`
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  padding: ${({ theme }) => theme.spacing.xl};
-  margin: 0;
-  background: ${({ theme }) => theme.colors.background.primary};
-  border-radius: ${({ theme }) => theme.borderRadius.lg};
-  z-index: ${({ theme }) => theme.zIndex.modal};
-
-
-  p {
-    text-align: center;
-    margin-bottom: ${({ theme }) => theme.spacing.lg};
-  }
+  width: 100%;
 `;
 
 export const ContextList = styled.div`
@@ -27,13 +13,13 @@ export const ContextList = styled.div`
 
 export const ContextItem = styled.div<{ selected?: boolean }>`
   padding: ${({ theme }) => theme.spacing.lg};
-  border: 1px solid ${({ theme, selected }) => 
+  border: 1px solid ${({ theme, selected }) =>
     selected ? theme.colors.accent.primary : theme.colors.border.primary};
   border-radius: ${({ theme }) => theme.borderRadius.default};
   cursor: pointer;
   transition: ${({ theme }) => theme.transitions.default};
   word-break: break-all;
-  background-color: ${({ theme, selected }) => 
+  background-color: ${({ theme, selected }) =>
     selected ? theme.colors.background.secondary : 'transparent'};
 
   &:hover {
@@ -76,4 +62,4 @@ export const IdentityItem = styled(ContextItem)`
     border-radius: ${({ theme }) => theme.borderRadius.sm};
     margin: 0;
   }
-`; 
+`;

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { PageShell } from '../common/PageShell';
 import { getStoredUrlParam } from '../../utils/urlParams';
 import { tokens } from '@calimero-network/mero-tokens';
 import {
@@ -121,20 +122,11 @@ export function PermissionsView({
   console.log('PermissionsView props:', { selectedContext, selectedIdentity, manifestUrl, referrer });
   
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '48px 16px 64px',
-        background: 'var(--color-background-primary)',
-      }}
-    >
+    <PageShell>
       <Card
         variant="rounded"
         color="var(--color-border-brand)"
-        style={{ width: '100%', maxWidth: 620 }}
+        style={{ width: '100%' }}
       >
         <CardHeader>
           <CardTitle>Review Permissions</CardTitle>
@@ -293,8 +285,9 @@ export function PermissionsView({
                 variant="primary"
                 onClick={() => onComplete(selectedContext, selectedIdentity)}
                 style={{
-                  color: 'var(--color-text-brand)',
-                  borderColor: 'var(--color-border-brand)',
+                  backgroundColor: '#A5FF11',
+                  color: '#0A0E13',
+                  border: 'none',
                 }}
               >
                 {primaryLabel}
@@ -303,6 +296,6 @@ export function PermissionsView({
           </Stack>
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }

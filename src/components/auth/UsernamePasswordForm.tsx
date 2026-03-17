@@ -11,6 +11,7 @@ import {
   Stack,
   Text,
 } from '@calimero-network/mero-ui';
+import { PageShell } from '../common/PageShell';
 
 interface UsernamePasswordFormProps {
   onSubmit: (username: string, password: string) => void;
@@ -55,15 +56,7 @@ export function UsernamePasswordForm({
   const displayError = validationError || error;
 
   return (
-    <div style={{ 
-      position: 'fixed',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      maxWidth: 420,
-      width: '100%',
-      padding: '0 16px',
-    }}>
+    <PageShell>
       <Card variant="rounded" color="var(--color-border-brand)">
         <CardHeader>
           <CardTitle>Sign In</CardTitle>
@@ -121,8 +114,9 @@ export function UsernamePasswordForm({
                   variant="primary"
                   disabled={loading || !username.trim() || !password.trim()}
                   style={{
-                    color: 'var(--color-text-brand)',
-                    borderColor: 'var(--color-border-brand)',
+                    backgroundColor: '#A5FF11',
+                    color: '#0A0E13',
+                    border: 'none',
                   }}
                 >
                   {loading ? 'Signing In...' : 'Sign In'}
@@ -132,6 +126,6 @@ export function UsernamePasswordForm({
           </form>
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 } 

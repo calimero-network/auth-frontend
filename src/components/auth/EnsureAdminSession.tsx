@@ -186,7 +186,18 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
   }
 
   if (error && !showProviders && !showUsernamePasswordForm) {
-    return <ErrorView message={error} onRetry={() => window.location.reload()} />;
+    return (
+      <ErrorView
+        message={error}
+        onRetry={async () => {
+          setError(null);
+          setLoading(true);
+          await loadProviders();
+          setShowProviders(true);
+          setLoading(false);
+        }}
+      />
+    );
   }
 
   if (showProviders) {
