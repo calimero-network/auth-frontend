@@ -10,6 +10,7 @@ import {
   Text,
 } from '@calimero-network/mero-ui';
 import { tokens } from '@calimero-network/mero-tokens';
+import { PageShell } from './PageShell';
 
 interface ErrorViewProps {
   message: string;
@@ -27,21 +28,12 @@ export function ErrorView({ message, onRetry, buttonText }: ErrorViewProps) {
   };
 
   return (
-    <div
-      data-testid="error-view"
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '48px 16px 64px',
-        background: 'var(--color-background-primary)',
-      }}
-    >
+    <PageShell>
+      <div data-testid="error-view">
       <Card
         variant="rounded"
         color={tokens.color.semantic.error.value}
-        style={{ width: '100%', maxWidth: 520 }}
+        style={{ width: '100%' }}
       >
         <CardHeader>
           <Flex align="center" gap="sm">
@@ -83,6 +75,7 @@ export function ErrorView({ message, onRetry, buttonText }: ErrorViewProps) {
           </Stack>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </PageShell>
   );
 }

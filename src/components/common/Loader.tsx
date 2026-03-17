@@ -1,5 +1,6 @@
 import React from 'react';
 import { Loader as DSLoader } from '@calimero-network/mero-ui';
+import { PageShell } from './PageShell';
 
 interface LoaderProps {
   className?: string;
@@ -7,17 +8,19 @@ interface LoaderProps {
 
 const Loader: React.FC<LoaderProps> = ({ className }) => {
   return (
-    <div 
-      className={className} 
-      style={{
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-      }}
-    >
-      <DSLoader size="large" />
-    </div>
+    <PageShell>
+      <div
+        className={className}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '48px 0',
+        }}
+      >
+        <DSLoader size="large" />
+      </div>
+    </PageShell>
   );
 };
 

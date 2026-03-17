@@ -1,9 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getStoredUrlParam } from '../../utils/urlParams';
 import {
   Button,
-  EmptyState,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Divider,
+  Flex,
+  Stack,
+  Text,
 } from '@calimero-network/mero-ui';
+import { PageShell } from '../common/PageShell';
 import Loader from '../common/Loader';
 import { ErrorView } from '../common/ErrorView';
 import { RegistryClient, registryClient } from '../../utils/registryClient';
@@ -22,7 +30,6 @@ interface Manifest {
     uri: string;
   };
   provides?: string[];
-  // Bundle metadata preserved from registry
   _bundleMetadata?: {
     name?: string;
     description?: string;
@@ -40,18 +47,48 @@ interface ManifestProcessorProps {
   onBack: () => void;
 }
 
+const PRIMARY_BTN = {
+  backgroundColor: '#A5FF11',
+  color: '#0A0E13',
+  border: 'none',
+  fontWeight: 600,
+} as const;
+
+function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <Flex justify="space-between" align="center" gap="sm">
+      <Text size="sm" color="muted" style={{ flexShrink: 0 }}>
+        {label}
+      </Text>
+      <span
+        style={{
+          fontSize: mono ? '11px' : '13px',
+          fontFamily: mono ? 'monospace' : 'inherit',
+          color: '#ffffff',
+          fontWeight: 500,
+          textAlign: 'right',
+          wordBreak: 'break-all',
+          maxWidth: '65%',
+        }}
+      >
+        {value}
+      </span>
+    </Flex>
+  );
+}
+
 export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps) {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
   const [installing, setInstalling] = useState(false);
   const [installStatus, setInstallStatus] = useState('');
   const [alreadyInstalled, setAlreadyInstalled] = useState(false);
   const [existingAppId, setExistingAppId] = useState<string | null>(null);
-  const completionInProgressRef = React.useRef(false);
-  const completionTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-  
-  // Cleanup timeout on unmount
+  const completionInProgressRef = useRef(false);
+  const completionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     return () => {
       if (completionTimeoutRef.current) {
@@ -64,14 +101,13 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
   const manifestUrl = getStoredUrlParam('manifest-url');
   const packageName = getStoredUrlParam('package-name');
 
-  // Auth frontend runs on the node's domain, so use window.location.origin for admin API calls
   useEffect(() => {
     setAppEndpointKey(window.location.origin);
   }, []);
+
   const packageVersion = getStoredUrlParam('package-version');
   const registryUrl = getStoredUrlParam('registry-url');
 
-  // Fetch manifest
   useEffect(() => {
     const fetchManifest = async () => {
       if (!manifestUrl && !packageName) {
@@ -81,61 +117,35 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
       }
 
       try {
-        // Prioritize package-name over old manifest-url in localStorage
         if (packageName) {
-          console.log(`Fetching manifest from registry for package: ${packageName}@${packageVersion || 'latest'}`);
-          
-          const client = registryUrl ? 
-            new RegistryClient(registryUrl) : 
-            registryClient;
-          
+          const client = registryUrl ? new RegistryClient(registryUrl) : registryClient;
           const manifestData = await client.getManifest(packageName, packageVersion || undefined);
-          console.log('Fetched manifest:', manifestData);
-          console.log('Registry client base URL:', client['baseUrl']);
           setManifest(manifestData);
-          
-          // Store manifest info for SummaryView
           localStorage.setItem('manifest-info', JSON.stringify({
             id: manifestData.id,
             name: manifestData.name,
-            version: manifestData.version
+            version: manifestData.version,
           }));
         } else if (manifestUrl) {
-          console.log('Fetching manifest from URL:', manifestUrl);
           const response = await fetch(manifestUrl);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch manifest: ${response.statusText}`);
-          }
+          if (!response.ok) throw new Error(`Failed to fetch manifest: ${response.statusText}`);
           const manifestData = await response.json();
-          
-          // Normalize legacy manifest formats (artifacts[] array -> artifact object)
+
           let normalizedManifest = { ...manifestData };
-          
-          // Ensure artifact object exists (create from artifacts[] array or use defaults)
           if (!normalizedManifest.artifact) {
             if (manifestData.artifacts && Array.isArray(manifestData.artifacts) && manifestData.artifacts.length > 0) {
-              // Legacy format: artifacts[] array - convert to artifact object
               const firstArtifact = manifestData.artifacts[0];
               normalizedManifest.artifact = {
                 type: firstArtifact.type || 'wasm',
                 target: firstArtifact.target || 'node',
                 digest: firstArtifact.digest || firstArtifact.sha256 || '',
-                uri: firstArtifact.uri || firstArtifact.mirrors?.[0] || ''
+                uri: firstArtifact.uri || firstArtifact.mirrors?.[0] || '',
               };
-              // Remove artifacts array to avoid confusion
               delete normalizedManifest.artifacts;
             } else {
-              // Fallback: create default artifact object to prevent crashes
-              normalizedManifest.artifact = {
-                type: 'wasm',
-                target: 'node',
-                digest: '',
-                uri: ''
-              };
+              normalizedManifest.artifact = { type: 'wasm', target: 'node', digest: '', uri: '' };
             }
           }
-          
-          // Convert relative URIs to absolute using manifestUrl base
           if (normalizedManifest.artifact.uri && normalizedManifest.artifact.uri.startsWith('/')) {
             try {
               const manifestBaseUrl = new URL(manifestUrl);
@@ -144,14 +154,12 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
               console.warn('Failed to convert relative URI to absolute:', e);
             }
           }
-          
+
           setManifest(normalizedManifest);
-          
-          // Store manifest info for SummaryView
           localStorage.setItem('manifest-info', JSON.stringify({
             id: normalizedManifest.id,
             name: normalizedManifest.name,
-            version: normalizedManifest.version
+            version: normalizedManifest.version,
           }));
         }
       } catch (err) {
@@ -163,149 +171,107 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
     };
 
     fetchManifest();
-  }, [manifestUrl, packageName, packageVersion, registryUrl]);
+  }, [manifestUrl, packageName, packageVersion, registryUrl, retryKey]);
 
-  // Check if already installed
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
+
   useEffect(() => {
     const checkExistingInstallation = async () => {
       if (!manifest) return;
-      
+
+      let applicationId: string | null = null;
+
+      // First try via mero-js (expects { data: {...} } envelope)
       try {
-        console.log('Checking if package is already installed:', manifest.id);
-        
         const mero = getMero();
-        
-        // Try to get latest version of this package
         const latestResponse = await mero.admin.applications.getLatestVersion(manifest.id);
-        
-        console.log('getLatestVersion response:', latestResponse);
-        
-        // mero-js returns unwrapped response
-        const applicationId = latestResponse.applicationId || null;
-        
-        if (applicationId) {
-          console.log('Package already installed!', applicationId);
-          setAlreadyInstalled(true);
-          setExistingAppId(applicationId);
-        } else {
-          console.log('Package not installed yet - no applicationId in response');
+        applicationId = (latestResponse as any)?.applicationId || null;
+      } catch (_meroErr) {
+        // getLatestVersion can throw if the server returns the body directly
+        // (no { data: {...} } wrapper). Fall back to a raw fetch.
+        try {
+          const token = getAccessToken();
+          const res = await fetch(
+            `${window.location.origin}/admin-api/packages/${encodeURIComponent(manifest.id)}/latest`,
+            token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+          );
+          if (res.ok) {
+            const json = await res.json();
+            applicationId =
+              json?.data?.applicationId ||
+              json?.applicationId ||
+              null;
+          }
+        } catch (fetchErr) {
+          console.warn('Could not check existing installation:', fetchErr);
         }
-      } catch (err) {
-        console.warn('Could not check existing installation:', err);
-        // Not a fatal error - continue with installation flow
+      }
+
+      if (applicationId && !completionInProgressRef.current) {
+        completionInProgressRef.current = true;
+        setAlreadyInstalled(true);
+        setExistingAppId(applicationId);
+        localStorage.setItem('installed-application-id', applicationId);
+        onCompleteRef.current('', '');
+        completionInProgressRef.current = false;
       }
     };
-
     checkExistingInstallation();
   }, [manifest]);
 
   const handleInstallAndContinue = async () => {
     if (!manifest) return;
 
-    console.log('Starting installation for:', manifest.id);
     setInstalling(true);
-    setInstallStatus('Installing application...');
-    
+    setInstallStatus(`Installing ${manifest.name}…`);
+
     try {
       const mero = getMero();
-      
-      // Install the package
-      setInstallStatus(`Installing ${manifest.id}@${manifest.version}...`);
-      
-      // Extract metadata from manifest for installation
-      // The bundle manifest from registry contains rich metadata (name, description, author, links)
-      // We serialize it as JSON bytes (Vec<u8> format expected by backend)
       const metadataObj: Record<string, any> = {
         name: manifest._bundleMetadata?.name || manifest.name,
         version: manifest.version,
         package: manifest.id,
       };
-      
-      // Add description from bundle metadata if available
-      if (manifest._bundleMetadata?.description) {
-        metadataObj.description = manifest._bundleMetadata.description;
-      }
-      
-      // Add author if available
-      if (manifest._bundleMetadata?.author) {
-        metadataObj.author = manifest._bundleMetadata.author;
-      }
-      
-      // Add links if available
-      if (manifest._bundleLinks) {
-        metadataObj.links = manifest._bundleLinks;
-      }
-      
-      // Add description from provides as fallback
-      if (!metadataObj.description && manifest.provides && manifest.provides.length > 0) {
-        metadataObj.description = manifest.provides.join(', ');
-      }
-      
-      // Add chains if available
-      if (manifest.chains && manifest.chains.length > 0) {
-        metadataObj.chains = manifest.chains;
-      }
-      
-      const metadataJson = JSON.stringify(metadataObj);
-      const metadataBytes = Array.from(new TextEncoder().encode(metadataJson));
-      
+      if (manifest._bundleMetadata?.description) metadataObj.description = manifest._bundleMetadata.description;
+      if (manifest._bundleMetadata?.author) metadataObj.author = manifest._bundleMetadata.author;
+      if (manifest._bundleLinks) metadataObj.links = manifest._bundleLinks;
+      if (!metadataObj.description && manifest.provides?.length) metadataObj.description = manifest.provides.join(', ');
+      if (manifest.chains?.length) metadataObj.chains = manifest.chains;
+
+      const metadataBytes = Array.from(new TextEncoder().encode(JSON.stringify(metadataObj)));
+
       const installResponse = await mero.admin.applications.installApplication({
         url: manifest.artifact.uri,
         package: manifest.id,
         version: manifest.version,
-        metadata: metadataBytes
+        metadata: metadataBytes,
       });
-      
+
       const applicationId = (installResponse as any)?.applicationId;
-      
-      if (!applicationId) {
-        throw new Error('Installation succeeded but no application ID returned');
-      }
-      
-      console.log('Installation successful! App ID:', applicationId);
-      
-      // Store applicationId for permission scoping in JWT generation
+      if (!applicationId) throw new Error('Installation succeeded but no application ID returned');
+
       localStorage.setItem('installed-application-id', applicationId);
-      
-      // Set the application ID so it displays in the UI BEFORE completing
       setExistingAppId(applicationId);
       setAlreadyInstalled(true);
-      setInstalling(false); // Stop showing installation progress
-      setInstallStatus('Application installed successfully!');
-      
-      // Prevent double completion
-      if (completionInProgressRef.current) {
-        console.warn('Completion already in progress, skipping duplicate call');
-        return;
-      }
+      setInstalling(false);
+      setInstallStatus('Installed!');
+
+      if (completionInProgressRef.current) return;
       completionInProgressRef.current = true;
-      
-      // Get contexts
+
       const contextsResponse = await mero.admin.contexts.getContextsForApplication(applicationId);
-      
       const contexts = (contextsResponse as any)?.contexts || [];
-      console.log('Application contexts:', contexts);
-      
-      // Complete with first context or empty for application-level token
-      // Add small delay to ensure UI updates before navigation
       const contextId = contexts[0]?.id || '';
-      console.log('Completing with context:', contextId || '(application-level)');
-      
-      // Clear any existing timeout
-      if (completionTimeoutRef.current) {
-        clearTimeout(completionTimeoutRef.current);
-      }
-      
-      // Wait a moment for UI to update with application ID before completing
+
+      if (completionTimeoutRef.current) clearTimeout(completionTimeoutRef.current);
       completionTimeoutRef.current = setTimeout(() => {
-        // Check if completion is still in progress and component is still mounted
         if (completionInProgressRef.current) {
           onComplete(contextId, '');
           completionInProgressRef.current = false;
         }
         completionTimeoutRef.current = null;
       }, 500);
-      
     } catch (err) {
       console.error('Installation failed:', err);
       setError(err instanceof Error ? err.message : 'Failed to install application');
@@ -314,38 +280,25 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
   };
 
   const handleContinueWithExisting = () => {
-    if (!existingAppId) return;
-    
-    // Prevent double completion
-    if (completionInProgressRef.current) {
-      console.warn('Completion already in progress, skipping duplicate call');
-      return;
-    }
+    if (!existingAppId || completionInProgressRef.current) return;
     completionInProgressRef.current = true;
-    
-    console.log('Continuing with existing app:', existingAppId);
-    
-    // Store applicationId for permission scoping in JWT generation
     localStorage.setItem('installed-application-id', existingAppId);
-    
-    // Just complete the flow - app is already installed
     onComplete('', '');
     completionInProgressRef.current = false;
   };
 
-  if (loading) {
-    return <Loader />;
-  }
+  if (loading) return <Loader />;
 
   if (error) {
     return (
-      <ErrorView 
-        message={error} 
+      <ErrorView
+        message={error}
         onRetry={() => {
           setError(null);
           setLoading(true);
-          window.location.reload();
-        }} 
+          completionInProgressRef.current = false;
+          setRetryKey(k => k + 1);
+        }}
         buttonText="Retry"
       />
     );
@@ -353,207 +306,182 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
 
   if (!manifest) {
     return (
-      <EmptyState
-        title="No Manifest Found"
-        description="Unable to load manifest information."
-        action={
-          <Button onClick={onBack}>Back</Button>
-        }
-      />
+      <PageShell>
+        <Card variant="rounded" color="var(--color-border-brand)">
+          <CardContent>
+            <Stack spacing="lg" align="center">
+              <Text color="muted">Unable to load manifest information.</Text>
+              <Button variant="secondary" onClick={onBack}>Back</Button>
+            </Stack>
+          </CardContent>
+        </Card>
+      </PageShell>
     );
   }
 
+  const displayName = manifest._bundleMetadata?.name || manifest.name;
+  const description = manifest._bundleMetadata?.description;
+
   return (
-    <div style={{ 
-      maxWidth: '600px', 
-      margin: '0 auto', 
-      padding: '32px 24px',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-    }}>
-      {/* App Header Card */}
-      <div style={{
-        backgroundColor: '#ffffff',
-        border: '2px solid #e2e8f0',
-        borderRadius: '12px',
-        padding: '24px',
-        marginBottom: '24px',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'start', gap: '16px' }}>
-          {/* App Icon */}
-          <div style={{
-            width: '64px',
-            height: '64px',
-            backgroundColor: '#f1f5f9',
-            borderRadius: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '32px',
-            flexShrink: 0
-          }}>
-            📦
-          </div>
-          
-          {/* App Info */}
-          <div style={{ flex: 1 }}>
-            <h2 style={{ 
-              fontSize: '20px', 
-              fontWeight: '700', 
-              color: '#1e293b',
-              marginBottom: '4px'
-            }}>
-              {manifest.name}
-            </h2>
-            <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}>
-              v{manifest.version}
-            </div>
-            
-            {/* Already Installed Badge */}
-            {alreadyInstalled && (
-              <div style={{
-                display: 'inline-flex',
+    <PageShell>
+      <Card variant="rounded" color="var(--color-border-brand)">
+        <CardHeader>
+          <Flex align="center" gap="sm">
+            {/* App icon */}
+            <div
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '10px',
+                background: 'rgba(165, 255, 17, 0.1)',
+                border: '1px solid rgba(165, 255, 17, 0.25)',
+                display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                backgroundColor: '#d1fae5',
-                color: '#065f46',
-                fontSize: '12px',
-                fontWeight: '600',
-                padding: '4px 12px',
-                borderRadius: '12px',
-                marginTop: '8px'
-              }}>
-                <span>✓</span>
-                Already Installed
+                justifyContent: 'center',
+                fontSize: '22px',
+                flexShrink: 0,
+              }}
+            >
+              📦
+            </div>
+            <Stack spacing="sm" style={{ flex: 1 }}>
+              <CardTitle>{displayName}</CardTitle>
+              <Flex align="center" gap="xs">
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: '#A5FF11',
+                    background: 'rgba(165, 255, 17, 0.1)',
+                    border: '1px solid rgba(165, 255, 17, 0.25)',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    letterSpacing: '0.03em',
+                  }}
+                >
+                  v{manifest.version}
+                </span>
+                {alreadyInstalled && (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: '#A5FF11',
+                      background: 'rgba(165, 255, 17, 0.1)',
+                      border: '1px solid rgba(165, 255, 17, 0.25)',
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                    }}
+                  >
+                    ✓ Installed
+                  </span>
+                )}
+              </Flex>
+            </Stack>
+          </Flex>
+        </CardHeader>
+
+        <CardContent>
+          <Stack spacing="lg">
+            {description && (
+              <Text size="sm" color="muted">
+                {description}
+              </Text>
+            )}
+
+            {/* Package Details */}
+            <div
+              style={{
+                background: '#0A0E13',
+                border: '1px solid rgba(255,255,255,0.07)',
+                borderRadius: '10px',
+                padding: '14px 16px',
+              }}
+            >
+              <Text size="xs" weight="semibold" style={{ color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px', display: 'block' }}>
+                Package Details
+              </Text>
+              <Stack spacing="sm">
+                <DetailRow label="ID" value={manifest.id} mono />
+                <DetailRow label="Type" value={manifest.artifact.type} />
+                <DetailRow label="Target" value={manifest.artifact.target} />
+                {manifest.chains && manifest.chains.length > 0 && (
+                  <DetailRow label="Chains" value={manifest.chains.join(', ')} />
+                )}
+                {manifest.provides && manifest.provides.length > 0 && (
+                  <DetailRow label="Provides" value={manifest.provides.join(', ')} />
+                )}
+                {existingAppId && (
+                  <>
+                    <Divider color="muted" spacing="sm" />
+                    <DetailRow label="App ID" value={existingAppId} mono />
+                  </>
+                )}
+              </Stack>
+            </div>
+
+            {/* Installation progress */}
+            {installing && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '12px 14px',
+                  background: 'rgba(165, 255, 17, 0.06)',
+                  border: '1px solid rgba(165, 255, 17, 0.2)',
+                  borderRadius: '10px',
+                }}
+              >
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: '14px',
+                    height: '14px',
+                    border: '2px solid #A5FF11',
+                    borderTopColor: 'transparent',
+                    borderRadius: '50%',
+                    animation: 'mpSpin 0.7s linear infinite',
+                    flexShrink: 0,
+                  }}
+                />
+                <Text size="sm" style={{ color: '#A5FF11' }}>
+                  {installStatus}
+                </Text>
+                <style>{`@keyframes mpSpin { to { transform: rotate(360deg); } }`}</style>
               </div>
             )}
-          </div>
-        </div>
-      </div>
-      
-      {/* Installation Details */}
-      <div style={{
-        backgroundColor: '#f8fafc',
-        border: '1px solid #e2e8f0',
-        borderRadius: '8px',
-        padding: '16px',
-        marginBottom: '24px'
-      }}>
-        <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '12px' }}>
-          Package Details
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-            <span style={{ color: '#64748b' }}>Package ID:</span>
-            <span style={{ color: '#1e293b', fontWeight: '500', fontFamily: 'monospace', fontSize: '12px' }}>
-              {manifest.id}
-            </span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-            <span style={{ color: '#64748b' }}>Type:</span>
-            <span style={{ color: '#1e293b', fontWeight: '500' }}>{manifest.artifact.type}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-            <span style={{ color: '#64748b' }}>Target:</span>
-            <span style={{ color: '#1e293b', fontWeight: '500' }}>{manifest.artifact.target}</span>
-          </div>
-          {manifest.chains && manifest.chains.length > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-              <span style={{ color: '#64748b' }}>Chains:</span>
-              <span style={{ color: '#1e293b', fontWeight: '500' }}>{manifest.chains.join(', ')}</span>
-            </div>
-          )}
-          {manifest.provides && manifest.provides.length > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-              <span style={{ color: '#64748b' }}>Provides:</span>
-              <span style={{ color: '#1e293b', fontWeight: '500' }}>{manifest.provides.join(', ')}</span>
-            </div>
-          )}
-          {existingAppId && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #e2e8f0' }}>
-              <span style={{ color: '#64748b' }}>Application ID:</span>
-              <span style={{ color: '#10b981', fontWeight: '500', fontFamily: 'monospace', fontSize: '11px' }}>
-                {existingAppId}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-      
-      {/* Installation Progress */}
-      {installing && (
-        <div style={{
-          backgroundColor: '#eff6ff',
-          border: '1px solid #3b82f6',
-          borderRadius: '8px',
-          padding: '16px',
-          marginBottom: '24px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              width: '20px',
-              height: '20px',
-              border: '2px solid #3b82f6',
-              borderTopColor: 'transparent',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite'
-            }} />
-            <div style={{ fontSize: '14px', color: '#1e40af' }}>
-              {installStatus}
-            </div>
-          </div>
-          <style>{`
-            @keyframes spin {
-              to { transform: rotate(360deg); }
-            }
-          `}</style>
-        </div>
-      )}
-      
-      {/* Action Buttons */}
-      <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-        <button
-          onClick={onBack}
-          disabled={installing}
-          style={{
-            padding: '10px 20px',
-            fontSize: '14px',
-            fontWeight: '500',
-            color: '#64748b',
-            backgroundColor: '#f1f5f9',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: installing ? 'not-allowed' : 'pointer',
-            opacity: installing ? 0.5 : 1,
-            transition: 'all 0.2s'
-          }}
-          onMouseOver={(e) => !installing && (e.currentTarget.style.backgroundColor = '#e2e8f0')}
-          onMouseOut={(e) => !installing && (e.currentTarget.style.backgroundColor = '#f1f5f9')}
-        >
-          Back
-        </button>
-        
-        <button
-          onClick={alreadyInstalled ? handleContinueWithExisting : handleInstallAndContinue}
-          disabled={installing}
-          style={{
-            padding: '10px 24px',
-            fontSize: '14px',
-            fontWeight: '500',
-            color: '#ffffff',
-            backgroundColor: alreadyInstalled ? '#10b981' : '#3b82f6',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: installing ? 'not-allowed' : 'pointer',
-            opacity: installing ? 0.7 : 1,
-            transition: 'all 0.2s'
-          }}
-          onMouseOver={(e) => !installing && (e.currentTarget.style.backgroundColor = alreadyInstalled ? '#059669' : '#2563eb')}
-          onMouseOut={(e) => !installing && (e.currentTarget.style.backgroundColor = alreadyInstalled ? '#10b981' : '#3b82f6')}
-        >
-          {installing ? 'Installing...' : alreadyInstalled ? 'Continue to App' : 'Install & Continue'}
-        </button>
-      </div>
-    </div>
+
+            {/* Author */}
+            {manifest._bundleMetadata?.author && (
+              <Text size="xs" color="muted">
+                By {manifest._bundleMetadata.author}
+              </Text>
+            )}
+
+            <Divider color="muted" spacing="sm" />
+
+            {/* Actions */}
+            <Flex justify="flex-end" gap="sm">
+              <Button variant="secondary" onClick={onBack} disabled={installing}>
+                Back
+              </Button>
+              <Button
+                variant="primary"
+                onClick={alreadyInstalled ? handleContinueWithExisting : handleInstallAndContinue}
+                disabled={installing}
+                style={PRIMARY_BTN}
+              >
+                {installing
+                  ? 'Installing…'
+                  : alreadyInstalled
+                  ? 'Continue'
+                  : 'Install & Continue'}
+              </Button>
+            </Flex>
+          </Stack>
+        </CardContent>
+      </Card>
+    </PageShell>
   );
 }

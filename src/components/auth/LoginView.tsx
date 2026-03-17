@@ -385,13 +385,19 @@ const LoginView: React.FC = () => {
           const fragmentParams = new URLSearchParams();
           fragmentParams.set('access_token', response.access_token);
           fragmentParams.set('refresh_token', response.refresh_token);
-          
+
+          // Include node URL so CalimeroProvider can set appEndpointKey
+          const nodeUrl = getStoredUrlParam('app-url') || getAppEndpointKey();
+          if (nodeUrl) {
+            fragmentParams.set('node_url', nodeUrl);
+          }
+
           // Include applicationId for package-based flows
           const installedAppId = localStorage.getItem('installed-application-id');
           if (installedAppId) {
             fragmentParams.set('application_id', installedAppId);
           }
-          
+
           clearStoredUrlParams();
           // Combine the base URL with the fragment
           window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;
@@ -464,7 +470,13 @@ const LoginView: React.FC = () => {
           const fragmentParams = new URLSearchParams();
           fragmentParams.set('access_token', response.access_token);
           fragmentParams.set('refresh_token', response.refresh_token);
-          
+
+          // Include node URL so CalimeroProvider can set appEndpointKey
+          const nodeUrl = getStoredUrlParam('app-url') || getAppEndpointKey();
+          if (nodeUrl) {
+            fragmentParams.set('node_url', nodeUrl);
+          }
+
           // Include applicationId for package-based flows (before cleanup!)
           const installedAppIdForRedirect = localStorage.getItem('installed-application-id');
           console.log('🔍 DEBUG: Reading installed-application-id from localStorage:', installedAppIdForRedirect);
@@ -535,9 +547,19 @@ const LoginView: React.FC = () => {
     }
   };
 
+  // Show loader when transitioning between steps (no view is active)
+  const noViewActive =
+    !loading &&
+    !showProviders &&
+    !showApplicationInstallCheck &&
+    !showPermissionsView &&
+    !showUsernamePasswordForm &&
+    !showManifestProcessor;
+
   return (
     <>
       {loading && <Loader />}
+      {noViewActive && <Loader />}
 
       {showProviders && !showApplicationInstallCheck && !showPermissionsView && (
         <ProviderSelector
@@ -586,8 +608,9 @@ const LoginView: React.FC = () => {
                 console.log('DEBUG: Triggering ManifestProcessor with:', { manifestUrl, packageName });
                 setShowManifestProcessor(true);
               } else if (cameFromApplicationCheck) {
-                setShowApplicationInstallCheck(true);
+                // App is already installed and permissions approved — generate token and redirect
                 setCameFromApplicationCheck(false);
+                handleContextAndIdentitySelect();
               } else {
                 checkExistingSession();
               }
