@@ -8,7 +8,7 @@ import {
   clearAccessToken,
   clearRefreshToken 
 } from '../../lib/mero';
-import type { AuthProvider as Provider } from '@calimero-network/mero-js/api/auth';
+interface Provider { name: string; type: string; description?: string; configured?: boolean; config?: Record<string, unknown>; [key: string]: unknown; }
 import ProviderSelector from '../providers/ProviderSelector';
 import { UsernamePasswordForm } from './UsernamePasswordForm';
 import Loader from '../common/Loader';
@@ -46,8 +46,8 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
   const loadProviders = useCallback(async () => {
     try {
       const mero = getMero();
-      const response = await mero.auth.getProviders();
-      setProviders(response.providers);
+      const response: any = await mero.auth.getProviders();
+      setProviders((response as any)?.data?.providers ?? (response as any)?.providers ?? []);
     } catch (err) {
       console.error('Failed to load providers:', err);
       setError(err instanceof Error ? err.message : 'Failed to load authentication providers');
@@ -66,9 +66,9 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
       });
 
       // Token was refreshed successfully
-      if (response.access_token && response.refresh_token) {
-        setAccessToken(response.access_token);
-        setRefreshToken(response.refresh_token);
+      if ((response as any).data.access_token && (response as any).data.refresh_token) {
+        setAccessToken((response as any).data.access_token);
+        setRefreshToken((response as any).data.refresh_token);
         return true;
       }
 
@@ -152,11 +152,11 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
         }
       };
 
-      const response = await mero.auth.getToken(tokenPayload);
+      const response = await mero.auth.generateTokens(tokenPayload) as any;
 
-      if (response.access_token && response.refresh_token) {
-        setAccessToken(response.access_token);
-        setRefreshToken(response.refresh_token);
+      if ((response as any).data.access_token && (response as any).data.refresh_token) {
+        setAccessToken((response as any).data.access_token);
+        setRefreshToken((response as any).data.refresh_token);
         setHasAdminToken(true);
         setShowUsernamePasswordForm(false);
         onReady?.();

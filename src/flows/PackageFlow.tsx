@@ -130,6 +130,8 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
           fragmentParams.set('context_identity', identity);
         }
 
+        fragmentParams.set('node_url', window.location.origin);
+
         sessionStorage.removeItem('installed-application-id');
         localStorage.removeItem('installed-application-id');
         localStorage.removeItem('manifest-info');

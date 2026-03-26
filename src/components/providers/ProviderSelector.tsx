@@ -1,5 +1,5 @@
 import React from 'react';
-import type { AuthProvider as Provider } from '@calimero-network/mero-js/api/auth';
+interface Provider { name: string; type: string; description?: string; configured?: boolean; config?: Record<string, unknown>; [key: string]: unknown; }
 import {
   Card,
   CardContent,
