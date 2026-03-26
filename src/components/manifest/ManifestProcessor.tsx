@@ -344,6 +344,9 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
   }
 
   if (!manifest) {
+    if (alreadyInstalled) {
+      return <Loader />;
+    }
     return (
       <PageShell>
         <Card variant="rounded" color="var(--color-border-brand)">
