@@ -118,14 +118,53 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
 
       try {
         if (packageName) {
-          const client = registryUrl ? new RegistryClient(registryUrl) : registryClient;
-          const manifestData = await client.getManifest(packageName, packageVersion || undefined);
-          setManifest(manifestData);
-          localStorage.setItem('manifest-info', JSON.stringify({
-            id: manifestData.id,
-            name: manifestData.name,
-            version: manifestData.version,
-          }));
+          // Check node first: if the app is already installed (e.g. dev mode),
+          // skip the registry entirely and go straight to completion.
+          let installedLocally = false;
+          try {
+            const token = getAccessToken();
+            const res = await fetch(
+              `${window.location.origin}/admin-api/packages/${encodeURIComponent(packageName)}/latest`,
+              token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+            );
+            if (res.ok) {
+              const json = await res.json();
+              const appId = json?.data?.applicationId || json?.applicationId || null;
+              const version = json?.data?.version || json?.version || null;
+              if (appId) {
+                console.log(`App "${packageName}" already installed on node (${appId}), skipping registry`);
+                installedLocally = true;
+                setAlreadyInstalled(true);
+                setExistingAppId(appId);
+                localStorage.setItem('installed-application-id', appId);
+                localStorage.setItem('manifest-info', JSON.stringify({
+                  id: packageName,
+                  name: packageName,
+                  version: version || '0.0.0',
+                }));
+                setLoading(false);
+                if (!completionInProgressRef.current) {
+                  completionInProgressRef.current = true;
+                  onCompleteRef.current('', '');
+                  completionInProgressRef.current = false;
+                }
+                return;
+              }
+            }
+          } catch (nodeCheckErr) {
+            console.debug('Node package check failed, falling back to registry:', nodeCheckErr);
+          }
+
+          if (!installedLocally) {
+            const client = registryUrl ? new RegistryClient(registryUrl) : registryClient;
+            const manifestData = await client.getManifest(packageName, packageVersion || undefined);
+            setManifest(manifestData);
+            localStorage.setItem('manifest-info', JSON.stringify({
+              id: manifestData.id,
+              name: manifestData.name,
+              version: manifestData.version,
+            }));
+          }
         } else if (manifestUrl) {
           const response = await fetch(manifestUrl);
           if (!response.ok) throw new Error(`Failed to fetch manifest: ${response.statusText}`);
