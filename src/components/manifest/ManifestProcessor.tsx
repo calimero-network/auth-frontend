@@ -118,14 +118,55 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
 
       try {
         if (packageName) {
-          const client = registryUrl ? new RegistryClient(registryUrl) : registryClient;
-          const manifestData = await client.getManifest(packageName, packageVersion || undefined);
-          setManifest(manifestData);
-          localStorage.setItem('manifest-info', JSON.stringify({
-            id: manifestData.id,
-            name: manifestData.name,
-            version: manifestData.version,
-          }));
+          // Check node first: if the app is already installed (e.g. dev mode),
+          // skip the registry entirely and go straight to completion.
+          const DEV_SIGNER_ID = 'did:key:z6MknF3p5L5FDHJQ7FREUapuX4Wmp4MtF6WrHYaXS2B3eZQd';
+          let installedLocally = false;
+          try {
+            const token = getAccessToken();
+            if (token) {
+              const appsRes = await fetch(`${window.location.origin}/admin-api/applications`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (appsRes.ok) {
+                const appsJson = await appsRes.json();
+                const apps = appsJson?.data?.apps || [];
+                for (const app of apps) {
+                  if (app.package === packageName && app.signer_id === DEV_SIGNER_ID) {
+                    installedLocally = true;
+                    setAlreadyInstalled(true);
+                    setExistingAppId(app.id);
+                    localStorage.setItem('installed-application-id', app.id);
+                    localStorage.setItem('manifest-info', JSON.stringify({
+                      id: packageName,
+                      name: packageName,
+                      version: app.version || '0.0.0',
+                    }));
+                    setLoading(false);
+                    if (!completionInProgressRef.current) {
+                      completionInProgressRef.current = true;
+                      onCompleteRef.current('', '');
+                      completionInProgressRef.current = false;
+                    }
+                    return;
+                  }
+                }
+              }
+            }
+          } catch (nodeCheckErr) {
+            console.debug('Node app check failed:', nodeCheckErr);
+          }
+
+          if (!installedLocally) {
+            const client = registryUrl ? new RegistryClient(registryUrl) : registryClient;
+            const manifestData = await client.getManifest(packageName, packageVersion || undefined);
+            setManifest(manifestData);
+            localStorage.setItem('manifest-info', JSON.stringify({
+              id: manifestData.id,
+              name: manifestData.name,
+              version: manifestData.version,
+            }));
+          }
         } else if (manifestUrl) {
           const response = await fetch(manifestUrl);
           if (!response.ok) throw new Error(`Failed to fetch manifest: ${response.statusText}`);
@@ -185,7 +226,7 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
       // First try via mero-js (expects { data: {...} } envelope)
       try {
         const mero = getMero();
-        const latestResponse = await mero.admin.applications.getLatestVersion(manifest.id);
+        const latestResponse = await mero.admin.getLatestPackageVersion(manifest.id);
         applicationId = (latestResponse as any)?.applicationId || null;
       } catch (_meroErr) {
         // getLatestVersion can throw if the server returns the body directly
@@ -231,7 +272,7 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
       const metadataObj: Record<string, any> = {
         name: manifest._bundleMetadata?.name || manifest.name,
         version: manifest.version,
-        package: manifest.id,
+        metadata: manifest.id,
       };
       if (manifest._bundleMetadata?.description) metadataObj.description = manifest._bundleMetadata.description;
       if (manifest._bundleMetadata?.author) metadataObj.author = manifest._bundleMetadata.author;
@@ -241,12 +282,10 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
 
       const metadataBytes = Array.from(new TextEncoder().encode(JSON.stringify(metadataObj)));
 
-      const installResponse = await mero.admin.applications.installApplication({
+      const installResponse = await mero.admin.installApplication({
         url: manifest.artifact.uri,
-        package: manifest.id,
-        version: manifest.version,
         metadata: metadataBytes,
-      });
+      } as any);
 
       const applicationId = (installResponse as any)?.applicationId;
       if (!applicationId) throw new Error('Installation succeeded but no application ID returned');
@@ -260,7 +299,7 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
       if (completionInProgressRef.current) return;
       completionInProgressRef.current = true;
 
-      const contextsResponse = await mero.admin.contexts.getContextsForApplication(applicationId);
+      const contextsResponse = await mero.admin.getContextsForApplication(applicationId);
       const contexts = (contextsResponse as any)?.contexts || [];
       const contextId = contexts[0]?.id || '';
 
@@ -305,6 +344,9 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
   }
 
   if (!manifest) {
+    if (alreadyInstalled) {
+      return <Loader />;
+    }
     return (
       <PageShell>
         <Card variant="rounded" color="var(--color-border-brand)">

@@ -82,6 +82,8 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
           fragmentParams.set('context_identity', identity);
         }
 
+        fragmentParams.set('node_url', window.location.origin);
+
         clearStoredUrlParams();
         window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;
       } else {

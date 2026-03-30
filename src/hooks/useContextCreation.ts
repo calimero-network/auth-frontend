@@ -65,16 +65,16 @@ export function useContextCreation(): UseContextCreationReturn {
       const mero = getMero();
       
       try {
-        await mero.admin.applications.getApplication(targetApplicationId);
+        await mero.admin.getApplication(targetApplicationId);
         // Application exists
         return true;
       } catch {
         // Application doesn't exist, try to install
         try {
-          await mero.admin.applications.installApplication({
+          await mero.admin.installApplication({
             url: applicationPath,
             metadata: [],
-          });
+          } as any);
           return true;
         } catch (installErr) {
           const errorMessage = installErr instanceof Error ? installErr.message : '';
@@ -110,11 +110,11 @@ export function useContextCreation(): UseContextCreationReturn {
       // Install application when application path is available (legacy flow)
       if (applicationPath) {
         try {
-          const installResponse = await mero.admin.applications.installApplication({
+          const installResponse = await mero.admin.installApplication({
             url: applicationPath,
             metadata: [],
-          });
-          const newApplicationId = installResponse.applicationId;
+          } as any);
+          const newApplicationId = (installResponse as any)?.data?.applicationId ?? (installResponse as any)?.applicationId;
           applicationId = newApplicationId;
           sessionStorage.setItem('application-id', newApplicationId);
         } catch (installErr) {
@@ -129,16 +129,16 @@ export function useContextCreation(): UseContextCreationReturn {
 
       // Create context using finalized application ID
       try {
-        const createContextResponse = await mero.admin.contexts.createContext({
+        const createContextResponse = await mero.admin.createContext({
           protocol: selectedProtocol,
           applicationId,
           initializationParams: initArgs
             ? Array.from(new TextEncoder().encode(initArgs))
             : [],
-        });
+        } as any);
 
-        // Handle successful context creation
-        const { contextId, memberPublicKey } = createContextResponse;
+        const respData = (createContextResponse as any)?.data ?? createContextResponse;
+        const { contextId, memberPublicKey } = respData;
         setSelectedProtocol(null);
         setShowInstallPrompt(false);
         setApplicationMismatch(false);

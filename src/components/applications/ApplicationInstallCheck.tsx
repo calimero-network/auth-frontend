@@ -54,7 +54,7 @@ export function ApplicationInstallCheck({ onComplete, onBack }: ApplicationInsta
 
         // getApplication() expects the installed UUID, not the package ID.
         // Use getLatestVersion(packageId) which resolves package → installed UUID.
-        const latestResponse = await mero.admin.applications.getLatestVersion(applicationId);
+        const latestResponse = await mero.admin.getLatestPackageVersion(applicationId);
         const installedId = (latestResponse as any)?.applicationId;
         if (installedId) {
           // Store so downstream token generation can scope permissions to this app

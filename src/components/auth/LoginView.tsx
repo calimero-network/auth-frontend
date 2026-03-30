@@ -13,9 +13,10 @@ import {
   getAppEndpointKey,
   getRefreshToken,
   setAccessToken,
-  setRefreshToken
+  setRefreshToken,
+  extractTokens
 } from '../../lib/mero';
-import type { AuthProvider as Provider } from '@calimero-network/mero-js/api/auth';
+interface Provider { name: string; type: string; description?: string; configured?: boolean; config?: Record<string, unknown>; [key: string]: unknown; }
 import { ErrorView } from '../common/ErrorView';
 import Loader from '../common/Loader';
 import { PermissionsView } from '../permissions/PermissionsView';
@@ -56,8 +57,8 @@ const LoginView: React.FC = () => {
   const loadProviders = useCallback(async () => {
     try {
       const mero = getMero();
-      const response = await mero.auth.getProviders();
-      setProviders(response.providers);
+      const response: any = await mero.auth.getProviders();
+      setProviders((response as any)?.data?.providers ?? (response as any)?.providers ?? []);
     } catch (err) {
       console.error('Failed to load providers:', err);
       setError(err instanceof Error ? err.message : 'Failed to load authentication providers');
@@ -74,14 +75,14 @@ const LoginView: React.FC = () => {
   const checkIfTokenIsValid = async (accessToken: string, refreshToken: string) => {
     try {
       const mero = getMero();
-      const response = await mero.auth.refreshToken({
+      const response: any = await mero.auth.refreshToken({
         access_token: accessToken,
         refresh_token: refreshToken
       });
       
-      if (response.access_token && response.refresh_token) {
-        setAccessToken(response.access_token);
-        setRefreshToken(response.refresh_token);
+      if ((response as any).data.access_token && (response as any).data.refresh_token) {
+        setAccessToken((response as any).data.access_token);
+        setRefreshToken((response as any).data.refresh_token);
         setShowProviders(false);
         return true;
       }
@@ -113,9 +114,6 @@ const LoginView: React.FC = () => {
     // Check for manifest-based flows first
     const manifestUrl = getStoredUrlParam('manifest-url');
     
-    console.log('DEBUG: manifestUrl =', manifestUrl);
-    console.log('DEBUG: window.location.search =', window.location.search);
-    console.log('DEBUG: showManifestProcessor state =', showManifestProcessor);
     
     // Don't bypass authentication for manifest flows - let user authenticate first
     // The manifest processing will happen after authentication
@@ -136,7 +134,6 @@ const LoginView: React.FC = () => {
         
         // For manifest flows, show permissions FIRST
         if (manifestUrl) {
-          console.log('DEBUG: After auth, showing PermissionsView for manifest flow');
           // Store manifest data for PermissionsView to display
           setShowPermissionsView(true);
         } else if (hasAdminPermissions) {
@@ -156,18 +153,15 @@ const LoginView: React.FC = () => {
   };
   
   useEffect(() => {
-    console.log('DEBUG: LoginView useEffect starting');
     handleUrlParams();
     
     const callback = getStoredUrlParam('callback-url');
-    console.log('DEBUG: callback =', callback);
     if (!callback) {
       setError('Missing required callback URL parameter');
       setLoading(false);
       return;
     }
     
-    console.log('DEBUG: About to call checkExistingSession');
     checkExistingSession();
   }, []);
   
@@ -231,11 +225,11 @@ const LoginView: React.FC = () => {
         }
       };
 
-      const tokenResponse = await mero.auth.getToken(tokenPayload);
+      const tokenResponse = await mero.auth.generateTokens(tokenPayload) as any;
 
-      if (tokenResponse.access_token && tokenResponse.refresh_token) {
-        setAccessToken(tokenResponse.access_token);
-        setRefreshToken(tokenResponse.refresh_token);
+      if ((tokenResponse as any).data.access_token && (tokenResponse as any).data.refresh_token) {
+        setAccessToken((tokenResponse as any).data.access_token);
+        setRefreshToken((tokenResponse as any).data.refresh_token);
         
         // Check for manifest/package flows after authentication
         const manifestUrl = getStoredUrlParam('manifest-url');
@@ -243,7 +237,6 @@ const LoginView: React.FC = () => {
         
         // Manifest or package-name flows proceed directly to permissions
         if (manifestUrl || packageName) {
-          console.log('DEBUG: After auth, showing PermissionsView for manifest/package flow');
           setShowPermissionsView(true);
           setShowUsernamePasswordForm(false);
           setCameFromUsernamePassword(true);
@@ -286,7 +279,7 @@ const LoginView: React.FC = () => {
       const mero = getMero();
       
       if (provider.name === 'near_wallet') {
-        const challengeResponse = await mero.auth.getChallenge();
+        const challengeResponse = await mero.auth.getChallenge() as any;
         
         // Provider config may have network info - cast to any for flexibility
         const providerConfig = (provider as any).config;
@@ -300,8 +293,8 @@ const LoginView: React.FC = () => {
         let signature;
         try {
           signature = await wallet.signMessage({
-            message: challengeResponse.challenge,
-            nonce: Buffer.from(challengeResponse.nonce, 'base64'),
+            message: (challengeResponse as any)?.data?.challenge ?? (challengeResponse as any)?.challenge,
+            nonce: Buffer.from((challengeResponse as any)?.data?.challenge ?? (challengeResponse as any)?.challenge, 'base64'),
             recipient: 'calimero',
             callbackUrl: window.location.href
           }) as SignedMessage;
@@ -322,17 +315,17 @@ const LoginView: React.FC = () => {
           permissions: [] as string[],
           provider_data: {
             wallet_address: signature.accountId,
-            message: challengeResponse.challenge,
+            message: (challengeResponse as any)?.data?.challenge ?? (challengeResponse as any)?.challenge,
             signature: signature.signature,
             recipient: 'calimero'
           }
         };
 
-        const tokenResponse = await mero.auth.getToken(tokenPayload);
+        const tokenResponse = await mero.auth.generateTokens(tokenPayload) as any;
 
-        if (tokenResponse.access_token && tokenResponse.refresh_token) {
-          setAccessToken(tokenResponse.access_token);
-          setRefreshToken(tokenResponse.refresh_token);
+        if ((tokenResponse as any).data.access_token && (tokenResponse as any).data.refresh_token) {
+          setAccessToken((tokenResponse as any).data.access_token);
+          setRefreshToken((tokenResponse as any).data.refresh_token);
           
           const permissionsParam = getStoredUrlParam('permissions');
           const permissions = permissionsParam ? permissionsParam.split(',') : [];
@@ -343,7 +336,6 @@ const LoginView: React.FC = () => {
           
           // For manifest flows, we need admin permissions, so show PermissionsView first
           if (manifestUrl && hasAdminPermissions) {
-            console.log('DEBUG: After provider auth, showing PermissionsView for manifest flow');
             setShowPermissionsView(true);
           } else if (hasAdminPermissions) {
             setShowPermissionsView(true);
@@ -479,17 +471,12 @@ const LoginView: React.FC = () => {
 
           // Include applicationId for package-based flows (before cleanup!)
           const installedAppIdForRedirect = localStorage.getItem('installed-application-id');
-          console.log('🔍 DEBUG: Reading installed-application-id from localStorage:', installedAppIdForRedirect);
-          console.log('🔍 DEBUG: All localStorage keys:', Object.keys(localStorage));
           if (installedAppIdForRedirect) {
-            console.log('✅ DEBUG: Adding application_id to fragmentParams:', installedAppIdForRedirect);
             fragmentParams.set('application_id', installedAppIdForRedirect);
           } else {
             console.warn('❌ DEBUG: No installed-application-id in localStorage!');
           }
           
-          console.log('🔍 DEBUG: Final fragmentParams:', fragmentParams.toString());
-          console.log('🔍 DEBUG: Final redirect URL:', `${returnUrl.toString()}#${fragmentParams.toString()}`);
           
           // Clean up stored application ID
           localStorage.removeItem('installed-application-id');
@@ -605,7 +592,6 @@ const LoginView: React.FC = () => {
               
               if (manifestUrl || packageName) {
                 // For manifest flows, show ManifestProcessor first
-                console.log('DEBUG: Triggering ManifestProcessor with:', { manifestUrl, packageName });
                 setShowManifestProcessor(true);
               } else if (cameFromApplicationCheck) {
                 // App is already installed and permissions approved — generate token and redirect
@@ -649,7 +635,6 @@ const LoginView: React.FC = () => {
 
       {showManifestProcessor && !showPermissionsView && !showApplicationInstallCheck && (
         <>
-          {console.log('DEBUG: Rendering ManifestProcessor with:', { packageName, packageVersion, registryUrl })}
           <ManifestProcessor
             onComplete={handleContextAndIdentitySelect}
             onBack={handleBack}
