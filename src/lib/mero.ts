@@ -85,6 +85,24 @@ export function getRefreshToken(): string | null {
 
 export function setRefreshToken(token: string): void {
   localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, token);
+  if (meroInstance) {
+    const accessToken = getAccessToken();
+    if (accessToken) {
+      let expiresAt = Date.now() + 3_600_000;
+      try {
+        let b64 = accessToken.split('.')[1];
+        b64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4) b64 += '=';
+        const payload = JSON.parse(atob(b64));
+        if (payload.exp) expiresAt = payload.exp * 1000;
+      } catch { /* use default */ }
+      meroInstance.setTokenData({
+        access_token: accessToken,
+        refresh_token: token,
+        expires_at: expiresAt,
+      });
+    }
+  }
 }
 
 export function clearRefreshToken(): void {

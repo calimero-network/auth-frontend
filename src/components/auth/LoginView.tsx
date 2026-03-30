@@ -294,7 +294,7 @@ const LoginView: React.FC = () => {
         try {
           signature = await wallet.signMessage({
             message: (challengeResponse as any)?.data?.challenge ?? (challengeResponse as any)?.challenge,
-            nonce: Buffer.from((challengeResponse as any)?.data?.challenge ?? (challengeResponse as any)?.challenge, 'base64'),
+            nonce: Buffer.from((challengeResponse as any)?.data?.nonce ?? (challengeResponse as any)?.nonce, 'base64'),
             recipient: 'calimero',
             callbackUrl: window.location.href
           }) as SignedMessage;
