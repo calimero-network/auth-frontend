@@ -52,21 +52,35 @@ export function ApplicationInstallCheck({ onComplete, onBack }: ApplicationInsta
       try {
         const mero = getMero();
 
-        // getApplication() expects the installed UUID, not the package ID.
-        // Use getLatestVersion(packageId) which resolves package → installed UUID.
-        const latestResponse = await mero.admin.getLatestPackageVersion(applicationId);
-        const installedId = (latestResponse as any)?.applicationId;
-        if (installedId) {
-          // Store so downstream token generation can scope permissions to this app
-          localStorage.setItem('installed-application-id', installedId);
+        // First try direct UUID lookup — handles .wasm apps installed without a registry
+        // entry (applicationId IS the installed UUID in this case).
+        try {
+          await mero.admin.getApplication(applicationId);
+          localStorage.setItem('installed-application-id', applicationId);
           onComplete('', '');
           return;
+        } catch (_directErr) {
+          // Not found by direct UUID — fall through to package registry lookup
         }
-        // No installed version found — fall through to show install UI
+
+        // Fallback: resolve package ID → installed UUID via the packages API.
+        try {
+          const latestResponse = await mero.admin.getLatestPackageVersion(applicationId);
+          const installedId = (latestResponse as any)?.applicationId;
+          if (installedId) {
+            localStorage.setItem('installed-application-id', installedId);
+            onComplete('', '');
+            return;
+          }
+        } catch (_pkgErr) {
+          // Package not found either — fall through to show install UI
+        }
+
+        // Neither lookup succeeded — prompt the user to install
         setIsCheckingInstallation(false);
       } catch (err) {
-        // Application not installed or error — show installation prompt
-        console.error('Application not installed:', err);
+        // Unexpected error — show installation prompt
+        console.error('Application check failed:', err);
         setIsCheckingInstallation(false);
       }
     };
