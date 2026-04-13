@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calimero | Auth Frontend</title>
+<link rel="stylesheet" href="styles.css">
+<meta name="description" content="Calimero Auth Frontend — React authentication UI for node login, context management, and permissions.">
+<meta name="theme-color" content="#0d1117">
+</head>
+<body>
+<div class="main">
+<div class="content">
+
+<div class="hero">
+  <h1>Calimero <em>Auth Frontend</em></h1>
+  <p class="tagline">The authentication and context management UI for Calimero — handles node login, context creation and selection, and application permission grants.</p>
+
+  <div class="g4" style="margin-bottom:36px;">
+    <div class="stat"><div class="v">3</div><div class="l">main flows</div></div>
+    <div class="stat"><div class="v">React</div><div class="l">19 + TypeScript</div></div>
+    <div class="stat"><div class="v">mero-js</div><div class="l">v2 SDK</div></div>
+    <div class="stat"><div class="v">SSO</div><div class="l">URL hash bypass</div></div>
+  </div>
+</div>
+
+<div class="card ga">
+<h2>What Auth Frontend Does</h2>
+<p style="margin-bottom:18px;">Auth Frontend is the UI layer that apps load when they need to authenticate a user with a Calimero node. It is served as a standalone built app and embedded via the node's app registry.</p>
+<div class="g3">
+  <div class="step"><div class="n">1</div><h4>Node Login</h4><p>User enters node URL and credentials. The frontend exchanges them for JWT tokens via mero-js and stores them securely.</p></div>
+  <div class="step"><div class="n">2</div><h4>Context Selection</h4><p>User selects an existing context or creates a new one. Each context is an isolated execution environment on the node.</p></div>
+  <div class="step"><div class="n">3</div><h4>Permission Grant</h4><p>User approves the requesting app's required permissions before the auth flow completes and redirects back to the app.</p></div>
+</div>
+</div>
+
+<div class="card gb">
+<h2>Auth Flow Overview</h2>
+<svg viewBox="0 0 900 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="glow-a3"><feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#a5ff11" flood-opacity="0.25"/></filter>
+  </defs>
+
+  <!-- App -->
+  <rect x="20" y="90" width="130" height="60" rx="10" fill="#58a6ff10" stroke="#58a6ff" stroke-width="1.2"/>
+  <text x="85" y="118" text-anchor="middle" fill="#58a6ff" font-family="JetBrains Mono" font-size="11" font-weight="700">Calimero App</text>
+  <text x="85" y="136" text-anchor="middle" fill="#6b6b80" font-family="DM Sans" font-size="9">needs auth</text>
+
+  <!-- SSO bypass arrow (top) -->
+  <path d="M155 90 Q360 30 560 90" stroke="#a5ff11" stroke-width="1.2" stroke-dasharray="5 3" fill="none"/>
+  <polygon points="560,90 552,85 552,95" fill="#a5ff11"/>
+  <text x="355" y="48" text-anchor="middle" fill="#a5ff11" font-family="JetBrains Mono" font-size="9">SSO bypass: tokens in URL hash</text>
+
+  <!-- Auth Frontend -->
+  <rect x="190" y="60" width="350" height="160" rx="14" fill="#a5ff1108" stroke="#a5ff11" stroke-width="1.8" filter="url(#glow-a3)"/>
+  <text x="210" y="88" fill="#a5ff11" font-family="JetBrains Mono" font-size="13" font-weight="700">Auth Frontend</text>
+
+  <rect x="210" y="100" width="140" height="28" rx="6" fill="#58a6ff12" stroke="#58a6ff" stroke-width="1"/>
+  <text x="280" y="119" text-anchor="middle" fill="#58a6ff" font-family="JetBrains Mono" font-size="10">Login View</text>
+
+  <rect x="360" y="100" width="160" height="28" rx="6" fill="#f778ba12" stroke="#f778ba" stroke-width="1"/>
+  <text x="440" y="119" text-anchor="middle" fill="#f778ba" font-family="JetBrains Mono" font-size="10">Context Selection</text>
+
+  <rect x="210" y="140" width="140" height="28" rx="6" fill="#39d0d812" stroke="#39d0d8" stroke-width="1"/>
+  <text x="280" y="159" text-anchor="middle" fill="#39d0d8" font-family="JetBrains Mono" font-size="10">Permissions</text>
+
+  <rect x="360" y="140" width="160" height="28" rx="6" fill="#f59e0b12" stroke="#f59e0b" stroke-width="1"/>
+  <text x="440" y="159" text-anchor="middle" fill="#f59e0b" font-family="JetBrains Mono" font-size="10">Admin / Package Flow</text>
+
+  <text x="210" y="208" fill="#6b6b80" font-family="DM Sans" font-size="10">React 19 + mero-js v2 + Vite</text>
+
+  <!-- Node -->
+  <rect x="620" y="90" width="180" height="80" rx="12" fill="#3fb95008" stroke="#3fb950" stroke-width="1.6"/>
+  <text x="710" y="120" text-anchor="middle" fill="#3fb950" font-family="JetBrains Mono" font-size="12" font-weight="700">Calimero Node</text>
+  <text x="710" y="140" text-anchor="middle" fill="#6b6b80" font-family="DM Sans" font-size="10">JWT auth endpoint</text>
+  <text x="710" y="158" text-anchor="middle" fill="#6b6b80" font-family="DM Sans" font-size="10">Context API</text>
+
+  <!-- Arrows -->
+  <line x1="152" y1="120" x2="188" y2="120" stroke="#58a6ff" stroke-width="1.5"/>
+  <polygon points="188,120 180,116 180,124" fill="#58a6ff"/>
+
+  <line x1="542" y1="130" x2="618" y2="130" stroke="#a5ff11" stroke-width="1.5"/>
+  <polygon points="618,130 610,126 610,134" fill="#a5ff11"/>
+  <text x="558" y="123" fill="#a5ff11" font-family="JetBrains Mono" font-size="8">mero-js</text>
+
+  <!-- Return -->
+  <line x1="542" y1="155" x2="618" y2="155" stroke="#a5ff11" stroke-width="1" stroke-dasharray="4 3"/>
+  <polygon points="542,155 550,151 550,159" fill="#a5ff11"/>
+  <text x="553" y="170" fill="#6b6b80" font-family="JetBrains Mono" font-size="8">JWT tokens</text>
+</svg>
+</div>
+
+<h2 style="margin-top:40px;">Documentation</h2>
+<div class="g3" style="margin-bottom:16px;">
+  <a href="architecture.html" class="hero-card">
+    <span class="card-icon" style="color:var(--accent);">&#9670;</span>
+    <h3 style="color:var(--accent)">Architecture</h3>
+    <p>Component tree, flow modules (AdminFlow, ApplicationFlow, PackageFlow), mero-js v2 integration.</p>
+  </a>
+  <a href="flows.html" class="hero-card">
+    <span class="card-icon" style="color:var(--blue);">&#9670;</span>
+    <h3 style="color:var(--blue)">Auth Flows</h3>
+    <p>Step-by-step login flow: node URL → credentials → JWT tokens → context selection → app redirect.</p>
+  </a>
+  <a href="contexts.html" class="hero-card">
+    <span class="card-icon" style="color:var(--pink);">&#9670;</span>
+    <h3 style="color:var(--pink)">Contexts</h3>
+    <p>What contexts are, how to create and select them, and how they scope app execution on the node.</p>
+  </a>
+</div>
+<div class="g2">
+  <a href="permissions.html" class="hero-card">
+    <span class="card-icon" style="color:var(--cyan);">&#9670;</span>
+    <h3 style="color:var(--cyan)">Permissions</h3>
+    <p>How apps declare required permissions, how users approve or deny them, and what capabilities they unlock.</p>
+  </a>
+  <a href="sso.html" class="hero-card">
+    <span class="card-icon" style="color:var(--violet);">&#9670;</span>
+    <h3 style="color:var(--violet)">SSO Integration</h3>
+    <p>URL hash token passing — how Calimero Desktop bypasses the auth flow by embedding JWT tokens in the window URL.</p>
+  </a>
+</div>
+
+</div>
+</div>
+<script src="nav.js"></script>
+</body>
+</html>

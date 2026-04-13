@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calimero | Auth Frontend — Auth Flows</title>
+<link rel="stylesheet" href="styles.css">
+<meta name="theme-color" content="#0d1117">
+</head>
+<body>
+<div class="main">
+<div class="content">
+<div class="breadcrumb"><a href="index.html">Home</a><span class="sep">/</span><span>Auth Flows</span></div>
+
+<h1>Auth Flows</h1>
+<p class="page-subtitle">AdminFlow, ApplicationFlow, PackageFlow — the three scenarios handled</p>
+
+<div class="card ga">
+<h2>Flow Selection</h2>
+<p style="margin-bottom:12px;"><span class="code">App.tsx</span> determines which flow to run based on URL query parameters or the presence of an <span class="code">application_id</span> in the hash:</p>
+<div class="fr"><div class="fp">AdminFlow</div><div class="fd">No <span class="code">application_id</span> present. Authenticates an admin session against the node without installing or launching any application.</div></div>
+<div class="fr"><div class="fp">ApplicationFlow</div><div class="fd"><span class="code">application_id</span> present. Authenticates, then generates a client key for the given context+identity pair so the application can make signed RPC calls.</div></div>
+<div class="fr"><div class="fp">PackageFlow</div><div class="fd"><span class="code">package_id</span> present. Authenticates, installs the package as an application, creates a context, and returns tokens + context ID to the opener.</div></div>
+</div>
+
+<div class="card gb">
+<h2>AdminFlow</h2>
+<div class="step"><div class="n">1</div><h4>Check hash for SSO tokens</h4><p>Calls <span class="code">parseAuthCallback(window.location.hash)</span>. If found, skips to step 4 — zero interaction needed.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">2</div><h4>Show LoginView</h4><p>Renders username + password form. On submit, calls <span class="code">sdk.auth.login()</span>.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">3</div><h4>Token stored</h4><p>Access + refresh tokens stored in <span class="code">TokenStore</span>. SDK is now authenticated.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">4</div><h4>Redirect to node dashboard</h4><p>Admin flow complete — redirects to the admin dashboard URL passed in query params.</p></div>
+</div>
+
+<div class="card gc">
+<h2>ApplicationFlow</h2>
+<div class="step"><div class="n">1</div><h4>SSO check or login</h4><p>Same as AdminFlow steps 1–3. If SSO tokens present, no login form shown.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">2</div><h4>Resolve context identity</h4><p>Calls <span class="code">sdk.admin.getIdentities()</span> to get the node's signing identity for this context.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">3</div><h4>Generate client key</h4><p>Calls <span class="code">sdk.admin.generateClientKey({ contextId, contextIdentity })</span> (camelCase in mero-js v2). Returns a signing keypair the app will use for RPC.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">4</div><h4>Return tokens + key</h4><p>Posts the client key and tokens to the opener window or redirects with hash params.</p></div>
+</div>
+
+<div class="card gd">
+<h2>PackageFlow</h2>
+<div class="step"><div class="n">1</div><h4>SSO check or login</h4><p>Authenticate via hash tokens or login form.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">2</div><h4>Install package</h4><p>Calls <span class="code">sdk.admin.installApplication({ url, metadata })</span>.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">3</div><h4>Create context</h4><p>Calls <span class="code">sdk.admin.createContext({ applicationId })</span> with the newly installed app.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">4</div><h4>Generate client key + return</h4><p>Same as ApplicationFlow steps 3–4. Returns all credentials to the opener.</p></div>
+</div>
+
+</div>
+</div>
+<script src="nav.js"></script>
+</body>
+</html>

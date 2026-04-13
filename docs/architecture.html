@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calimero Auth Frontend — Architecture</title>
+<link rel="stylesheet" href="styles.css">
+<meta name="theme-color" content="#0d1117">
+</head>
+<body>
+<div class="main">
+<div class="content">
+<div class="breadcrumb"><a href="index.html">Home</a><span class="sep">/</span><span>Architecture</span></div>
+
+<h1>Architecture</h1>
+<p class="page-subtitle">React 19 flows — AdminFlow, ApplicationFlow, PackageFlow — backed by mero-js v2</p>
+
+<div class="card ga">
+<h2>Source Structure</h2>
+<div class="fr"><div class="fp">src/App.tsx</div><div class="fd">Root. Reads the app mode from URL params to determine which flow to run (admin vs application vs package). Checks for SSO tokens in URL hash first.</div></div>
+<div class="fr"><div class="fp">src/flows/AdminFlow.tsx</div><div class="fd">Flow for node admin users. Direct node credential login with admin-level access.</div></div>
+<div class="fr"><div class="fp">src/flows/ApplicationFlow.tsx</div><div class="fd">Flow for app users. Login → context selection → permission grant → redirect back to app.</div></div>
+<div class="fr"><div class="fp">src/flows/PackageFlow.tsx</div><div class="fd">Flow for package/registry operations requiring elevated auth.</div></div>
+<div class="fr"><div class="fp">src/components/auth/LoginView.tsx</div><div class="fd">Login form component. Accepts node URL + credentials. Calls <span class="code">mero-js</span> auth API. Key file for SSO: checks URL hash for tokens before showing form.</div></div>
+<div class="fr"><div class="fp">src/components/</div><div class="fd">Shared components: ContextSelector, PermissionsView, StatusBadge, loading states.</div></div>
+<div class="fr"><div class="fp">src/hooks/</div><div class="fd">Custom hooks: <span class="code">useAuth</span>, <span class="code">useContexts</span>, <span class="code">usePermissions</span>.</div></div>
+</div>
+
+<div class="card gb">
+<h2>Flow State Machines</h2>
+<p style="margin-bottom:14px;">Each flow is a state machine. <span class="code">ApplicationFlow</span> steps:</p>
+<div class="g4">
+  <div class="stat"><div class="v" style="font-size:1.2rem;">check_hash</div><div class="l">SSO tokens?</div></div>
+  <div class="stat"><div class="v" style="font-size:1.2rem;">login</div><div class="l">credential entry</div></div>
+  <div class="stat"><div class="v" style="font-size:1.2rem;">context</div><div class="l">select / create</div></div>
+  <div class="stat"><div class="v" style="font-size:1.2rem;">done</div><div class="l">redirect to app</div></div>
+</div>
+<p style="margin-top:14px;">If SSO tokens are present in the URL hash, the flow jumps directly to <span class="code">done</span> — skipping login and context selection.</p>
+</div>
+
+<div class="card gc">
+<h2>mero-js v2 Integration</h2>
+<p style="margin-bottom:12px;">The auth frontend uses <span class="code">@calimero-network/mero-js</span> v2 (breaking API change from the older <span class="code">calimero-client</span>). Key v2 differences:</p>
+<div class="fr"><div class="fp">GenerateClientKeyRequest</div><div class="fd">Uses camelCase fields: <span class="code">contextId</span>, <span class="code">contextIdentity</span> (v1 used <span class="code">context_id</span>, <span class="code">context_identity</span>).</div></div>
+<div class="fr"><div class="fp">Auth flow</div><div class="fd">Login returns <span class="code">{ access_token, refresh_token }</span> directly. Token storage via <span class="code">TokenStore</span> interface.</div></div>
+<div class="fr"><div class="fp">Admin API</div><div class="fd">Context and identity management via <span class="code">sdk.admin.*</span> methods instead of separate class.</div></div>
+</div>
+
+<div class="card gd">
+<h2>Tech Stack</h2>
+<div class="g3">
+  <div class="cb"><h4>React 19</h4><p>Functional components, hooks, Suspense boundaries for loading states.</p></div>
+  <div class="cb"><h4>TypeScript</h4><p>Strict mode. All API types imported from <span class="code">mero-js</span>.</p></div>
+  <div class="cb"><h4>Vite</h4><p>Fast HMR, optimised build output. Served as a static bundle by the node's web server.</p></div>
+  <div class="cb"><h4>Emotion</h4><p>CSS-in-JS for component styles. Theme tokens for consistent design.</p></div>
+  <div class="cb"><h4>React Router DOM</h4><p>Navigation between steps in multi-step flows.</p></div>
+  <div class="cb"><h4>pnpm</h4><p>Package management. Lock file committed.</p></div>
+</div>
+</div>
+
+</div>
+</div>
+<script src="nav.js"></script>
+</body>
+</html>

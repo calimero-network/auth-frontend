@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calimero Auth Frontend — SSO Integration</title>
+<link rel="stylesheet" href="styles.css">
+<meta name="theme-color" content="#0d1117">
+</head>
+<body>
+<div class="main">
+<div class="content">
+<div class="breadcrumb"><a href="index.html">Home</a><span class="sep">/</span><span>SSO Integration</span></div>
+
+<h1>SSO Integration</h1>
+<p class="page-subtitle">URL hash token bypass — skip auth when tokens arrive in the URL</p>
+
+<div class="card ga">
+<h2>What SSO Bypass Does</h2>
+<p>When Calimero Desktop opens an app window, it embeds valid JWT tokens in the URL hash. The auth frontend detects these tokens on load and skips the login, context-selection, and permission screens entirely — initialising directly with the provided credentials.</p>
+<div class="g3" style="margin-top:16px;">
+  <div class="cb"><h4>Without SSO</h4><p>User sees: node URL input → credentials → context selection → permission grant → app loads. Takes 4–5 steps.</p></div>
+  <div class="cb"><h4>With SSO</h4><p>User clicks "Open" in Desktop → app loads immediately. Zero extra steps. Tokens come pre-filled from the Desktop session.</p></div>
+  <div class="cb"><h4>Fallback</h4><p>If no tokens are in the URL hash, the normal auth flow runs. SSO is purely additive — existing functionality unchanged.</p></div>
+</div>
+</div>
+
+<div class="card gb">
+<h2>Hash Parameters</h2>
+<p style="margin-bottom:14px;">The auth frontend reads these keys from <span class="code">window.location.hash</span>:</p>
+<div class="fr"><div class="fp">access_token</div><div class="fd">JWT access token. Used immediately for authenticated node API calls.</div></div>
+<div class="fr"><div class="fp">refresh_token</div><div class="fd">JWT refresh token. Stored for session renewal when the access token expires.</div></div>
+<div class="fr"><div class="fp">node_url</div><div class="fd">Base URL of the Calimero node. Tells the SDK where to connect.</div></div>
+<div class="fr"><div class="fp">application_id</div><div class="fd">The application package ID. Used to scope context selection and permissions.</div></div>
+</div>
+
+<div class="card gc">
+<h2>Reading Tokens in mero-js</h2>
+<p style="margin-bottom:14px;">mero-js exports <span class="code">parseAuthCallback()</span> to safely parse all four hash parameters:</p>
+<div class="typedef">
+<span class="kw">import</span> &#123; <span class="ty">parseAuthCallback</span> &#125; <span class="kw">from</span> <span class="comment">'@calimero-network/mero-js'</span>;<br><br>
+<span class="kw">const</span> <span class="field">authData</span> = <span class="ty">parseAuthCallback</span>(window.location.hash);<br><br>
+<span class="kw">if</span> (<span class="field">authData</span>) &#123;<br>
+&nbsp;&nbsp;<span class="comment">// { accessToken, refreshToken, nodeUrl, applicationId }</span><br>
+&nbsp;&nbsp;<span class="comment">// Initialise SDK directly, skip auth flow</span><br>
+&nbsp;&nbsp;<span class="kw">await</span> sdk.<span class="field">auth</span>.<span class="ty">initFromTokens</span>(<span class="field">authData</span>);<br>
+&#125; <span class="kw">else</span> &#123;<br>
+&nbsp;&nbsp;<span class="comment">// No hash tokens — run normal auth flow</span><br>
+&#125;
+</div>
+</div>
+
+<div class="card gd">
+<h2>Security Notes</h2>
+<ul>
+  <li style="margin-bottom:8px;"><strong>Hash not sent to server:</strong> URL hash fragments are never included in HTTP requests. Tokens don't leak to server access logs.</li>
+  <li style="margin-bottom:8px;"><strong>Same-origin only:</strong> The Desktop only opens URLs for apps registered in the node's app registry, limiting the attack surface.</li>
+  <li style="margin-bottom:8px;"><strong>Token expiry:</strong> Access tokens expire on a normal schedule. The refresh token is also passed so the app can renew without re-authentication.</li>
+  <li><strong>Hash cleared after read:</strong> Applications should clear the hash after reading (<span class="code">history.replaceState(null, '', location.pathname)</span>) to avoid tokens appearing in browser history.</li>
+</ul>
+</div>
+
+</div>
+</div>
+<script src="nav.js"></script>
+</body>
+</html>

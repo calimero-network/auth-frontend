@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calimero | Auth Frontend — Contexts</title>
+<link rel="stylesheet" href="styles.css">
+<meta name="theme-color" content="#0d1117">
+</head>
+<body>
+<div class="main">
+<div class="content">
+<div class="breadcrumb"><a href="index.html">Home</a><span class="sep">/</span><span>Contexts</span></div>
+
+<h1>Context Management</h1>
+<p class="page-subtitle">How the auth frontend creates, selects, and manages Calimero contexts</p>
+
+<div class="card ga">
+<h2>What is a Context?</h2>
+<p>A context is an isolated execution environment on a Calimero node. Each context runs one application (WASM binary) and has its own state, identity list, and access control. Applications interact with the node by sending RPC calls to a specific context ID.</p>
+<p style="margin-top:10px;">The auth frontend creates or selects a context during the <strong>ApplicationFlow</strong> and <strong>PackageFlow</strong> — this is what enables the app to subsequently make signed RPC calls.</p>
+</div>
+
+<div class="card gb">
+<h2>Context Selection Flow</h2>
+<div class="step"><div class="n">1</div><h4>List existing contexts</h4><p>Calls <span class="code">sdk.admin.getContexts()</span>. Filters to contexts that run the target application ID.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">2</div><h4>Select or create</h4><p>If a matching context exists, uses it. If not (PackageFlow), creates one via <span class="code">sdk.admin.createContext({ applicationId })</span>.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">3</div><h4>Generate client key</h4><p>Calls <span class="code">sdk.admin.generateClientKey({ contextId, contextIdentity })</span> to produce a signing keypair for this context.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">4</div><h4>Return to app</h4><p>The context ID, client public key, and private key are passed back to the calling application via <span class="code">postMessage</span> or URL hash.</p></div>
+</div>
+
+<div class="card gc">
+<h2>Context API Calls</h2>
+<div class="typedef">
+<span class="comment">// List all contexts</span><br>
+<span class="kw">const</span> <span class="field">contexts</span> = <span class="kw">await</span> sdk.<span class="field">admin</span>.<span class="ty">getContexts</span>();<br><br>
+<span class="comment">// Get a specific context</span><br>
+<span class="kw">const</span> <span class="field">ctx</span> = <span class="kw">await</span> sdk.<span class="field">admin</span>.<span class="ty">getContext</span>(<span class="comment">'ctx_abc'</span>);<br><br>
+<span class="comment">// Create a new context</span><br>
+<span class="kw">const</span> <span class="field">newCtx</span> = <span class="kw">await</span> sdk.<span class="field">admin</span>.<span class="ty">createContext</span>(&#123;<br>
+&nbsp;&nbsp;<span class="field">applicationId</span>: <span class="comment">'app_xyz'</span>,<br>
+&#125;);<br><br>
+<span class="comment">// Generate client key (mero-js v2 — camelCase)</span><br>
+<span class="kw">const</span> <span class="field">key</span> = <span class="kw">await</span> sdk.<span class="field">admin</span>.<span class="ty">generateClientKey</span>(&#123;<br>
+&nbsp;&nbsp;<span class="field">contextId</span>: <span class="field">newCtx</span>.<span class="field">id</span>,<br>
+&nbsp;&nbsp;<span class="field">contextIdentity</span>: <span class="field">identity</span>.<span class="field">publicKey</span>,<br>
+&#125;);
+</div>
+</div>
+
+<div class="card gd">
+<h2>Context Object Shape</h2>
+<div class="typedef">
+<span class="kw">interface</span> <span class="ty">Context</span> &#123;<br>
+&nbsp;&nbsp;<span class="field">id</span>: <span class="ty">string</span>;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// Context ID (opaque string)</span><br>
+&nbsp;&nbsp;<span class="field">applicationId</span>: <span class="ty">string</span>;<span class="comment">// Installed application ID</span><br>
+&nbsp;&nbsp;<span class="field">rootHash</span>: <span class="ty">string</span>;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// Current state root hash</span><br>
+&nbsp;&nbsp;<span class="field">members</span>: <span class="ty">string</span>[];&nbsp;&nbsp;&nbsp;<span class="comment">// Identity public keys with access</span><br>
+&#125;
+</div>
+</div>
+
+</div>
+</div>
+<script src="nav.js"></script>
+</body>
+</html>
