@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Calimero | Auth Frontend</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles.css">
 <meta name="description" content="Calimero Auth Frontend — React authentication UI for node login, context management, and permissions.">
 <meta name="theme-color" content="#0d1117">
@@ -19,7 +20,7 @@
     <div class="stat"><div class="v">3</div><div class="l">main flows</div></div>
     <div class="stat"><div class="v">React</div><div class="l">19 + TypeScript</div></div>
     <div class="stat"><div class="v">mero-js</div><div class="l">v2 SDK</div></div>
-    <div class="stat"><div class="v">SSO</div><div class="l">URL hash bypass</div></div>
+    <div class="stat"><div class="v">SSO</div><div class="l">session persistence</div></div>
   </div>
 </div>
 
@@ -116,7 +117,7 @@
   <a href="sso.html" class="hero-card">
     <span class="card-icon" style="color:var(--violet);">&#9670;</span>
     <h3 style="color:var(--violet)">SSO Integration</h3>
-    <p>URL hash token passing — how Calimero Desktop bypasses the auth flow by embedding JWT tokens in the window URL.</p>
+    <p>Session persistence via localStorage — how login is skipped when valid tokens already exist, and how Desktop can bypass the login screen entirely.</p>
   </a>
 </div>
 

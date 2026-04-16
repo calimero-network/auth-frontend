@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Calimero | Auth Frontend — Permissions</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles.css">
 <meta name="theme-color" content="#0d1117">
 </head>
@@ -24,30 +25,29 @@
 </div>
 
 <div class="card gb">
-<h2>Client Key Generation</h2>
+<h2>Token Generation</h2>
+<p style="margin-bottom:12px; color:#6b6b80; font-size:13px;">Client key generation uses a direct fetch to <span class="code">/admin/client-key</span>, not an SDK method. Fields are snake_case.</p>
 <div class="typedef">
-<span class="comment">// Step 1: get the root identity</span><br>
-<span class="kw">const</span> [<span class="field">identity</span>] = <span class="kw">await</span> sdk.<span class="field">admin</span>.<span class="ty">getIdentities</span>();<br><br>
-<span class="comment">// Step 2: generate client key for context + identity</span><br>
-<span class="comment">// Note: camelCase in mero-js v2 (was snake_case in v1)</span><br>
-<span class="kw">const</span> <span class="field">clientKey</span> = <span class="kw">await</span> sdk.<span class="field">admin</span>.<span class="ty">generateClientKey</span>(&#123;<br>
-&nbsp;&nbsp;<span class="field">contextId</span>: <span class="comment">'ctx_abc'</span>,<br>
-&nbsp;&nbsp;<span class="field">contextIdentity</span>: <span class="field">identity</span>.<span class="field">publicKey</span>,<br>
+<span class="comment">// generateClientKeyDirect() in src/lib/mero.ts</span><br>
+<span class="kw">const</span> <span class="field">response</span> = <span class="kw">await</span> <span class="ty">generateClientKeyDirect</span>(&#123;<br>
+&nbsp;&nbsp;<span class="field">context_id</span>: contextId,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// '' for admin/multi-context flows</span><br>
+&nbsp;&nbsp;<span class="field">context_identity</span>: identity,&nbsp;<span class="comment">// '' for admin/multi-context flows</span><br>
+&nbsp;&nbsp;<span class="field">permissions</span>: [<span class="comment">'context:execute'</span>, <span class="comment">'context:list'</span>],<br>
 &#125;);<br><br>
-<span class="comment">// clientKey.publicKey  — send to app</span><br>
-<span class="comment">// clientKey.privateKey — keep secret, use for signing</span>
+<span class="comment">// Returns: { access_token, refresh_token }</span><br>
+<span class="comment">// These are scoped tokens for the calling app — not the admin session tokens.</span>
 </div>
 </div>
 
 <div class="card gc">
 <h2>What the App Receives</h2>
-<p style="margin-bottom:12px;">After auth flow completes, the application gets:</p>
-<div class="fr"><div class="fp">access_token</div><div class="fd">Short-lived JWT. Used as <span class="code">Authorization: Bearer</span> for admin API calls.</div></div>
-<div class="fr"><div class="fp">refresh_token</div><div class="fd">Long-lived token for obtaining new access tokens without re-login.</div></div>
-<div class="fr"><div class="fp">node_url</div><div class="fd">The Calimero node base URL. Needed to initialize the SDK.</div></div>
-<div class="fr"><div class="fp">context_id</div><div class="fd">The context the app should send RPC calls to.</div></div>
-<div class="fr"><div class="fp">client_public_key</div><div class="fd">The app's signing identity for this context.</div></div>
-<div class="fr"><div class="fp">client_private_key</div><div class="fd">The private half — used to sign RPC requests. Never transmitted to the server.</div></div>
+<p style="margin-bottom:12px;">After the flow completes the app is redirected to its callback URL with these fields appended as a URL hash:</p>
+<div class="fr"><div class="fp">access_token</div><div class="fd">Scoped JWT for the calling app. Always present.</div></div>
+<div class="fr"><div class="fp">refresh_token</div><div class="fd">Long-lived token for renewing the access token. Always present.</div></div>
+<div class="fr"><div class="fp">node_url</div><div class="fd">The Calimero node base URL. Present in ApplicationFlow and PackageFlow.</div></div>
+<div class="fr"><div class="fp">context_id</div><div class="fd">The selected or created context ID. Present in single-context flows only.</div></div>
+<div class="fr"><div class="fp">context_identity</div><div class="fd">The selected identity public key for the context. Present in single-context flows only.</div></div>
+<div class="fr"><div class="fp">application_id</div><div class="fd">The installed application ID. Present in PackageFlow only.</div></div>
 </div>
 
 <div class="card gd">
