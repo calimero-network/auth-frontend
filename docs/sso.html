@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calimero Auth Frontend — SSO Integration</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+<meta name="theme-color" content="#0d1117">
+</head>
+<body>
+<div class="main">
+<div class="content">
+<div class="breadcrumb"><a href="index.html">Home</a><span class="sep">/</span><span>SSO Integration</span></div>
+
+<h1>SSO Integration</h1>
+<p class="page-subtitle">Session persistence via localStorage — how login is skipped when valid tokens already exist</p>
+
+<div class="card ga">
+<h2>Session Persistence</h2>
+<p style="margin-bottom:12px;"><span class="code">EnsureAdminSession</span> is the gate for all three flows. On mount it checks localStorage for existing admin tokens and validates them before showing any UI:</p>
+<div class="g3" style="margin-top:16px;">
+  <div class="cb"><h4>Tokens present + valid</h4><p>Children render immediately. No login screen shown. The user was already authenticated from a previous session.</p></div>
+  <div class="cb"><h4>Tokens present but expired</h4><p>Tries <span class="code">mero.auth.refreshToken()</span>. On success, updates localStorage and continues. On failure, clears tokens and shows login.</p></div>
+  <div class="cb"><h4>No tokens</h4><p>Shows <span class="code">ProviderSelector</span> → <span class="code">UsernamePasswordForm</span> → calls <span class="code">mero.auth.generateTokens()</span> → stores tokens → renders children.</p></div>
+</div>
+</div>
+
+<div class="card gb">
+<h2>localStorage Keys</h2>
+<p style="margin-bottom:14px;"><span class="code">EnsureAdminSession</span> reads and writes these keys via helpers in <span class="code">src/lib/mero.ts</span>:</p>
+<div class="fr"><div class="fp">calimero_access_token</div><div class="fd">Admin JWT. If present and valid (or refreshable), login is skipped.</div></div>
+<div class="fr"><div class="fp">calimero_refresh_token</div><div class="fd">Used to refresh the access token when it expires.</div></div>
+<div class="fr"><div class="fp">calimero_app_endpoint</div><div class="fd">Node base URL. Used to initialise the <span class="code">MeroJs</span> instance.</div></div>
+</div>
+
+<div class="card gc">
+<h2>Desktop / Programmatic Bypass</h2>
+<p style="margin-bottom:14px;">External tools (like Calimero Desktop) can bypass the login screen by pre-seeding localStorage before opening the auth-frontend URL:</p>
+<div class="typedef">
+<span class="comment">// Set from the Desktop (same origin) before loading auth-frontend</span><br>
+localStorage.<span class="ty">setItem</span>(<span class="comment">'calimero_access_token'</span>, accessToken);<br>
+localStorage.<span class="ty">setItem</span>(<span class="comment">'calimero_refresh_token'</span>, refreshToken);<br>
+localStorage.<span class="ty">setItem</span>(<span class="comment">'calimero_app_endpoint'</span>, nodeUrl);<br><br>
+<span class="comment">// When auth-frontend loads, EnsureAdminSession finds the tokens,</span><br>
+<span class="comment">// validates them, and renders the flow directly — no login screen.</span>
+</div>
+</div>
+
+<div class="card gd">
+<h2>Security Notes</h2>
+<ul>
+  <li style="margin-bottom:8px;"><strong>Same-origin only:</strong> localStorage is origin-scoped. A Desktop bypass only works if auth-frontend and the Desktop share the same origin.</li>
+  <li style="margin-bottom:8px;"><strong>Token expiry:</strong> Access tokens expire normally. <span class="code">EnsureAdminSession</span> calls <span class="code">refreshToken()</span> on load if needed — no re-login required.</li>
+  <li style="margin-bottom:8px;"><strong>Callback hash:</strong> Tokens sent back to calling apps are placed in the URL hash (never the query string) so they are not included in server access logs.</li>
+  <li><strong>Hash cleared after read:</strong> Calling apps should clear the hash after reading (<span class="code">history.replaceState(null, '', location.pathname)</span>) to avoid tokens appearing in browser history.</li>
+</ul>
+</div>
+
+</div>
+</div>
+<script src="nav.js"></script>
+</body>
+</html>

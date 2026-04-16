@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calimero Auth Frontend — Architecture</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+<meta name="theme-color" content="#0d1117">
+</head>
+<body>
+<div class="main">
+<div class="content">
+<div class="breadcrumb"><a href="index.html">Home</a><span class="sep">/</span><span>Architecture</span></div>
+
+<h1>Architecture</h1>
+<p class="page-subtitle">React 19 flows — AdminFlow, ApplicationFlow, PackageFlow — backed by mero-js v2</p>
+
+<div class="card ga">
+<h2>Source Structure</h2>
+<div class="fr"><div class="fp">src/App.tsx</div><div class="fd">Root. Calls <span class="code">handleUrlParams()</span> to persist URL params to localStorage, then uses <span class="code">useFlowDetection()</span> to determine which flow to render. All three flows are wrapped in <span class="code">EnsureAdminSession</span>.</div></div>
+<div class="fr"><div class="fp">src/components/auth/EnsureAdminSession.tsx</div><div class="fd">Handles all login. Checks localStorage for existing tokens and validates them. If no valid token, shows <span class="code">ProviderSelector</span> → <span class="code">UsernamePasswordForm</span> → calls <span class="code">mero.auth.generateTokens()</span>. Only renders children once a valid admin token is secured.</div></div>
+<div class="fr"><div class="fp">src/flows/AdminFlow.tsx</div><div class="fd">Shows <span class="code">PermissionsView</span> for admin permission review, then calls <span class="code">generateClientKeyDirect()</span> and redirects to callback URL with tokens in hash.</div></div>
+<div class="fr"><div class="fp">src/flows/ApplicationFlow.tsx</div><div class="fd">app-check → permissions → context-selection (single-context mode only) → redirect. Uses <span class="code">ApplicationInstallCheck</span> to verify the app is installed on the node.</div></div>
+<div class="fr"><div class="fp">src/flows/PackageFlow.tsx</div><div class="fd">manifest → permissions → context-selection (single-context mode only) → summary → redirect. Uses <span class="code">ManifestProcessor</span> to fetch + install from registry.</div></div>
+<div class="fr"><div class="fp">src/components/manifest/ManifestProcessor.tsx</div><div class="fd">Fetches manifest from registry by package name or manifest URL. Detects existing installation (skips re-install). Calls <span class="code">mero.admin.installApplication()</span> and stores the returned application ID.</div></div>
+<div class="fr"><div class="fp">src/components/context/ContextSelector.tsx</div><div class="fd">Two-step picker: context list → identity list. Filters contexts by target application ID. Offers create-context form (protocol + init args JSON) when no matching context exists. Uses <span class="code">mero-ui</span> components throughout.</div></div>
+<div class="fr"><div class="fp">src/components/permissions/PermissionsView.tsx</div><div class="fd">Renders per-permission risk cards using <span class="code">mero-ui</span> and <span class="code">mero-tokens</span>. Adapts button labels based on mode (admin vs application).</div></div>
+<div class="fr"><div class="fp">src/hooks/</div><div class="fd">Custom hooks: <span class="code">useFlowDetection</span> (reads URL params, returns flow source + mode), <span class="code">useContextCreation</span> (install app + create context via <span class="code">mero.admin.*</span>), <span class="code">useContextSelection</span> (fetch contexts and identities).</div></div>
+<div class="fr"><div class="fp">src/lib/mero.ts</div><div class="fd">Singleton <span class="code">MeroJs</span> instance. Token helpers for localStorage. <span class="code">generateClientKeyDirect()</span> — direct <span class="code">POST /admin/client-key</span> that bypasses the SDK and returns <span class="code">access_token</span> + <span class="code">refresh_token</span>.</div></div>
+</div>
+
+<div class="card gb">
+<h2>Flow State Machines</h2>
+<p style="margin-bottom:14px;">Each flow is a state machine. <span class="code">ApplicationFlow</span> steps:</p>
+<div class="g4">
+  <div class="stat"><div class="v" style="font-size:1.2rem;">app-check</div><div class="l">verify install</div></div>
+  <div class="stat"><div class="v" style="font-size:1.2rem;">permissions</div><div class="l">user approves</div></div>
+  <div class="stat"><div class="v" style="font-size:1.2rem;">context</div><div class="l">single-ctx only</div></div>
+  <div class="stat"><div class="v" style="font-size:1.2rem;">done</div><div class="l">redirect to app</div></div>
+</div>
+<p style="margin-top:14px;">The context-selection step only runs in <span class="code">single-context</span> mode. In <span class="code">multi-context</span> mode the flow goes straight to redirect after permissions — no specific context is locked in. See <a href="flows.html">Auth Flows</a> for mode details.</p>
+</div>
+
+<div class="card gc">
+<h2>mero-js v2 Integration</h2>
+<p style="margin-bottom:12px;">The auth frontend uses <span class="code">@calimero-network/mero-js</span> (replaces the older <span class="code">calimero-client</span> package). Key integration points:</p>
+<div class="fr"><div class="fp">generateClientKeyDirect()</div><div class="fd">Client key generation bypasses the SDK entirely — it's a direct <span class="code">POST /admin/client-key</span> with <span class="code">{ context_id, context_identity, permissions }</span> (snake_case). Returns <span class="code">{ access_token, refresh_token }</span>.</div></div>
+<div class="fr"><div class="fp">mero.auth.generateTokens()</div><div class="fd">Used by <span class="code">EnsureAdminSession</span> to authenticate with username/password. Returns the admin session tokens stored in localStorage.</div></div>
+<div class="fr"><div class="fp">mero.admin.*</div><div class="fd">Context management: <span class="code">getContexts()</span>, <span class="code">createContext({ protocol, applicationId, initializationParams })</span>, <span class="code">getContextIdentitiesOwned(contextId)</span>. Application: <span class="code">installApplication({ url, metadata })</span>, <span class="code">getLatestPackageVersion()</span>.</div></div>
+</div>
+
+<div class="card gd">
+<h2>Tech Stack</h2>
+<div class="g3">
+  <div class="cb"><h4>React 19</h4><p>Functional components, hooks, Suspense boundaries for loading states.</p></div>
+  <div class="cb"><h4>TypeScript</h4><p>Strict mode. All API types imported from <span class="code">mero-js</span>.</p></div>
+  <div class="cb"><h4>Vite</h4><p>Fast HMR, optimised build output. Served as a static bundle by the node's web server.</p></div>
+  <div class="cb"><h4>mero-ui</h4><p><span class="code">@calimero-network/mero-ui</span> — design system used across flows. Components: <span class="code">Button</span>, <span class="code">Card</span>, <span class="code">Stack</span>, <span class="code">Flex</span>, <span class="code">Menu</span>, <span class="code">Text</span>, <span class="code">EmptyState</span>, etc.</p></div>
+  <div class="cb"><h4>Emotion</h4><p>CSS-in-JS for component styles. Theme tokens for consistent design.</p></div>
+  <div class="cb"><h4>React Router DOM</h4><p>Navigation between steps in multi-step flows.</p></div>
+  <div class="cb"><h4>pnpm</h4><p>Package management. Lock file committed.</p></div>
+</div>
+</div>
+
+</div>
+</div>
+<script src="nav.js"></script>
+</body>
+</html>

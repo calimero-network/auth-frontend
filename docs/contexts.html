@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calimero | Auth Frontend — Contexts</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+<meta name="theme-color" content="#0d1117">
+</head>
+<body>
+<div class="main">
+<div class="content">
+<div class="breadcrumb"><a href="index.html">Home</a><span class="sep">/</span><span>Contexts</span></div>
+
+<h1>Context Management</h1>
+<p class="page-subtitle">How the auth frontend creates, selects, and manages Calimero contexts</p>
+
+<div class="card ga">
+<h2>What is a Context?</h2>
+<p>A context is an isolated execution environment on a Calimero node. Each context runs one application (WASM binary) and has its own state, identity list, and access control. Applications interact with the node by sending RPC calls to a specific context ID.</p>
+<p style="margin-top:10px;">The auth frontend creates or selects a context during the <strong>ApplicationFlow</strong> and <strong>PackageFlow</strong> — this is what enables the app to subsequently make signed RPC calls.</p>
+</div>
+
+<div class="card gb">
+<h2>Context Selection Flow</h2>
+<p style="margin-bottom:12px; color:#6b6b80; font-size:13px;">This step only runs in <span class="code">single-context</span> mode. In <span class="code">multi-context</span> mode it is skipped entirely.</p>
+<div class="step"><div class="n">1</div><h4>List existing contexts</h4><p>Calls <span class="code">mero.admin.getContexts()</span>. Filters the list to contexts whose <span class="code">applicationId</span> matches the target app. Rendered with <span class="code">mero-ui</span> <span class="code">Menu</span> + <span class="code">MenuItem</span> components.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">2</div><h4>Select identity</h4><p>Once a context is picked, calls <span class="code">mero.admin.getContextIdentitiesOwned(contextId)</span> and shows the identity list.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">3</div><h4>Create context (if needed)</h4><p>If no matching context exists, shows a create-context form. Calls <span class="code">mero.admin.createContext({ protocol, applicationId, initializationParams })</span>. Protocol is currently fixed to <span class="code">near</span>. Returns <span class="code">{ contextId, memberPublicKey }</span>.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">4</div><h4>Return to flow</h4><p>The selected or created <span class="code">contextId</span> and <span class="code">identity</span> are passed back to the parent flow, which includes them in the <span class="code">generateClientKeyDirect()</span> call and the final callback hash.</p></div>
+</div>
+
+<div class="card gc">
+<h2>Context API Calls</h2>
+<div class="typedef">
+<span class="comment">// List all contexts (useContextSelection hook)</span><br>
+<span class="kw">const</span> <span class="field">res</span> = <span class="kw">await</span> mero.<span class="field">admin</span>.<span class="ty">getContexts</span>();<br>
+<span class="kw">const</span> <span class="field">contexts</span> = res?.<span class="field">data</span>?.<span class="field">contexts</span> ?? res?.<span class="field">contexts</span> ?? [];<br><br>
+<span class="comment">// Get owned identities for a context</span><br>
+<span class="kw">const</span> <span class="field">iRes</span> = <span class="kw">await</span> mero.<span class="field">admin</span>.<span class="ty">getContextIdentitiesOwned</span>(<span class="field">contextId</span>);<br>
+<span class="kw">const</span> <span class="field">identities</span> = iRes?.<span class="field">data</span>?.<span class="field">identities</span> ?? iRes?.<span class="field">identities</span> ?? [];<br><br>
+<span class="comment">// Create a new context (useContextCreation hook)</span><br>
+<span class="kw">const</span> <span class="field">createRes</span> = <span class="kw">await</span> mero.<span class="field">admin</span>.<span class="ty">createContext</span>(&#123;<br>
+&nbsp;&nbsp;<span class="field">protocol</span>: <span class="comment">'near'</span>,<br>
+&nbsp;&nbsp;<span class="field">applicationId</span>: <span class="comment">'app_xyz'</span>,<br>
+&nbsp;&nbsp;<span class="field">initializationParams</span>: Array.<span class="ty">from</span>(<span class="kw">new</span> <span class="ty">TextEncoder</span>().<span class="ty">encode</span>(initArgs)),<br>
+&#125;);<br>
+<span class="kw">const</span> &#123; <span class="field">contextId</span>, <span class="field">memberPublicKey</span> &#125; = createRes?.<span class="field">data</span> ?? createRes;<br><br>
+<span class="comment">// Generate scoped token (direct fetch, not SDK method)</span><br>
+<span class="kw">const</span> <span class="field">tokens</span> = <span class="kw">await</span> <span class="ty">generateClientKeyDirect</span>(&#123;<br>
+&nbsp;&nbsp;<span class="field">context_id</span>: contextId,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// snake_case</span><br>
+&nbsp;&nbsp;<span class="field">context_identity</span>: memberPublicKey,<br>
+&nbsp;&nbsp;<span class="field">permissions</span>: [<span class="comment">'context:execute'</span>],<br>
+&#125;);
+</div>
+</div>
+
+<div class="card gd">
+<h2>Context Object Shape</h2>
+<div class="typedef">
+<span class="kw">interface</span> <span class="ty">Context</span> &#123;<br>
+&nbsp;&nbsp;<span class="field">id</span>: <span class="ty">string</span>;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// Context ID (opaque string)</span><br>
+&nbsp;&nbsp;<span class="field">applicationId</span>: <span class="ty">string</span>;<span class="comment">// Installed application ID</span><br>
+&nbsp;&nbsp;<span class="field">rootHash</span>: <span class="ty">string</span>;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// Current state root hash</span><br>
+&nbsp;&nbsp;<span class="field">members</span>: <span class="ty">string</span>[];&nbsp;&nbsp;&nbsp;<span class="comment">// Identity public keys with access</span><br>
+&#125;
+</div>
+</div>
+
+</div>
+</div>
+<script src="nav.js"></script>
+</body>
+</html>

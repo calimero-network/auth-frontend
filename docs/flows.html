@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calimero | Auth Frontend — Auth Flows</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+<meta name="theme-color" content="#0d1117">
+</head>
+<body>
+<div class="main">
+<div class="content">
+<div class="breadcrumb"><a href="index.html">Home</a><span class="sep">/</span><span>Auth Flows</span></div>
+
+<h1>Auth Flows</h1>
+<p class="page-subtitle">AdminFlow, ApplicationFlow, PackageFlow — the three scenarios handled</p>
+
+<div class="card ga">
+<h2>Flow Selection</h2>
+<p style="margin-bottom:12px;"><span class="code">App.tsx</span> calls <span class="code">useFlowDetection()</span>, which reads URL query params (and localStorage fallback). Priority order:</p>
+<div class="fr"><div class="fp">PackageFlow</div><div class="fd"><span class="code">package-name</span> query param is present. Fetches manifest from registry, installs app, then proceeds to permissions + optional context selection.</div></div>
+<div class="fr"><div class="fp">AdminFlow</div><div class="fd"><span class="code">permissions=admin</span> or <span class="code">mode=admin</span> in query params, or no other indicators (default fallback). No app installation.</div></div>
+<div class="fr"><div class="fp">ApplicationFlow</div><div class="fd"><span class="code">application-id</span> query param is present. Verifies the app is installed on the node, then proceeds to permissions + optional context selection.</div></div>
+</div>
+
+<div class="card" style="border-color:var(--cyan);">
+<h2>Single-context vs Multi-context Mode</h2>
+<p style="margin-bottom:12px;">Both ApplicationFlow and PackageFlow support two modes, set via the <span class="code">mode</span> query param:</p>
+<div class="fr"><div class="fp">single-context</div><div class="fd">After permissions, the user picks a context (and identity) via <span class="code">ContextSelector</span>. The <span class="code">context_id</span> and <span class="code">context_identity</span> are included in the callback hash. <span class="code">ContextSelector</span> uses <span class="code">mero-ui</span> <span class="code">Menu</span> + <span class="code">MenuItem</span> components for selection and a create-context form when no matching context exists.</div></div>
+<div class="fr"><div class="fp">multi-context</div><div class="fd">Context selection step is skipped entirely. The generated token has multi-context permissions. No <span class="code">context_id</span> or <span class="code">context_identity</span> in the callback hash — the calling app manages context routing itself.</div></div>
+<p style="margin-top:12px; color:#6b6b80; font-size:13px;">Legacy detection: if <span class="code">permissions=application</span> is in the URL (and no explicit <span class="code">mode</span>), the flow defaults to <span class="code">multi-context</span>. Otherwise <span class="code">single-context</span>.</p>
+</div>
+
+<div class="card gb">
+<h2>AdminFlow</h2>
+<p style="margin-bottom:12px; color:#6b6b80; font-size:13px;">Login is handled by <span class="code">EnsureAdminSession</span> before this flow renders. AdminFlow itself only handles permission review and token generation.</p>
+<div class="step"><div class="n">1</div><h4>EnsureAdminSession (pre-flow)</h4><p>Checks <span class="code">calimero_access_token</span> in localStorage. If valid, renders children immediately. If not, shows <span class="code">ProviderSelector</span> → <span class="code">UsernamePasswordForm</span> → calls <span class="code">mero.auth.generateTokens()</span>.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">2</div><h4>Review permissions</h4><p>Renders <span class="code">PermissionsView</span> showing the requested admin permissions with risk badges.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">3</div><h4>Generate token</h4><p>Calls <span class="code">generateClientKeyDirect({ context_id: '', context_identity: '', permissions })</span> — a direct POST to <span class="code">/admin/client-key</span>.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">4</div><h4>Redirect</h4><p>Appends <span class="code">access_token</span> and <span class="code">refresh_token</span> to the <span class="code">callback-url</span> as a URL hash and navigates.</p></div>
+</div>
+
+<div class="card gc">
+<h2>ApplicationFlow</h2>
+<p style="margin-bottom:12px; color:#6b6b80; font-size:13px;">Triggered by <span class="code">application-id</span> query param. Login is handled by <span class="code">EnsureAdminSession</span> before this flow renders.</p>
+<div class="step"><div class="n">1</div><h4>App install check</h4><p><span class="code">ApplicationInstallCheck</span> verifies the application is installed on the node. Installs it from <span class="code">application-path</span> if needed.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">2</div><h4>Review permissions</h4><p>Renders <span class="code">PermissionsView</span>.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">3</div><h4>Context selection <em style="color:#6b6b80;font-size:11px;font-weight:400;">(single-context mode only)</em></h4><p>Renders <span class="code">ContextSelector</span> — context list filtered to the target application ID. User picks a context and then an identity. If no matching context exists, offers a create-context form.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">4</div><h4>Generate token + redirect</h4><p>Calls <span class="code">generateClientKeyDirect({ context_id, context_identity, permissions })</span>. Redirects to callback URL with <span class="code">access_token</span>, <span class="code">refresh_token</span>, <span class="code">context_id</span>, <span class="code">context_identity</span>, <span class="code">node_url</span> in hash.</p></div>
+</div>
+
+<div class="card gd">
+<h2>PackageFlow</h2>
+<p style="margin-bottom:12px; color:#6b6b80; font-size:13px;">Triggered by <span class="code">package-name</span> query param. Login is handled by <span class="code">EnsureAdminSession</span> before this flow renders.</p>
+<div class="step"><div class="n">1</div><h4>Manifest + install</h4><p><span class="code">ManifestProcessor</span> fetches the manifest from the registry (or by direct URL). If app is already installed on the node, skips re-install. Otherwise calls <span class="code">mero.admin.installApplication({ url, metadata })</span>. Stores application ID in localStorage.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">2</div><h4>Review permissions</h4><p>Renders <span class="code">PermissionsView</span>. Shows manifest app name/version in the header if available.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">3</div><h4>Context selection <em style="color:#6b6b80;font-size:11px;font-weight:400;">(single-context mode only)</em></h4><p>Renders <span class="code">ContextSelector</span>. Same as ApplicationFlow step 3.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">4</div><h4>Summary + confirm</h4><p>Shows app identity, context ID, identity, and permissions for user confirmation before generating the token. Uses <span class="code">mero-ui</span> Card with inline detail rows.</p></div>
+<div class="step" style="margin-top:10px;"><div class="n">5</div><h4>Generate token + redirect</h4><p>Calls <span class="code">generateClientKeyDirect()</span> with permissions scoped to the installed application ID (<span class="code">context:execute[app_id]</span>). Redirects with <span class="code">access_token</span>, <span class="code">refresh_token</span>, <span class="code">application_id</span>, <span class="code">context_id</span>, <span class="code">context_identity</span>, <span class="code">node_url</span> in hash.</p></div>
+</div>
+
+</div>
+</div>
+<script src="nav.js"></script>
+</body>
+</html>

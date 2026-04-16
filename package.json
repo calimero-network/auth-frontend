@@ -1,6 +1,6 @@
 {
   "name": "frontend-react",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -10,18 +10,17 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "e2e:install": "echo 'Playwright E2E tests have been removed'",
-    "e2e:start-auth": "echo 'Playwright E2E tests have been removed'",
-    "e2e:stop-auth": "echo 'Playwright E2E tests have been removed'",
-    "e2e": "echo 'Playwright E2E tests have been removed'",
-    "e2e:ci": "echo 'Playwright E2E tests have been removed'"
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "e2e:debug": "playwright test --debug",
+    "e2e:ci": "CI=true playwright test"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@calimero-network/mero-js": "^1.2.1",
     "@calimero-network/mero-icons": "^0.0.4",
+    "@calimero-network/mero-js": "^1.2.1",
     "@calimero-network/mero-tokens": "^0.0.5",
     "@calimero-network/mero-ui": "^0.3.6",
     "@emotion/react": "^11.14.0",
@@ -43,6 +42,7 @@
     "vm-browserify": "^1.1.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22.15.18",

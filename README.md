@@ -60,33 +60,42 @@ pnpm preview
 ```
 src/
 ├── components/
-│   ├── auth/           # Authentication components
-│   ├── common/         # Shared UI components
-│   ├── context/        # Context management
-│   ├── permissions/    # Permission handling
-│   ├── providers/      # Provider selection
-│   └── session/        # Session management
-├── hooks/              # Custom React hooks
+│   ├── applications/   # ApplicationInstallCheck
+│   ├── auth/           # EnsureAdminSession, UsernamePasswordForm
+│   ├── common/         # Shared UI (Loader, ErrorView, PageShell, Layout)
+│   ├── context/        # ContextSelector
+│   ├── manifest/       # ManifestProcessor
+│   ├── permissions/    # PermissionsView
+│   └── providers/      # ProviderSelector
+├── flows/              # AdminFlow, ApplicationFlow, PackageFlow
+├── hooks/              # useFlowDetection, useContextCreation, useContextSelection
+├── lib/                # mero.ts — MeroJs singleton + generateClientKeyDirect
 ├── theme/              # Styling and theme configuration
-└── utils/              # Utility functions
+├── types/              # flows.ts — AppMode, FlowSource, FlowDetectionResult
+└── utils/              # urlParams, permissions, registryClient
 ```
 
 ## Key Components
 
 ### Authentication
-- **LoginView**: User authentication interface
-- **SessionPrompt**: Session management prompts
+- **EnsureAdminSession**: Wraps all flows — validates or obtains admin tokens before rendering children
+- **UsernamePasswordForm**: Login form used by EnsureAdminSession
+
+### Flows
+- **AdminFlow**: Permission review + admin token generation
+- **ApplicationFlow**: App install check → permissions → context selection → redirect
+- **PackageFlow**: Manifest fetch + install → permissions → context selection → summary → redirect
 
 ### Context Management
-- **ContextSelector**: Interface for selecting contexts
-- **useContextCreation**: Hook for creating new contexts
-- **useContextSelection**: Hook for context selection logic
+- **ContextSelector**: Lists and creates contexts; used in single-context mode only
+- **useContextCreation**: Hook for creating contexts via `mero.admin.createContext()`
+- **useContextSelection**: Hook for fetching contexts and identities
 
 ### Permissions
-- **PermissionsView**: User permissions management interface
+- **PermissionsView**: Per-permission risk cards; adapts to admin vs application mode
 
-### Providers
-- **ProviderSelector**: Interface for choosing authentication providers
+### Manifest
+- **ManifestProcessor**: Fetches manifest from registry, detects existing installs, triggers `mero.admin.installApplication()`
 
 ## Dependencies
 
