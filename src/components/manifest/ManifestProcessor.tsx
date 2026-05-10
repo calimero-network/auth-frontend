@@ -120,7 +120,6 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
         if (packageName) {
           // Check node first: if the app is already installed (e.g. dev mode),
           // skip the registry entirely and go straight to completion.
-          const DEV_SIGNER_ID = 'did:key:z6MknF3p5L5FDHJQ7FREUapuX4Wmp4MtF6WrHYaXS2B3eZQd';
           let installedLocally = false;
           try {
             const token = getAccessToken();
@@ -132,7 +131,7 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
                 const appsJson = await appsRes.json();
                 const apps = appsJson?.data?.apps || [];
                 for (const app of apps) {
-                  if (app.package === packageName && app.signer_id === DEV_SIGNER_ID) {
+                  if (app.package === packageName) {
                     installedLocally = true;
                     setAlreadyInstalled(true);
                     setExistingAppId(app.id);
@@ -338,6 +337,7 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
           completionInProgressRef.current = false;
           setRetryKey(k => k + 1);
         }}
+        onBack={onBack}
         buttonText="Retry"
       />
     );

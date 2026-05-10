@@ -67,6 +67,7 @@ export const AdminFlow: React.FC = () => {
       <ErrorView
         message={error}
         onRetry={() => setError(null)}
+        onBack={() => window.history.back()}
       />
     );
   }

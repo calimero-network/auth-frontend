@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import { generateClientKeyDirect } from '../lib/mero';
 import { ManifestProcessor } from '../components/manifest/ManifestProcessor';
 import { PermissionsView } from '../components/permissions/PermissionsView';
-import { ContextSelector } from '../components/context/ContextSelector';
 import { ErrorView } from '../components/common/ErrorView';
 import Loader from '../components/common/Loader';
 import { PageShell } from '../components/common/PageShell';
@@ -28,7 +27,7 @@ interface PackageFlowProps {
   registryUrl?: string;
 }
 
-type Step = 'manifest' | 'permissions' | 'context-selection' | 'summary';
+type Step = 'manifest' | 'permissions' | 'summary';
 
 /**
  * PackageFlow - Handles package-based token generation
@@ -37,8 +36,7 @@ type Step = 'manifest' | 'permissions' | 'context-selection' | 'summary';
  * 1. Fetch manifest from registry (+ show dev warning if non-prod)
  * 2. Install application
  * 3. Review permissions
- * 4. Select context (if single-context mode)
- * 5. Generate scoped token and redirect
+ * 4. Generate scoped token and redirect (context selection handled by the app)
  */
 export const PackageFlow: React.FC<PackageFlowProps> = ({
   mode,
@@ -50,8 +48,6 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
   const [installedAppId, setInstalledAppId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [manifestInfo, setManifestInfo] = useState<any>(null);
-  const [selectedContextId, setSelectedContextId] = useState<string | null>(null);
-  const [selectedIdentity, setSelectedIdentity] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
 
   const permissions = useMemo(() => {
@@ -83,11 +79,7 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
   };
 
   const handlePermissionsApprove = async () => {
-    if (mode === 'single-context') {
-      setStep('context-selection');
-    } else {
-      setStep('summary');
-    }
+    setStep('summary');
   };
 
   const generateAndRedirect = async (contextId: string | null, identity: string | null) => {
@@ -159,6 +151,7 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
           setError(null);
           setStep('manifest');
         }}
+        onBack={() => window.history.back()}
       />
     );
   }
@@ -183,33 +176,13 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
         />
       )}
 
-      {step === 'context-selection' && mode === 'single-context' && (
-        <ContextSelector
-          onComplete={(contextId, identity) => {
-            setSelectedContextId(contextId);
-            setSelectedIdentity(identity);
-            setStep('summary');
-          }}
-          onBack={() => setStep('permissions')}
-        />
-      )}
-
       {step === 'summary' && (
         <SummaryView
           manifest={manifestInfo}
           permissions={permissions}
-          contextId={selectedContextId}
-          identity={selectedIdentity}
           applicationId={installedAppId}
-          mode={mode}
-          onBack={() => {
-            if (mode === 'single-context') {
-              setStep('context-selection');
-            } else {
-              setStep('permissions');
-            }
-          }}
-          onConfirm={() => generateAndRedirect(selectedContextId, selectedIdentity)}
+          onBack={() => setStep('permissions')}
+          onConfirm={() => generateAndRedirect(null, null)}
         />
       )}
     </>
@@ -219,10 +192,7 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
 interface SummaryViewProps {
   manifest: any;
   permissions: string[];
-  contextId: string | null;
-  identity: string | null;
   applicationId: string | null;
-  mode: AppMode;
   onBack: () => void;
   onConfirm: () => void;
 }
@@ -235,14 +205,11 @@ function truncate(str: string, head = 10, tail = 6) {
 const SummaryView: React.FC<SummaryViewProps> = ({
   manifest,
   permissions,
-  contextId,
-  identity,
   applicationId,
-  mode,
   onBack,
   onConfirm,
 }) => {
-  const isReady = permissions.length > 0 && (!!contextId || contextId === null);
+  const isReady = permissions.length > 0;
 
   return (
     <PageShell>
@@ -299,32 +266,9 @@ const SummaryView: React.FC<SummaryViewProps> = ({
                     </span>
                   </Flex>
                 )}
-                {contextId && (
-                  <>
-                    {applicationId && <Divider color="muted" spacing="sm" />}
-                    <Flex justify="space-between" align="center">
-                      <Text size="xs" color="muted" style={{ flexShrink: 0 }}>Context ID</Text>
-                      <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#ffffff', textAlign: 'right' }}>
-                        {truncate(contextId)}
-                      </span>
-                    </Flex>
-                    {identity && (
-                      <Flex justify="space-between" align="center">
-                        <Text size="xs" color="muted" style={{ flexShrink: 0 }}>Identity</Text>
-                        <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#A5FF11', textAlign: 'right' }}>
-                          {truncate(identity)}
-                        </span>
-                      </Flex>
-                    )}
-                  </>
-                )}
-                {!contextId && (
-                  <Text size="xs" color="muted">
-                    {mode === 'single-context'
-                      ? 'Context will be selected in the next step.'
-                      : 'Multi-context access — no specific context locked in.'}
-                  </Text>
-                )}
+                <Text size="xs" color="muted">
+                  Multi-context access — context selection handled by the app.
+                </Text>
               </Stack>
             </div>
 
