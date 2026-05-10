@@ -144,7 +144,9 @@ export const scenarios: Record<TestScenario, ScenarioConfig> = {
     expected: {
       flow: 'package',
       mode: 'single-context',
-      screens: ['ProviderSelector', 'ManifestProcessor', 'ApplicationSummary', 'PermissionsView', 'ContextSelector', 'CreateContext', 'Complete'],
+      // ContextSelector + CreateContext steps removed when auth-frontend
+      // stopped driving context selection — see types/flows.ts AppMode.
+      screens: ['ProviderSelector', 'ManifestProcessor', 'ApplicationSummary', 'PermissionsView', 'Complete'],
     },
   },
   
@@ -163,7 +165,9 @@ export const scenarios: Record<TestScenario, ScenarioConfig> = {
     expected: {
       flow: 'package',
       mode: 'single-context',
-      screens: ['ProviderSelector', 'ManifestProcessor', 'ApplicationSummary', 'PermissionsView', 'ContextSelector', 'SelectContext', 'SelectIdentity', 'PermissionsConfirm', 'Complete'],
+      // single-context is back-compat alias for multi-context now;
+      // identical screen sequence — context selection is the app's job.
+      screens: ['ProviderSelector', 'ManifestProcessor', 'ApplicationSummary', 'PermissionsView', 'Complete'],
     },
   },
   
@@ -182,7 +186,8 @@ export const scenarios: Record<TestScenario, ScenarioConfig> = {
     expected: {
       flow: 'application-id',
       mode: 'single-context',
-      screens: ['ProviderSelector', 'ApplicationInstallCheck', 'ApplicationSummary', 'PermissionsView', 'ContextSelector', 'CreateContext', 'Complete'],
+      // ContextSelector + CreateContext steps removed — see types/flows.ts.
+      screens: ['ProviderSelector', 'ApplicationInstallCheck', 'ApplicationSummary', 'PermissionsView', 'Complete'],
     },
   },
   
@@ -201,7 +206,8 @@ export const scenarios: Record<TestScenario, ScenarioConfig> = {
     expected: {
       flow: 'application-id',
       mode: 'single-context',
-      screens: ['ProviderSelector', 'ApplicationInstallCheck', 'ApplicationSummary', 'PermissionsView', 'ContextSelector', 'SelectContext', 'SelectIdentity', 'PermissionsConfirm', 'Complete'],
+      // ContextSelector + SelectContext + SelectIdentity removed — see types/flows.ts.
+      screens: ['ProviderSelector', 'ApplicationInstallCheck', 'ApplicationSummary', 'PermissionsView', 'Complete'],
     },
   },
   
