@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import { generateClientKeyDirect } from '../lib/mero';
 import { ApplicationInstallCheck } from '../components/applications/ApplicationInstallCheck';
 import { PermissionsView } from '../components/permissions/PermissionsView';
-import { ContextSelector } from '../components/context/ContextSelector';
 import { ErrorView } from '../components/common/ErrorView';
 import Loader from '../components/common/Loader';
 import { AppMode } from '../types/flows';
@@ -15,7 +14,7 @@ interface ApplicationFlowProps {
   applicationPath: string;
 }
 
-type Step = 'app-check' | 'permissions' | 'context-selection' | 'complete';
+type Step = 'app-check' | 'permissions';
 
 /**
  * ApplicationFlow - Handles legacy application-id based token generation
@@ -23,8 +22,7 @@ type Step = 'app-check' | 'permissions' | 'context-selection' | 'complete';
  * Flow:
  * 1. Check if app is installed, install if needed
  * 2. Review permissions
- * 3. Select context (if single-context mode)
- * 4. Generate scoped token and redirect
+ * 3. Generate scoped token and redirect (context selection handled by the app)
  */
 export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
   mode,
@@ -46,11 +44,7 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
   };
 
   const handlePermissionsApprove = async () => {
-    if (mode === 'single-context') {
-      setStep('context-selection');
-    } else {
-      await generateAndRedirect(null, null);
-    }
+    await generateAndRedirect(null, null);
   };
 
   const generateAndRedirect = async (contextId: string | null, identity: string | null) => {
@@ -108,6 +102,7 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
           setError(null);
           setStep('app-check');
         }}
+        onBack={() => window.history.back()}
       />
     );
   }
@@ -132,12 +127,6 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
         />
       )}
 
-      {step === 'context-selection' && mode === 'single-context' && (
-        <ContextSelector
-          onComplete={(contextId, identity) => generateAndRedirect(contextId, identity)}
-          onBack={() => setStep('permissions')}
-        />
-      )}
     </>
   );
 };

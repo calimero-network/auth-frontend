@@ -15,10 +15,18 @@ import { PageShell } from './PageShell';
 interface ErrorViewProps {
   message: string;
   onRetry?: () => void;
+  onBack?: () => void;
   buttonText?: string;
+  backButtonText?: string;
 }
 
-export function ErrorView({ message, onRetry, buttonText }: ErrorViewProps) {
+export function ErrorView({
+  message,
+  onRetry,
+  onBack,
+  buttonText,
+  backButtonText,
+}: ErrorViewProps) {
   const handleAction = () => {
     if (onRetry) {
       onRetry();
@@ -60,13 +68,19 @@ export function ErrorView({ message, onRetry, buttonText }: ErrorViewProps) {
               If the problem persists, check that your node is running and reachable.
             </Text>
 
-            <Flex justify="flex-end">
+            <Flex justify="flex-end" gap="sm">
+              {onBack && (
+                <Button variant="secondary" onClick={onBack}>
+                  {backButtonText || 'Back'}
+                </Button>
+              )}
               <Button
                 variant="primary"
                 onClick={handleAction}
                 style={{
-                  borderColor: 'var(--color-border-brand)',
-                  color: 'var(--color-text-brand)',
+                  backgroundColor: '#A5FF11',
+                  color: '#0A0E13',
+                  border: 'none',
                 }}
               >
                 {buttonText || 'Try Again'}
