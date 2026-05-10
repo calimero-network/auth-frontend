@@ -150,9 +150,18 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
   const handleUsernamePasswordAuth = async (username: string, password: string) => {
     setUsernamePasswordLoading(true);
     setError(null);
-    
+
     try {
       const mero = getMero();
+      // Strip any stale bearer token before posting credentials. Without
+      // this, getMero() seeds the MeroJs instance with whatever is in
+      // localStorage, mero-js attaches it as `Authorization: Bearer …`
+      // on every request, and merod rejects /auth/token with 401 before
+      // even reading the body. Surfaced as "invalid credentials" in the
+      // UI even though the password is correct.
+      clearAccessToken();
+      clearRefreshToken();
+      mero.clearToken();
       const tokenPayload = {
         auth_method: 'user_password' as const,
         public_key: username,

@@ -214,6 +214,13 @@ const LoginView: React.FC = () => {
       setError(null);
 
       const mero = getMero();
+      // Strip any stale bearer before posting credentials. Without this
+      // the cached MeroJs instance attaches `Authorization: Bearer …` on
+      // every request and merod 401s /auth/token before reading the
+      // body — surfaces as "invalid credentials" with the correct password.
+      clearAccessToken();
+      clearRefreshToken();
+      mero.clearToken();
       const tokenPayload = {
         auth_method: 'user_password' as const,
         public_key: username, // Use username as public key for user_password provider
