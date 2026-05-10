@@ -1,8 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import ProviderSelector from '../providers/ProviderSelector';
-import { NetworkId, setupWalletSelector } from '@near-wallet-selector/core';
-import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet';
-import { Buffer } from 'buffer';
 import { handleUrlParams, getStoredUrlParam, clearStoredUrlParams } from '../../utils/urlParams';
 import {
   getMero,
@@ -26,12 +23,6 @@ import { ManifestProcessor } from '../manifest';
 import { normalizePermissions } from '../../utils/permissions';
 import { AppMode } from '../../types/flows';
 
-interface SignedMessage {
-  accountId: string;
-  publicKey: string;
-  signature: string;
-}
-
 const LoginView: React.FC = () => {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,13 +43,23 @@ const LoginView: React.FC = () => {
 
   /**
    * Load available authentication providers from the auth service and update UI state.
-   * Used when showing the provider selector or after an invalid/cleared session.
+   *
+   * NEAR-wallet auth was removed — the UI accepts only username/password.
+   * Server still advertises whatever it has configured, so we filter the
+   * response client-side so the picker can never offer something the UI
+   * doesn't support. If only one provider remains the picker still
+   * renders fine (single-row list).
    */
   const loadProviders = useCallback(async () => {
     try {
       const mero = getMero();
       const response: any = await mero.auth.getProviders();
-      setProviders((response as any)?.data?.providers ?? (response as any)?.providers ?? []);
+      const all: Provider[] =
+        (response as any)?.data?.providers ?? (response as any)?.providers ?? [];
+      const supported = all.filter(
+        (p) => p.name === 'user_password' || p.name === 'username_password',
+      );
+      setProviders(supported);
     } catch (err) {
       console.error('Failed to load providers:', err);
       setError(err instanceof Error ? err.message : 'Failed to load authentication providers');
@@ -269,93 +270,22 @@ const LoginView: React.FC = () => {
 
   /**
    * Handle provider selection.
-   * For near_wallet, performs challenge → sign → token exchange; for user_password, shows the credential form.
-   * Routes to permissions or application install check after a successful root token exchange.
+   *
+   * Auth-frontend now supports username/password only — NEAR wallet auth was
+   * removed in favour of a single, predictable login surface (the provider
+   * list is filtered in `loadProviders` so non-`user_password` entries don't
+   * even reach this handler). If a future provider is re-added, branch here.
    *
    * @param provider - Selected auth provider metadata
    */
   const handleProviderSelect = async (provider: Provider) => {
-    try {
-      const mero = getMero();
-      
-      if (provider.name === 'near_wallet') {
-        const challengeResponse = await mero.auth.getChallenge() as any;
-        
-        // Provider config may have network info - cast to any for flexibility
-        const providerConfig = (provider as any).config;
-        const selector = await setupWalletSelector({
-          network: providerConfig?.network as NetworkId,
-          modules: [setupMyNearWallet()]
-        });
-
-        const wallet = await selector.wallet('my-near-wallet');
-        
-        let signature;
-        try {
-          signature = await wallet.signMessage({
-            message: (challengeResponse as any)?.data?.challenge ?? (challengeResponse as any)?.challenge,
-            nonce: Buffer.from((challengeResponse as any)?.data?.challenge ?? (challengeResponse as any)?.challenge, 'base64'),
-            recipient: 'calimero',
-            callbackUrl: window.location.href
-          }) as SignedMessage;
-        } catch (err) {
-          // Handle user closing the window
-          if (err instanceof Error && err.message === 'User closed the window') {
-            setShowProviders(true);
-            return;
-          }
-          throw err;
-        }
-
-        const tokenPayload = {
-          auth_method: provider.name as 'near_wallet',
-          public_key: signature.publicKey,
-          client_name: window.location.href,
-          timestamp: Date.now(),
-          permissions: [] as string[],
-          provider_data: {
-            wallet_address: signature.accountId,
-            message: (challengeResponse as any)?.data?.challenge ?? (challengeResponse as any)?.challenge,
-            signature: signature.signature,
-            recipient: 'calimero'
-          }
-        };
-
-        const tokenResponse = await mero.auth.generateTokens(tokenPayload) as any;
-
-        if ((tokenResponse as any).data.access_token && (tokenResponse as any).data.refresh_token) {
-          setAccessToken((tokenResponse as any).data.access_token);
-          setRefreshToken((tokenResponse as any).data.refresh_token);
-          
-          const permissionsParam = getStoredUrlParam('permissions');
-          const permissions = permissionsParam ? permissionsParam.split(',') : [];
-          const hasAdminPermissions = permissions.includes('admin');
-          
-          // Check for manifest flows after authentication
-          const manifestUrl = getStoredUrlParam('manifest-url');
-          
-          // For manifest flows, we need admin permissions, so show PermissionsView first
-          if (manifestUrl && hasAdminPermissions) {
-            setShowPermissionsView(true);
-          } else if (hasAdminPermissions) {
-            setShowPermissionsView(true);
-          } else {
-            setShowApplicationInstallCheck(true);
-          }
-        } else {
-          throw new Error('Failed to get access token');
-        }
-      } else if (provider.name === 'user_password') {
-        setShowProviders(false);
-        setShowUsernamePasswordForm(true);
-      } else {
-        setError(`Provider ${provider.name} is not implemented yet`);
-      }
-    } catch (err) {
-      console.error('Authentication error:', err);
-      setError(err instanceof Error ? err.message : 'Authentication failed');
+    if (provider.name === 'user_password' || provider.name === 'username_password') {
+      setShowProviders(false);
+      setShowUsernamePasswordForm(true);
+      return;
     }
-  };  
+    setError(`Provider ${provider.name} is not supported`);
+  };
 
   /**
    * Generate an admin-scoped client key and redirect back to callback with tokens in the URL fragment.
