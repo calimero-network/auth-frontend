@@ -41,13 +41,22 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
   const [usernamePasswordLoading, setUsernamePasswordLoading] = useState(false);
 
   /**
-   * Load available authentication providers
+   * Load available authentication providers.
+   *
+   * NEAR-wallet auth was removed — only username/password is supported.
+   * Server-advertised providers are filtered client-side so the UI can
+   * never offer a path it doesn't implement.
    */
   const loadProviders = useCallback(async () => {
     try {
       const mero = getMero();
       const response: any = await mero.auth.getProviders();
-      setProviders((response as any)?.data?.providers ?? (response as any)?.providers ?? []);
+      const all: Provider[] =
+        (response as any)?.data?.providers ?? (response as any)?.providers ?? [];
+      const supported = all.filter(
+        (p) => p.name === 'user_password' || p.name === 'username_password',
+      );
+      setProviders(supported);
     } catch (err) {
       console.error('Failed to load providers:', err);
       setError(err instanceof Error ? err.message : 'Failed to load authentication providers');
@@ -118,17 +127,21 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
   }, [validateToken, loadProviders, onReady]);
 
   /**
-   * Handle provider selection
+   * Handle provider selection.
+   *
+   * Only username/password is supported. The server's advertised provider
+   * list is filtered in `loadProviders`, so this handler should only ever
+   * see `user_password` (or its `username_password` alias). Any other
+   * value reaching here means something added a provider client-side
+   * without updating the filter.
    */
   const handleProviderSelect = async (provider: Provider) => {
-    if (provider.name === 'user_password') {
+    if (provider.name === 'user_password' || provider.name === 'username_password') {
       setShowProviders(false);
       setShowUsernamePasswordForm(true);
-    } else if (provider.name === 'near_wallet') {
-      setError('NEAR wallet authentication not yet implemented');
-    } else {
-      setError(`Provider ${provider.name} is not supported`);
+      return;
     }
+    setError(`Provider ${provider.name} is not supported`);
   };
 
   /**
@@ -137,9 +150,18 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
   const handleUsernamePasswordAuth = async (username: string, password: string) => {
     setUsernamePasswordLoading(true);
     setError(null);
-    
+
     try {
       const mero = getMero();
+      // Strip any stale bearer token before posting credentials. Without
+      // this, getMero() seeds the MeroJs instance with whatever is in
+      // localStorage, mero-js attaches it as `Authorization: Bearer …`
+      // on every request, and merod rejects /auth/token with 401 before
+      // even reading the body. Surfaced as "invalid credentials" in the
+      // UI even though the password is correct.
+      clearAccessToken();
+      clearRefreshToken();
+      mero.clearToken();
       const tokenPayload = {
         auth_method: 'user_password' as const,
         public_key: username,

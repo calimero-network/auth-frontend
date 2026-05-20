@@ -18,7 +18,10 @@ export default defineConfig({
       '**/dist/**',
       '**/cypress/**',
       '**/.{idea,git,cache,output,temp}/**',
-      '**/tests/**', // Exclude Playwright tests
+      // Playwright specs — they call `test.describe` from `@playwright/test`,
+      // and vitest can't load them. The old pattern (`**/tests/**`) didn't
+      // match because the specs live under `e2e/`, not `tests/`.
+      '**/e2e/**',
     ],
     server: {
       deps: {
