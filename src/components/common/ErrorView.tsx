@@ -66,7 +66,7 @@ export function ErrorView({ message, onRetry, buttonText }: ErrorViewProps) {
                 onClick={handleAction}
                 style={{
                   borderColor: 'var(--color-border-brand)',
-                  color: 'var(--color-text-brand)',
+                  color: '#000000',
                 }}
               >
                 {buttonText || 'Try Again'}
