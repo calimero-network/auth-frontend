@@ -118,10 +118,12 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
 
       try {
         if (packageName) {
-          // Check node first: if the app is already installed (e.g. dev mode),
-          // skip the registry entirely and go straight to completion.
+          // Check the node first: if the app is already installed we can skip the
+          // registry entirely. We grab the node's app list once and reuse it both
+          // for the dev fast-path and as a fallback when the registry is
+          // unreachable (offline / CSP-blocked / LAN node with no outbound).
           const DEV_SIGNER_ID = 'did:key:z6MknF3p5L5FDHJQ7FREUapuX4Wmp4MtF6WrHYaXS2B3eZQd';
-          let installedLocally = false;
+          let nodeApps: any[] = [];
           try {
             const token = getAccessToken();
             if (token) {
@@ -130,34 +132,42 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
               });
               if (appsRes.ok) {
                 const appsJson = await appsRes.json();
-                const apps = appsJson?.data?.apps || [];
-                for (const app of apps) {
-                  if (app.package === packageName && app.signer_id === DEV_SIGNER_ID) {
-                    installedLocally = true;
-                    setAlreadyInstalled(true);
-                    setExistingAppId(app.id);
-                    localStorage.setItem('installed-application-id', app.id);
-                    localStorage.setItem('manifest-info', JSON.stringify({
-                      id: packageName,
-                      name: packageName,
-                      version: app.version || '0.0.0',
-                    }));
-                    setLoading(false);
-                    if (!completionInProgressRef.current) {
-                      completionInProgressRef.current = true;
-                      onCompleteRef.current('', '');
-                      completionInProgressRef.current = false;
-                    }
-                    return;
-                  }
-                }
+                nodeApps = appsJson?.data?.apps || [];
               }
             }
           } catch (nodeCheckErr) {
             console.debug('Node app check failed:', nodeCheckErr);
           }
 
-          if (!installedLocally) {
+          // Proceed with an app that's already installed on the node, skipping the
+          // registry round-trip entirely.
+          const completeWithLocalApp = (app: any) => {
+            setAlreadyInstalled(true);
+            setExistingAppId(app.id);
+            localStorage.setItem('installed-application-id', app.id);
+            localStorage.setItem('manifest-info', JSON.stringify({
+              id: packageName,
+              name: packageName,
+              version: app.version || '0.0.0',
+            }));
+            setLoading(false);
+            if (!completionInProgressRef.current) {
+              completionInProgressRef.current = true;
+              onCompleteRef.current('', '');
+              completionInProgressRef.current = false;
+            }
+          };
+
+          // Dev fast-path: a dev-signed build is already on the node.
+          const devApp = nodeApps.find(
+            (app) => app.package === packageName && app.signer_id === DEV_SIGNER_ID,
+          );
+          if (devApp) {
+            completeWithLocalApp(devApp);
+            return;
+          }
+
+          try {
             const client = registryUrl ? new RegistryClient(registryUrl) : registryClient;
             const manifestData = await client.getManifest(packageName, packageVersion || undefined);
             setManifest(manifestData);
@@ -166,6 +176,17 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
               name: manifestData.name,
               version: manifestData.version,
             }));
+          } catch (registryErr) {
+            // Registry unreachable. Rather than dead-ending the whole login on the
+            // auth page, fall back to the app already installed on the node (under
+            // any signer) if there is one — that's all we need to mint a token.
+            const localApp = nodeApps.find((app) => app.package === packageName);
+            if (localApp) {
+              console.warn('Registry unavailable; using app already installed on node:', registryErr);
+              completeWithLocalApp(localApp);
+              return;
+            }
+            throw registryErr;
           }
         } else if (manifestUrl) {
           const response = await fetch(manifestUrl);
