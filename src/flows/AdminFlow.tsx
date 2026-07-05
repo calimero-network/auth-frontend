@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { generateClientKeyDirect } from '../lib/mero';
+import { generateClientKeyDirect, getAppEndpointKey } from '../lib/mero';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ErrorView } from '../components/common/ErrorView';
 import Loader from '../components/common/Loader';
@@ -45,6 +45,10 @@ export const AdminFlow: React.FC = () => {
         const fragmentParams = new URLSearchParams();
         fragmentParams.set('access_token', response.access_token);
         fragmentParams.set('refresh_token', response.refresh_token);
+        // Callback contract (mero-react binds its client to this): the node
+        // that issued the tokens, which is NOT this page's origin when the
+        // UI is served separately from the node (app-url param).
+        fragmentParams.set('node_url', getAppEndpointKey() || window.location.origin);
 
         clearStoredUrlParams();
         window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;
