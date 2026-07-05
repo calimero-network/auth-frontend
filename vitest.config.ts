@@ -19,6 +19,7 @@ export default defineConfig({
       '**/cypress/**',
       '**/.{idea,git,cache,output,temp}/**',
       '**/tests/**', // Exclude Playwright tests
+      '**/e2e/**', // Playwright specs live here — vitest must not collect them
     ],
     server: {
       deps: {
