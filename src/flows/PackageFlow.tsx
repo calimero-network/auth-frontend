@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { generateClientKeyDirect, getAppEndpointKey } from '../lib/mero';
+import { getAppEndpointKey } from '../lib/mero';
+import { mintClientKeyWithGrantFallback } from '../utils/mintClientKey';
 import { ManifestProcessor } from '../components/manifest/ManifestProcessor';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ContextSelector } from '../components/context/ContextSelector';
@@ -99,7 +100,10 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
       // `GET|POST /admin-api/contexts` require Global scope. Since core
       // 0.11.0-rc.9 enforces token scopes, an app-id-scoped token 403s on all
       // of those routes and the app loops back to login forever.
-      const response = await generateClientKeyDirect({
+      //
+      // The fallback wrapper drops grants that pre-rc.11 nodes reject
+      // (namespace/group/blob/context:alias) instead of dead-ending login.
+      const response = await mintClientKeyWithGrantFallback({
         context_id: contextId || '',
         context_identity: identity || '',
         permissions,

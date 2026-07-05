@@ -24,6 +24,7 @@ import { UsernamePasswordForm } from './UsernamePasswordForm';
 import { ApplicationInstallCheck } from '../applications/ApplicationInstallCheck';
 import { ManifestProcessor } from '../manifest';
 import { normalizePermissions } from '../../utils/permissions';
+import { mintClientKeyWithGrantFallback } from '../../utils/mintClientKey';
 import { AppMode } from '../../types/flows';
 
 interface SignedMessage {
@@ -442,8 +443,11 @@ const LoginView: React.FC = () => {
       // core 0.11.0-rc.9 enforces token scopes (default-deny on /admin-api/*),
       // an application-id-scoped token is rejected with 403 on all of those
       // routes, which locks every app in a redirect-back-to-login loop.
+      //
+      // The fallback wrapper drops grants that pre-rc.11 nodes reject
+      // (namespace/group/blob/context:alias) instead of dead-ending login.
 
-      const response = await generateClientKeyDirect({
+      const response = await mintClientKeyWithGrantFallback({
         context_id: contextId || '',
         context_identity: identity || '',
         permissions,
