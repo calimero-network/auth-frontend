@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { generateClientKeyDirect } from '../lib/mero';
+import { generateClientKeyDirect, getAppEndpointKey } from '../lib/mero';
 import { ManifestProcessor } from '../components/manifest/ManifestProcessor';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ContextSelector } from '../components/context/ContextSelector';
@@ -128,7 +128,7 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
           fragmentParams.set('context_identity', identity);
         }
 
-        fragmentParams.set('node_url', window.location.origin);
+        fragmentParams.set('node_url', getAppEndpointKey() || window.location.origin);
 
         sessionStorage.removeItem('installed-application-id');
         localStorage.removeItem('installed-application-id');

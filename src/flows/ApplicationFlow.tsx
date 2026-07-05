@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { generateClientKeyDirect } from '../lib/mero';
+import { generateClientKeyDirect, getAppEndpointKey } from '../lib/mero';
 import { ApplicationInstallCheck } from '../components/applications/ApplicationInstallCheck';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ContextSelector } from '../components/context/ContextSelector';
@@ -82,7 +82,7 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
           fragmentParams.set('context_identity', identity);
         }
 
-        fragmentParams.set('node_url', window.location.origin);
+        fragmentParams.set('node_url', getAppEndpointKey() || window.location.origin);
 
         clearStoredUrlParams();
         window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;
