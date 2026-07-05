@@ -434,20 +434,14 @@ const LoginView: React.FC = () => {
         permissions = permissionsParam.split(',');
       }
 
-      // Scope permissions to the installed application ID if available
-      const installedAppId = localStorage.getItem('installed-application-id');
-      if (installedAppId) {
-        console.log('Scoping permissions to application:', installedAppId);
-        // Scope context permissions to the specific application
-        permissions = permissions.map(perm => {
-          // Only scope context permissions (context:create, context:list, context:execute)
-          if (perm.startsWith('context:')) {
-            return `${perm}[${installedAppId}]`;
-          }
-          return perm;
-        });
-        console.log('Application-scoped permissions:', permissions);
-      }
+      // Pass the requested permissions through unscoped. Do NOT rewrite them to
+      // `context:*[<application-id>]`: core's permission model treats bracket
+      // params on context permissions as context ids, and its path-based route
+      // mappings require Global scope for `POST /jsonrpc` (context:execute) and
+      // `GET/POST /admin-api/contexts` (context:list / context:create). Since
+      // core 0.11.0-rc.9 enforces token scopes (default-deny on /admin-api/*),
+      // an application-id-scoped token is rejected with 403 on all of those
+      // routes, which locks every app in a redirect-back-to-login loop.
 
       const response = await generateClientKeyDirect({
         context_id: contextId || '',

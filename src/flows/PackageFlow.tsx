@@ -93,18 +93,16 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
   const generateAndRedirect = async (contextId: string | null, identity: string | null) => {
     setGenerating(true);
     try {
-      let scopedPermissions = [...permissions];
-
-      if (installedAppId) {
-        scopedPermissions = scopedPermissions.map(perm =>
-          perm.startsWith('context:') ? `${perm}[${installedAppId}]` : perm
-        );
-      }
-
+      // Pass the requested permissions through unscoped. Rewriting them to
+      // `context:*[<application-id>]` mints tokens core rejects: bracket params
+      // on context permissions are context ids, and `POST /jsonrpc` /
+      // `GET|POST /admin-api/contexts` require Global scope. Since core
+      // 0.11.0-rc.9 enforces token scopes, an app-id-scoped token 403s on all
+      // of those routes and the app loops back to login forever.
       const response = await generateClientKeyDirect({
         context_id: contextId || '',
         context_identity: identity || '',
-        permissions: scopedPermissions,
+        permissions,
       });
 
       if (response.access_token && response.refresh_token) {
