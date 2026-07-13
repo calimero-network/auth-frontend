@@ -41,16 +41,21 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
   const [usernamePasswordLoading, setUsernamePasswordLoading] = useState(false);
 
   /**
-   * Load available authentication providers
+   * Load available authentication providers.
+   * Returns true on success so callers can avoid rendering the provider list
+   * (and its misleading "No providers available" empty state) when the
+   * request itself failed — e.g. the node is unreachable.
    */
-  const loadProviders = useCallback(async () => {
+  const loadProviders = useCallback(async (): Promise<boolean> => {
     try {
       const mero = getMero();
       const response: any = await mero.auth.getProviders();
       setProviders((response as any)?.data?.providers ?? (response as any)?.providers ?? []);
+      return true;
     } catch (err) {
       console.error('Failed to load providers:', err);
       setError(err instanceof Error ? err.message : 'Failed to load authentication providers');
+      return false;
     }
   }, []);
 
@@ -108,9 +113,11 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
         clearRefreshToken();
       }
       
-      // No valid token, need to authenticate
-      await loadProviders();
-      setShowProviders(true);
+      // No valid token, need to authenticate.
+      // Only show the provider list if it actually loaded — otherwise fall
+      // through to the ErrorView, which offers a retry.
+      const loaded = await loadProviders();
+      setShowProviders(loaded);
       setLoading(false);
     };
     
@@ -192,8 +199,8 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
         onRetry={async () => {
           setError(null);
           setLoading(true);
-          await loadProviders();
-          setShowProviders(true);
+          const loaded = await loadProviders();
+          setShowProviders(loaded);
           setLoading(false);
         }}
       />
@@ -207,6 +214,13 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
         onProviderSelect={handleProviderSelect}
         loading={loading}
         error={error}
+        onRetry={async () => {
+          setError(null);
+          setLoading(true);
+          const loaded = await loadProviders();
+          setShowProviders(loaded);
+          setLoading(false);
+        }}
       />
     );
   }

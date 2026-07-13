@@ -547,6 +547,7 @@ const LoginView: React.FC = () => {
           providers={providers}
           onProviderSelect={handleProviderSelect}
           loading={loading}
+          onRetry={loadProviders}
         />
       )}
 

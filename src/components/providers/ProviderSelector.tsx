@@ -1,6 +1,7 @@
 import React from 'react';
 interface Provider { name: string; type: string; description?: string; configured?: boolean; config?: Record<string, unknown>; [key: string]: unknown; }
 import {
+  Button,
   Card,
   CardContent,
   CardHeader,
@@ -19,6 +20,7 @@ interface ProviderSelectorProps {
   onProviderSelect: (provider: Provider) => void;
   loading: boolean;
   error?: string | null;
+  onRetry?: () => void;
 }
 
 const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
@@ -32,21 +34,37 @@ const ProviderSelector: React.FC<ProviderSelectorProps> = ({
   onProviderSelect,
   loading,
   error,
+  onRetry,
 }) => {
   if (loading) {
     return <Loader />;
   }
 
   if (providers.length === 0) {
+    // An empty list can mean two very different things: the node genuinely
+    // has no providers configured, or the providers request itself failed
+    // (node unreachable, proxy error, ...). Don't present a failed request
+    // as "nothing is configured" — and always offer a way out.
     return (
       <PageShell>
         <Card variant="rounded" color="var(--color-border-brand)">
           <CardContent>
             <EmptyState
-              title="No providers available"
-              description="No authentication providers are configured on this node."
+              title={error ? 'Unable to load providers' : 'No providers available'}
+              description={
+                error
+                  ? `Could not fetch authentication providers from the node: ${error}`
+                  : 'No authentication providers are configured on this node.'
+              }
               variant="minimal"
             />
+            <Stack spacing="sm" align="center" style={{ marginTop: '12px' }}>
+              {onRetry ? (
+                <Button onClick={onRetry}>Retry</Button>
+              ) : (
+                <Button onClick={() => window.location.reload()}>Reload</Button>
+              )}
+            </Stack>
           </CardContent>
         </Card>
       </PageShell>
