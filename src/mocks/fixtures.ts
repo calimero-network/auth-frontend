@@ -155,13 +155,6 @@ export const fixtures = {
       author: 'Test Author',
     },
   },
-  
-  challenges: {
-    near: {
-      challenge: 'mock_challenge_string_for_near_auth',
-      nonce: Buffer.from('mock_nonce_value').toString('base64'),
-    },
-  },
 };
 
 export type Fixtures = typeof fixtures;
