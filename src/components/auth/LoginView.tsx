@@ -53,15 +53,20 @@ const LoginView: React.FC = () => {
   /**
    * Load available authentication providers from the auth service and update UI state.
    * Used when showing the provider selector or after an invalid/cleared session.
+   * Returns true on success so callers can avoid rendering the provider list
+   * (and its misleading "No providers available" empty state) when the
+   * request itself failed — e.g. the node is unreachable.
    */
-  const loadProviders = useCallback(async () => {
+  const loadProviders = useCallback(async (): Promise<boolean> => {
     try {
       const mero = getMero();
       const response: any = await mero.auth.getProviders();
       setProviders((response as any)?.data?.providers ?? (response as any)?.providers ?? []);
+      return true;
     } catch (err) {
       console.error('Failed to load providers:', err);
       setError(err instanceof Error ? err.message : 'Failed to load authentication providers');
+      return false;
     }
   }, []);
 
@@ -99,8 +104,8 @@ const LoginView: React.FC = () => {
       console.error('Token validation failed:', err);
       clearAccessToken();
       clearRefreshToken();
-      setShowProviders(true);
-      await loadProviders();
+      const loaded = await loadProviders();
+      setShowProviders(loaded);
       return false;
     }
   };
@@ -142,12 +147,12 @@ const LoginView: React.FC = () => {
           setShowApplicationInstallCheck(true);
         }
       } else {
-        setShowProviders(true);
-        await loadProviders();
+        const loaded = await loadProviders();
+        setShowProviders(loaded);
       }
     } else {
-      setShowProviders(true);
-      await loadProviders();
+      const loaded = await loadProviders();
+      setShowProviders(loaded);
     }
     setLoading(false);
   };
@@ -196,8 +201,8 @@ const LoginView: React.FC = () => {
    * Force showing providers and reloading available providers (used when restarting login).
    */
   const handleNewLogin = async () => {
-    await loadProviders();
-    setShowProviders(true);
+    const loaded = await loadProviders();
+    setShowProviders(loaded);
   };
 
   /**
@@ -547,6 +552,7 @@ const LoginView: React.FC = () => {
           providers={providers}
           onProviderSelect={handleProviderSelect}
           loading={loading}
+          onRetry={loadProviders}
         />
       )}
 
