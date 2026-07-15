@@ -1,20 +1,14 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import ProviderSelector from '../providers/ProviderSelector';
-import { NetworkId, setupWalletSelector } from '@near-wallet-selector/core';
-import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet';
-import { Buffer } from 'buffer';
 import { handleUrlParams, getStoredUrlParam, clearStoredUrlParams } from '../../utils/urlParams';
 import {
   getMero,
   generateClientKeyDirect,
-  clearAccessToken,
-  clearRefreshToken,
-  getAccessToken,
   getAppEndpointKey,
-  getRefreshToken,
-  setAccessToken,
-  setRefreshToken,
-  extractTokens
+  hasLiveSession,
+  isAuthRevoked,
+  setTokens,
+  clearTokens,
 } from '../../lib/mero';
 interface Provider { name: string; type: string; description?: string; configured?: boolean; config?: Record<string, unknown>; [key: string]: unknown; }
 import { ErrorView } from '../common/ErrorView';
@@ -25,12 +19,6 @@ import { ApplicationInstallCheck } from '../applications/ApplicationInstallCheck
 import { ManifestProcessor } from '../manifest';
 import { normalizePermissions } from '../../utils/permissions';
 import { AppMode } from '../../types/flows';
-
-interface SignedMessage {
-  accountId: string;
-  publicKey: string;
-  signature: string;
-}
 
 const LoginView: React.FC = () => {
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -71,89 +59,48 @@ const LoginView: React.FC = () => {
   }, []);
 
   /**
-   * Validate or refresh an existing root token pair.
-   *
-   * @param accessToken - Current access token
-   * @param refreshToken - Current refresh token
-   * @returns Promise resolving to true when session remains valid (possibly rotated), false otherwise
-   */
-  const checkIfTokenIsValid = async (accessToken: string, refreshToken: string) => {
-    try {
-      const mero = getMero();
-      const response: any = await mero.auth.refreshToken({
-        access_token: accessToken,
-        refresh_token: refreshToken
-      });
-      
-      if ((response as any).data.access_token && (response as any).data.refresh_token) {
-        setAccessToken((response as any).data.access_token);
-        setRefreshToken((response as any).data.refresh_token);
-        setShowProviders(false);
-        return true;
-      }
-
-      throw new Error('Failed to validate token');
-    } catch (err) {
-      // Check if error message indicates token is still valid
-      const errorMessage = err instanceof Error ? err.message : '';
-      if (errorMessage.includes('Access token still valid') || errorMessage.includes('token valid')) {
-        setShowProviders(false);
-        return true;
-      }
-      
-      console.error('Token validation failed:', err);
-      clearAccessToken();
-      clearRefreshToken();
-      const loaded = await loadProviders();
-      setShowProviders(loaded);
-      return false;
-    }
-  };
-
-  /**
    * Auto-continue flow bootstrap.
-   * If a valid root token exists, skip providers and show next screen (permissions/install) based on URL permissions.
+   * If a live root session exists, skip providers and show next screen (permissions/install) based on URL permissions.
    * Otherwise, show providers and load provider list.
+   *
+   * The session check is read-only (HEAD /auth/validate). It used to be a
+   * POST /auth/refresh, which since core#3083 consumes a single-use refresh
+   * token on every mount — and which the node rejects outright while the
+   * access token is still valid, so it never worked as a liveness check
+   * either. mero-js refreshes on its own when a real request comes back 401
+   * `token_expired`, and now persists the rotated bundle.
    */
   const checkExistingSession = async () => {
-    // Check for manifest-based flows first
-    const manifestUrl = getStoredUrlParam('manifest-url');
-    
-    
-    // Don't bypass authentication for manifest flows - let user authenticate first
-    // The manifest processing will happen after authentication
-    
-    const existingAccessToken = getAccessToken();
-    const existingRefreshToken = getRefreshToken();
-    
-    if (existingAccessToken && existingRefreshToken) {
-      const isValid = await checkIfTokenIsValid(existingAccessToken, existingRefreshToken);
-      if (isValid) {
-        // Automatically continue session and check permissions
-        const permissionsParam = getStoredUrlParam('permissions');
-        const permissions = permissionsParam ? permissionsParam.split(',') : [];
-        const hasAdminPermissions = permissions.includes('admin');
-        
-        // Check for manifest flows after authentication
-        const manifestUrl = getStoredUrlParam('manifest-url');
-        
-        // For manifest flows, show permissions FIRST
-        if (manifestUrl) {
-          // Store manifest data for PermissionsView to display
-          setShowPermissionsView(true);
-        } else if (hasAdminPermissions) {
-          setShowPermissionsView(true);
-        } else {
-          setShowApplicationInstallCheck(true);
-        }
+    // Don't bypass authentication for manifest flows - let user authenticate first.
+    // The manifest processing will happen after authentication.
+    if (await hasLiveSession()) {
+      setShowProviders(false);
+
+      // Automatically continue session and check permissions
+      const permissionsParam = getStoredUrlParam('permissions');
+      const permissions = permissionsParam ? permissionsParam.split(',') : [];
+      const hasAdminPermissions = permissions.includes('admin');
+
+      // Check for manifest flows after authentication
+      const manifestUrl = getStoredUrlParam('manifest-url');
+
+      // For manifest flows, show permissions FIRST
+      if (manifestUrl) {
+        // Store manifest data for PermissionsView to display
+        setShowPermissionsView(true);
+      } else if (hasAdminPermissions) {
+        setShowPermissionsView(true);
       } else {
-        const loaded = await loadProviders();
-        setShowProviders(loaded);
+        setShowApplicationInstallCheck(true);
       }
     } else {
+      // Whatever is left is unusable (a revoked family included) — drop it and
+      // authenticate again.
+      clearTokens();
       const loaded = await loadProviders();
       setShowProviders(loaded);
     }
+
     setLoading(false);
   };
   
@@ -206,6 +153,26 @@ const LoginView: React.FC = () => {
   };
 
   /**
+   * A revoked token family (core#3083) is terminal — no retry can fix it. Drop
+   * the session and send the user back to the provider screen rather than park
+   * them on an error whose Retry button can only fail again.
+   *
+   * @returns true when the error was a revocation and has been handled
+   */
+  const handleRevokedSession = async (err: unknown): Promise<boolean> => {
+    if (!isAuthRevoked(err)) return false;
+
+    clearTokens();
+    setShowPermissionsView(false);
+    setShowApplicationInstallCheck(false);
+    setShowManifestProcessor(false);
+    setShowUsernamePasswordForm(false);
+    setError(null);
+    setShowProviders(await loadProviders());
+    return true;
+  };
+
+  /**
    * Handle username/password authentication flow.
    * Exchanges credentials for a root token, then routes to permissions or install check.
    *
@@ -233,9 +200,13 @@ const LoginView: React.FC = () => {
       const tokenResponse = await mero.auth.generateTokens(tokenPayload) as any;
 
       if ((tokenResponse as any).data.access_token && (tokenResponse as any).data.refresh_token) {
-        setAccessToken((tokenResponse as any).data.access_token);
-        setRefreshToken((tokenResponse as any).data.refresh_token);
-        
+        // MeroJs takes ownership of the bundle and persists it — and every
+        // rotation it performs later — through the token store.
+        setTokens({
+          access_token: (tokenResponse as any).data.access_token,
+          refresh_token: (tokenResponse as any).data.refresh_token,
+        });
+
         // Check for manifest/package flows after authentication
         const manifestUrl = getStoredUrlParam('manifest-url');
         const packageName = getStoredUrlParam('package-name');
@@ -266,7 +237,9 @@ const LoginView: React.FC = () => {
       }
     } catch (err) {
       console.error('Authentication error:', err);
-      setError(err instanceof Error ? err.message : 'Authentication failed');
+      if (!(await handleRevokedSession(err))) {
+        setError(err instanceof Error ? err.message : 'Authentication failed');
+      }
     } finally {
       setUsernamePasswordLoading(false);
     }
@@ -274,93 +247,21 @@ const LoginView: React.FC = () => {
 
   /**
    * Handle provider selection.
-   * For near_wallet, performs challenge → sign → token exchange; for user_password, shows the credential form.
-   * Routes to permissions or application install check after a successful root token exchange.
+   * For user_password, shows the credential form. Every other provider is
+   * unsupported: the wallet path this used to run needed GET /auth/challenge,
+   * which core#3229 removes (there is no wallet provider to sign for).
    *
    * @param provider - Selected auth provider metadata
    */
   const handleProviderSelect = async (provider: Provider) => {
-    try {
-      const mero = getMero();
-      
-      if (provider.name === 'near_wallet') {
-        const challengeResponse = await mero.auth.getChallenge() as any;
-        
-        // Provider config may have network info - cast to any for flexibility
-        const providerConfig = (provider as any).config;
-        const selector = await setupWalletSelector({
-          network: providerConfig?.network as NetworkId,
-          modules: [setupMyNearWallet()]
-        });
-
-        const wallet = await selector.wallet('my-near-wallet');
-        
-        let signature;
-        try {
-          signature = await wallet.signMessage({
-            message: (challengeResponse as any)?.data?.challenge ?? (challengeResponse as any)?.challenge,
-            nonce: Buffer.from((challengeResponse as any)?.data?.challenge ?? (challengeResponse as any)?.challenge, 'base64'),
-            recipient: 'calimero',
-            callbackUrl: window.location.href
-          }) as SignedMessage;
-        } catch (err) {
-          // Handle user closing the window
-          if (err instanceof Error && err.message === 'User closed the window') {
-            setShowProviders(true);
-            return;
-          }
-          throw err;
-        }
-
-        const tokenPayload = {
-          auth_method: provider.name as 'near_wallet',
-          public_key: signature.publicKey,
-          client_name: window.location.href,
-          timestamp: Date.now(),
-          permissions: [] as string[],
-          provider_data: {
-            wallet_address: signature.accountId,
-            message: (challengeResponse as any)?.data?.challenge ?? (challengeResponse as any)?.challenge,
-            signature: signature.signature,
-            recipient: 'calimero'
-          }
-        };
-
-        const tokenResponse = await mero.auth.generateTokens(tokenPayload) as any;
-
-        if ((tokenResponse as any).data.access_token && (tokenResponse as any).data.refresh_token) {
-          setAccessToken((tokenResponse as any).data.access_token);
-          setRefreshToken((tokenResponse as any).data.refresh_token);
-          
-          const permissionsParam = getStoredUrlParam('permissions');
-          const permissions = permissionsParam ? permissionsParam.split(',') : [];
-          const hasAdminPermissions = permissions.includes('admin');
-          
-          // Check for manifest flows after authentication
-          const manifestUrl = getStoredUrlParam('manifest-url');
-          
-          // For manifest flows, we need admin permissions, so show PermissionsView first
-          if (manifestUrl && hasAdminPermissions) {
-            setShowPermissionsView(true);
-          } else if (hasAdminPermissions) {
-            setShowPermissionsView(true);
-          } else {
-            setShowApplicationInstallCheck(true);
-          }
-        } else {
-          throw new Error('Failed to get access token');
-        }
-      } else if (provider.name === 'user_password') {
-        setShowProviders(false);
-        setShowUsernamePasswordForm(true);
-      } else {
-        setError(`Provider ${provider.name} is not implemented yet`);
-      }
-    } catch (err) {
-      console.error('Authentication error:', err);
-      setError(err instanceof Error ? err.message : 'Authentication failed');
+    if (provider.name === 'user_password') {
+      setShowProviders(false);
+      setShowUsernamePasswordForm(true);
+      return;
     }
-  };  
+
+    setError(`Provider ${provider.name} is not supported`);
+  };
 
   /**
    * Generate an admin-scoped client key and redirect back to callback with tokens in the URL fragment.
@@ -404,7 +305,9 @@ const LoginView: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to generate admin client key:', err);
-      setError(err instanceof Error ? err.message : 'Failed to generate admin client key');
+      if (!(await handleRevokedSession(err))) {
+        setError(err instanceof Error ? err.message : 'Failed to generate admin client key');
+      }
     }
   };
 
@@ -489,7 +392,9 @@ const LoginView: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to generate client key:', err);
-      setError(err instanceof Error ? err.message : 'Failed to generate client key');
+      if (!(await handleRevokedSession(err))) {
+        setError(err instanceof Error ? err.message : 'Failed to generate client key');
+      }
     }
   };
   

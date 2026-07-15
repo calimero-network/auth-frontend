@@ -65,3 +65,51 @@ test('admin login flow delivers working tokens to the callback', async ({
   });
   expect(res.status()).toBe(200);
 });
+
+/**
+ * Returning user: the session check must be READ-ONLY.
+ *
+ * Refresh tokens are single-use since calimero-network/core#3083 — every
+ * POST /auth/refresh consumes the one it is given. This screen used to probe
+ * liveness *with* /auth/refresh, so every mount spent a refresh token; the
+ * rotated replacement was never persisted (MeroJs had no tokenStore), so the
+ * next load replayed the consumed one and the node revoked the family.
+ *
+ * The probe is now HEAD /auth/validate, which consumes nothing.
+ */
+test('a returning user resumes the session without spending a refresh token', async ({
+  page,
+}) => {
+  const callback = 'http://localhost:4173/';
+  const loginUrl =
+    `/auth/login?callback-url=${encodeURIComponent(callback)}` +
+    `&permissions=admin&app-url=${encodeURIComponent(NODE_URL)}`;
+
+  await page.goto(loginUrl);
+  await page.getByText('Username/Password').click();
+  await page.getByPlaceholder('Enter your username').fill(USERNAME);
+  await page.getByPlaceholder('Enter your password').fill(PASSWORD);
+  await page.getByRole('button', { name: 'Sign In' }).click();
+  await page.getByRole('button', { name: 'Generate Token' }).waitFor();
+
+  const storedRefreshToken = await page.evaluate(() =>
+    localStorage.getItem('calimero_refresh_token'),
+  );
+  expect(storedRefreshToken).toBeTruthy();
+
+  const refreshCalls: string[] = [];
+  page.on('request', (req) => {
+    if (req.url().endsWith('/auth/refresh')) refreshCalls.push(req.url());
+  });
+
+  // Come back to the login screen with the session still in localStorage.
+  await page.goto(loginUrl);
+
+  // Straight through to consent — no provider screen, no credentials.
+  await expect(page.getByRole('button', { name: 'Generate Token' })).toBeVisible();
+
+  expect(refreshCalls).toEqual([]);
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('calimero_refresh_token')))
+    .toBe(storedRefreshToken);
+});

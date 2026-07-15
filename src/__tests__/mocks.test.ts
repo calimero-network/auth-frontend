@@ -6,11 +6,22 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { fixtures } from '../mocks/fixtures';
 import { updateScenario, resetScenario } from '../mocks/handlers';
 
+/** POST /auth/refresh with a token pair. */
+const refresh = (tokens: { access_token: string; refresh_token: string }) =>
+  fetch('http://node1.127.0.0.1.nip.io/auth/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+    }),
+  });
+
 describe('MSW Mock Server', () => {
   beforeEach(() => {
     resetScenario();
   });
-  
+
   describe('Auth API Mocks', () => {
     it('should mock getProviders endpoint', async () => {
       const response = await fetch('http://node1.127.0.0.1.nip.io/auth/providers');
@@ -22,22 +33,67 @@ describe('MSW Mock Server', () => {
     });
     
     it('should mock token refresh endpoint', async () => {
-      const response = await fetch('http://node1.127.0.0.1.nip.io/auth/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          access_token: 'test_access',
-          refresh_token: 'test_refresh',
-        }),
-      });
-      
+      const response = await refresh(fixtures.tokens.admin);
+
       const payload = await response.json();
-      
+
       expect(response.ok).toBe(true);
       expect(payload.data.access_token).toBeTruthy();
       expect(payload.data.refresh_token).toBeTruthy();
     });
-    
+
+    /**
+     * core#3083: refresh tokens are single-use. The mock must rotate, or the
+     * suite goes green against a client that replays consumed tokens — which
+     * is exactly how the no-tokenStore bug survived CI.
+     */
+    it('should rotate the refresh token on every refresh', async () => {
+      const first = await (await refresh(fixtures.tokens.admin)).json();
+      expect(first.data.refresh_token).not.toBe(fixtures.tokens.admin.refresh_token);
+
+      const second = await (await refresh(first.data)).json();
+      expect(second.data.refresh_token).not.toBe(first.data.refresh_token);
+      expect(second.data.access_token).not.toBe(first.data.access_token);
+    });
+
+    it('should reject a replayed refresh token with x-auth-error: token_reuse', async () => {
+      await refresh(fixtures.tokens.admin);
+
+      // Same (now consumed) token again: the node reads this as theft.
+      const replay = await refresh(fixtures.tokens.admin);
+
+      expect(replay.status).toBe(401);
+      expect(replay.headers.get('x-auth-error')).toBe('token_reuse');
+    });
+
+    it('should revoke the whole family once a replay is detected', async () => {
+      const rotated = await (await refresh(fixtures.tokens.admin)).json();
+      await refresh(fixtures.tokens.admin); // replay → family revoked
+
+      const validate = await fetch('http://node1.127.0.0.1.nip.io/auth/validate', {
+        method: 'HEAD',
+        headers: { Authorization: `Bearer ${rotated.data.access_token}` },
+      });
+
+      expect(validate.status).toBe(401);
+      expect(validate.headers.get('x-auth-error')).toBe('token_revoked');
+    });
+
+    it('should mock the read-only /auth/validate session gate', async () => {
+      const live = await fetch('http://node1.127.0.0.1.nip.io/auth/validate', {
+        method: 'HEAD',
+        headers: { Authorization: `Bearer ${fixtures.tokens.admin.access_token}` },
+      });
+      expect(live.status).toBe(200);
+
+      const stale = await fetch('http://node1.127.0.0.1.nip.io/auth/validate', {
+        method: 'HEAD',
+        headers: { Authorization: 'Bearer stale_access_token' },
+      });
+      expect(stale.status).toBe(401);
+      expect(stale.headers.get('x-auth-error')).toBe('token_expired');
+    });
+
     it('should mock username/password authentication', async () => {
       const response = await fetch('http://node1.127.0.0.1.nip.io/auth/token', {
         method: 'POST',

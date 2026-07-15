@@ -1,12 +1,10 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { 
-  getMero, 
-  getAccessToken, 
-  getRefreshToken, 
-  setAccessToken, 
-  setRefreshToken,
-  clearAccessToken,
-  clearRefreshToken 
+import {
+  getMero,
+  hasLiveSession,
+  isAuthRevoked,
+  setTokens,
+  clearTokens,
 } from '../../lib/mero';
 interface Provider { name: string; type: string; description?: string; configured?: boolean; config?: Record<string, unknown>; [key: string]: unknown; }
 import ProviderSelector from '../providers/ProviderSelector';
@@ -60,69 +58,36 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
   }, []);
 
   /**
-   * Validate or refresh existing admin token
-   */
-  const validateToken = useCallback(async (accessToken: string, refreshToken: string): Promise<boolean> => {
-    try {
-      const mero = getMero();
-      const response = await mero.auth.refreshToken({
-        access_token: accessToken,
-        refresh_token: refreshToken
-      });
-
-      // Token was refreshed successfully
-      if ((response as any).data.access_token && (response as any).data.refresh_token) {
-        setAccessToken((response as any).data.access_token);
-        setRefreshToken((response as any).data.refresh_token);
-        return true;
-      }
-
-      return false;
-    } catch (err) {
-      // Check if error message indicates token is still valid
-      const errorMessage = err instanceof Error ? err.message : '';
-      if (errorMessage.includes('Access token still valid') || errorMessage.includes('token valid')) {
-        return true;
-      }
-      
-      console.error('Token validation failed:', err);
-      return false;
-    }
-  }, []);
-
-  /**
-   * Check for existing session on mount
+   * Check for existing session on mount.
+   *
+   * The probe is read-only (HEAD /auth/validate). It used to be a
+   * POST /auth/refresh, which since core#3083 consumes a single-use refresh
+   * token on every single mount — and which the node rejects outright while
+   * the access token is still valid, so it never even worked as a liveness
+   * check. mero-js refreshes on its own when a real request comes back 401
+   * `token_expired`, and now persists the rotated bundle.
    */
   useEffect(() => {
     const checkSession = async () => {
-      const existingAccessToken = getAccessToken();
-      const existingRefreshToken = getRefreshToken();
-      
-      if (existingAccessToken && existingRefreshToken) {
-        const isValid = await validateToken(existingAccessToken, existingRefreshToken);
-        
-        if (isValid) {
-          setHasAdminToken(true);
-          onReady?.();
-          setLoading(false);
-          return;
-        }
-        
-        // Token invalid, clear and show providers
-        clearAccessToken();
-        clearRefreshToken();
+      if (await hasLiveSession()) {
+        setHasAdminToken(true);
+        onReady?.();
+        setLoading(false);
+        return;
       }
-      
-      // No valid token, need to authenticate.
-      // Only show the provider list if it actually loaded — otherwise fall
-      // through to the ErrorView, which offers a retry.
+
+      // No live session — drop whatever is left (a revoked family included)
+      // and authenticate again. Only show the provider list if it actually
+      // loaded; otherwise fall through to the ErrorView, which offers a retry.
+      clearTokens();
+
       const loaded = await loadProviders();
       setShowProviders(loaded);
       setLoading(false);
     };
-    
+
     checkSession();
-  }, [validateToken, loadProviders, onReady]);
+  }, [loadProviders, onReady]);
 
   /**
    * Handle provider selection
@@ -131,11 +96,12 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
     if (provider.name === 'user_password') {
       setShowProviders(false);
       setShowUsernamePasswordForm(true);
-    } else if (provider.name === 'near_wallet') {
-      setError('NEAR wallet authentication not yet implemented');
-    } else {
-      setError(`Provider ${provider.name} is not supported`);
+      return;
     }
+
+    // Nothing else is supported: the wallet path needed GET /auth/challenge,
+    // which core#3229 removes.
+    setError(`Provider ${provider.name} is not supported`);
   };
 
   /**
@@ -162,8 +128,12 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
       const response = await mero.auth.generateTokens(tokenPayload) as any;
 
       if ((response as any).data.access_token && (response as any).data.refresh_token) {
-        setAccessToken((response as any).data.access_token);
-        setRefreshToken((response as any).data.refresh_token);
+        // MeroJs takes ownership of the bundle and persists it — and every
+        // rotation it performs later — through the token store.
+        setTokens({
+          access_token: (response as any).data.access_token,
+          refresh_token: (response as any).data.refresh_token,
+        });
         setHasAdminToken(true);
         setShowUsernamePasswordForm(false);
         onReady?.();
@@ -172,6 +142,12 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
       }
     } catch (err) {
       console.error('Authentication error:', err);
+      if (isAuthRevoked(err)) {
+        // The family is dead; a retry with these tokens can only fail again.
+        clearTokens();
+        setShowUsernamePasswordForm(false);
+        setShowProviders(await loadProviders());
+      }
       setError(err instanceof Error ? err.message : 'Authentication failed');
     } finally {
       setUsernamePasswordLoading(false);

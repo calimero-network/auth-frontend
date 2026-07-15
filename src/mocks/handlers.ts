@@ -32,6 +32,73 @@ export const updateScenario = (updates: Partial<typeof currentScenario>) => {
 };
 
 /**
+ * Refresh-token state machine (calimero-network/core#3083).
+ *
+ * Refresh tokens are SINGLE-USE: POST /auth/refresh consumes the token it is
+ * given and mints a new one. Re-presenting a consumed token is treated as
+ * theft — the node revokes the whole family and answers 401 with
+ * `x-auth-error: token_reuse`.
+ *
+ * The mock models this, so a client that persists the rotated token survives
+ * and one that replays a consumed token dies here exactly as it would against
+ * a real node. A static token pair (what this returned before) is precisely
+ * why CI stayed green while the app replayed consumed refresh tokens.
+ *
+ * One mock session = one token family, so a reuse revokes everything.
+ */
+let rotations = 0;
+let liveAccessTokens = new Set<string>();
+let liveRefreshTokens = new Set<string>();
+let consumedRefreshTokens = new Set<string>();
+let revokedAccessTokens = new Set<string>();
+
+const resetTokenState = () => {
+  rotations = 0;
+  // The fixture pairs stand in for an existing (logged-in) session.
+  liveAccessTokens = new Set([
+    fixtures.tokens.admin.access_token,
+    fixtures.tokens.user.access_token,
+  ]);
+  liveRefreshTokens = new Set([
+    fixtures.tokens.admin.refresh_token,
+    fixtures.tokens.user.refresh_token,
+  ]);
+  consumedRefreshTokens = new Set();
+  revokedAccessTokens = new Set();
+};
+
+resetTokenState();
+
+/** Mint a rotated pair and retire the refresh token that bought it. */
+const rotateTokens = (presentedRefreshToken: string, presentedAccessToken: string) => {
+  rotations += 1;
+  const tokens = {
+    access_token: `rotated_access_token_${rotations}`,
+    refresh_token: `rotated_refresh_token_${rotations}`,
+  };
+
+  consumedRefreshTokens.add(presentedRefreshToken);
+  liveRefreshTokens.delete(presentedRefreshToken);
+  // The access token that was traded in is superseded by the new one.
+  liveAccessTokens.delete(presentedAccessToken);
+
+  liveAccessTokens.add(tokens.access_token);
+  liveRefreshTokens.add(tokens.refresh_token);
+
+  return tokens;
+};
+
+/** Theft detected: the family dies, and everything it minted with it. */
+const revokeFamily = () => {
+  for (const token of liveAccessTokens) revokedAccessTokens.add(token);
+  liveAccessTokens.clear();
+  liveRefreshTokens.clear();
+};
+
+const bearerToken = (request: Request): string | null =>
+  request.headers.get('Authorization')?.replace(/^Bearer /, '') ?? null;
+
+/**
  * Reset scenario to default state (dev-friendly defaults)
  */
 export const resetScenario = () => {
@@ -41,6 +108,7 @@ export const resetScenario = () => {
     networkDelay: 0,
     forceErrors: [],
   };
+  resetTokenState();
 };
 
 const generateScopedToken = async (request: Request, statusOnMissingPermissions = 400) => {
@@ -90,6 +158,36 @@ const installApplicationHandler = http.post(
   installApplicationResolver,
 );
 
+const validateResolver: Parameters<typeof http.get>[1] = async ({ request }) => {
+  await delay(currentScenario.networkDelay);
+
+  const token = bearerToken(request);
+
+  if (!token) {
+    return new HttpResponse(null, {
+      status: 401,
+      headers: { 'x-auth-error': 'missing_token' },
+    });
+  }
+
+  if (revokedAccessTokens.has(token)) {
+    return new HttpResponse(null, {
+      status: 401,
+      headers: { 'x-auth-error': 'token_revoked' },
+    });
+  }
+
+  if (!liveAccessTokens.has(token)) {
+    // Stale access token — the client is expected to refresh and retry.
+    return new HttpResponse(null, {
+      status: 401,
+      headers: { 'x-auth-error': 'token_expired' },
+    });
+  }
+
+  return new HttpResponse(null, { status: 200 });
+};
+
 export const handlers = [
   // ========================================
   // Auth API Endpoints
@@ -118,31 +216,52 @@ export const handlers = [
   }),
   
   /**
-   * POST /auth/refresh - Refresh access token
+   * POST /auth/refresh - Rotate the token pair (single-use refresh tokens)
    */
   http.post('*/auth/refresh', async ({ request }) => {
     await delay(currentScenario.networkDelay);
-    
+
     const body = await request.json() as any;
-    
+
     if (currentScenario.forceErrors.includes('unauthorized')) {
       return HttpResponse.json(
-        { error: 'Invalid refresh token' }, 
+        { error: 'Invalid refresh token' },
         { status: 401 }
       );
     }
-    
+
     if (!body.access_token || !body.refresh_token) {
       return HttpResponse.json(
-        { error: 'Missing tokens' }, 
+        { error: 'Missing tokens' },
         { status: 400 }
       );
     }
-    
-    // Return refreshed tokens
-    return HttpResponse.json({ data: fixtures.tokens.user });
+
+    // Replay of an already-consumed refresh token: the node reads this as
+    // theft and burns the family down (core#3083).
+    if (consumedRefreshTokens.has(body.refresh_token)) {
+      revokeFamily();
+      return HttpResponse.json(
+        { error: 'Refresh token reuse detected' },
+        { status: 401, headers: { 'x-auth-error': 'token_reuse' } },
+      );
+    }
+
+    return HttpResponse.json({
+      data: rotateTokens(body.refresh_token, body.access_token),
+    });
   }),
-  
+
+  /**
+   * HEAD|GET /auth/validate - Read-only session gate.
+   *
+   * Public route on the node (core pins it as permission-free in
+   * `crates/auth/tests/client_token_contract.rs`): it verifies the bearer
+   * token and consumes nothing.
+   */
+  http.head(`*/auth/validate`, validateResolver),
+  http.get(`*/auth/validate`, validateResolver),
+
   /**
    * POST /auth/token - Request new token (username/password or NEAR)
    */
@@ -165,29 +284,18 @@ export const handlers = [
         return HttpResponse.json({ data: fixtures.tokens.admin });
       }
       return HttpResponse.json(
-        { error: 'Invalid credentials' }, 
+        { error: 'Invalid credentials' },
         { status: 401 }
       );
     }
-    
-    if (body.auth_method === 'near_wallet') {
-      return HttpResponse.json({ data: fixtures.tokens.user });
-    }
-    
+
+    // No wallet path: it needed GET /auth/challenge, which core#3229 removes.
     return HttpResponse.json(
-      { error: 'Unsupported auth method' }, 
+      { error: 'Unsupported auth method' },
       { status: 400 }
     );
   }),
-  
-  /**
-   * GET /auth/challenge - Get challenge for NEAR wallet auth
-   */
-  http.get(`*/auth/challenge`, async () => {
-    await delay(currentScenario.networkDelay);
-    return HttpResponse.json({ data: fixtures.challenges.near });
-  }),
-  
+
   /**
    * POST /admin/client-key - Generate scoped token
    */
