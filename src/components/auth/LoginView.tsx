@@ -1,10 +1,10 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import ProviderSelector from '../providers/ProviderSelector';
-import { handleUrlParams, getStoredUrlParam, clearStoredUrlParams } from '../../utils/urlParams';
+import { handleUrlParams, getStoredUrlParam } from '../../utils/urlParams';
+import { resolveSafeCallbackUrl, redirectTokensToCallback } from '../../utils/callbackUrl';
 import {
   getMero,
   generateClientKeyDirect,
-  getAppEndpointKey,
   hasLiveSession,
   isAuthRevoked,
   setTokens,
@@ -278,27 +278,16 @@ const LoginView: React.FC = () => {
 
       if (response.access_token && response.refresh_token) {
         const callback = getStoredUrlParam('callback-url');
-        if (callback) {
-          const returnUrl = new URL(callback);
-          const fragmentParams = new URLSearchParams();
-          fragmentParams.set('access_token', response.access_token);
-          fragmentParams.set('refresh_token', response.refresh_token);
-
-          // Include node URL so CalimeroProvider can set appEndpointKey
-          const nodeUrl = getStoredUrlParam('app-url') || getAppEndpointKey();
-          if (nodeUrl) {
-            fragmentParams.set('node_url', nodeUrl);
-          }
-
-          // Include applicationId for package-based flows
-          const installedAppId = localStorage.getItem('installed-application-id');
-          if (installedAppId) {
-            fragmentParams.set('application_id', installedAppId);
-          }
-
-          clearStoredUrlParams();
-          // Combine the base URL with the fragment
-          window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;
+        const outcome = redirectTokensToCallback(callback, response, {
+          application_id: localStorage.getItem('installed-application-id'),
+        });
+        if (outcome !== 'ok') {
+          setError(
+            outcome === 'missing'
+              ? 'Missing callback URL'
+              : 'Login callback destination is not allowed.',
+          );
+          return;
         }
       } else {
         throw new Error('Failed to generate client key');
@@ -359,34 +348,20 @@ const LoginView: React.FC = () => {
 
       if (response.access_token && response.refresh_token) {
         const callback = getStoredUrlParam('callback-url');
-        if (callback) {
-          const returnUrl = new URL(callback);
-          const fragmentParams = new URLSearchParams();
-          fragmentParams.set('access_token', response.access_token);
-          fragmentParams.set('refresh_token', response.refresh_token);
-
-          // Include node URL so CalimeroProvider can set appEndpointKey
-          const nodeUrl = getStoredUrlParam('app-url') || getAppEndpointKey();
-          if (nodeUrl) {
-            fragmentParams.set('node_url', nodeUrl);
-          }
-
-          // Include applicationId for package-based flows (before cleanup!)
-          const installedAppIdForRedirect = localStorage.getItem('installed-application-id');
-          if (installedAppIdForRedirect) {
-            fragmentParams.set('application_id', installedAppIdForRedirect);
-          } else {
-            console.warn('❌ DEBUG: No installed-application-id in localStorage!');
-          }
-          
-          
-          // Clean up stored application ID
-          localStorage.removeItem('installed-application-id');
-          
-          clearStoredUrlParams();
-          // Combine the base URL with the fragment
-          window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;
+        // Capture the app id before the shared handoff clears/redirects.
+        const installedAppIdForRedirect = localStorage.getItem('installed-application-id');
+        if (!resolveSafeCallbackUrl(callback)) {
+          setError(
+            callback
+              ? 'Login callback destination is not allowed.'
+              : 'Missing callback URL',
+          );
+          return;
         }
+        localStorage.removeItem('installed-application-id');
+        redirectTokensToCallback(callback, response, {
+          application_id: installedAppIdForRedirect,
+        });
       } else {
         throw new Error('Failed to generate client key');
       }

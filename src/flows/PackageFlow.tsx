@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { generateClientKeyDirect, getAppEndpointKey } from '../lib/mero';
+import { generateClientKeyDirect } from '../lib/mero';
+import { resolveSafeCallbackUrl, redirectTokensToCallback } from '../utils/callbackUrl';
 import { ManifestProcessor } from '../components/manifest/ManifestProcessor';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ContextSelector } from '../components/context/ContextSelector';
@@ -7,7 +8,7 @@ import { ErrorView } from '../components/common/ErrorView';
 import Loader from '../components/common/Loader';
 import { PageShell } from '../components/common/PageShell';
 import { AppMode } from '../types/flows';
-import { clearStoredUrlParams, getStoredUrlParam } from '../utils/urlParams';
+import { getStoredUrlParam } from '../utils/urlParams';
 import { normalizePermissions } from '../utils/permissions';
 import {
   Button,
@@ -107,34 +108,26 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
 
       if (response.access_token && response.refresh_token) {
         const callback = getStoredUrlParam('callback-url');
-        if (!callback) {
-          setError('Missing callback URL');
+        // Validate the callback BEFORE the package-flow cleanup + redirect, so a
+        // missing/untrusted callback hands out no tokens and leaves state intact.
+        if (!resolveSafeCallbackUrl(callback)) {
+          setError(
+            callback
+              ? 'Login callback destination is not allowed.'
+              : 'Missing callback URL',
+          );
           setGenerating(false);
           return;
         }
 
-        const returnUrl = new URL(callback);
-        const fragmentParams = new URLSearchParams();
-        fragmentParams.set('access_token', response.access_token);
-        fragmentParams.set('refresh_token', response.refresh_token);
-
-        if (installedAppId) {
-          fragmentParams.set('application_id', installedAppId);
-        }
-        if (contextId) {
-          fragmentParams.set('context_id', contextId);
-        }
-        if (identity) {
-          fragmentParams.set('context_identity', identity);
-        }
-
-        fragmentParams.set('node_url', getAppEndpointKey() || window.location.origin);
-
         sessionStorage.removeItem('installed-application-id');
         localStorage.removeItem('installed-application-id');
         localStorage.removeItem('manifest-info');
-        clearStoredUrlParams();
-        window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;
+        redirectTokensToCallback(callback, response, {
+          application_id: installedAppId,
+          context_id: contextId,
+          context_identity: identity,
+        });
       } else {
         throw new Error('Failed to generate client key');
       }
