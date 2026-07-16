@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import ProviderSelector from '../providers/ProviderSelector';
 import { handleUrlParams, getStoredUrlParam } from '../../utils/urlParams';
-import { resolveSafeCallbackUrl, redirectTokensToCallback } from '../../utils/callbackUrl';
+import { resolveTrustedCallbackUrl, redirectTokensToCallback } from '../../utils/callbackUrl';
 import {
   getMero,
   generateClientKeyDirect,
@@ -295,7 +295,7 @@ const LoginView: React.FC = () => {
 
       if (response.access_token && response.refresh_token) {
         const callback = getStoredUrlParam('callback-url');
-        const outcome = redirectTokensToCallback(callback, response, {
+        const outcome = await redirectTokensToCallback(callback, response, {
           application_id: localStorage.getItem('installed-application-id'),
         });
         if (outcome !== 'ok') {
@@ -367,7 +367,7 @@ const LoginView: React.FC = () => {
         const callback = getStoredUrlParam('callback-url');
         // Capture the app id before the shared handoff clears/redirects.
         const installedAppIdForRedirect = localStorage.getItem('installed-application-id');
-        if (!resolveSafeCallbackUrl(callback)) {
+        if (!(await resolveTrustedCallbackUrl(callback))) {
           setError(
             callback
               ? 'Login callback destination is not allowed.'
@@ -376,7 +376,7 @@ const LoginView: React.FC = () => {
           return;
         }
         localStorage.removeItem('installed-application-id');
-        redirectTokensToCallback(callback, response, {
+        await redirectTokensToCallback(callback, response, {
           application_id: installedAppIdForRedirect,
         });
       } else {

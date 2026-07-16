@@ -23,9 +23,16 @@ import { test, expect } from '@playwright/test';
 
 const NODE_URL = process.env.NODE_URL || 'http://localhost:4081';
 const USERNAME = process.env.MERO_E2E_USER || 'dev';
-const PASSWORD = process.env.MERO_E2E_PASS || 'dev';
+const PASSWORD = process.env.MERO_E2E_PASS || 'dev-password';
+// First-login setup code (bootstrap secret, core#3221). On a fresh node the
+// FIRST login must present it — and since core >= rc.14 that is the only way
+// an account can ever be created through this UI, so the spec types it into
+// the form like a real user would. CI passes the same value it exports to the
+// merod process; on an already-bootstrapped node the field is simply ignored
+// by the server, keeping local re-runs green.
+const SETUP_CODE = process.env.MERO_E2E_SETUP_CODE || '';
 
-test('admin login flow delivers working tokens to the callback', async ({
+test('first login through the UI bootstraps the account and delivers working tokens', async ({
   page,
   request,
 }) => {
@@ -39,9 +46,19 @@ test('admin login flow delivers working tokens to the callback', async ({
   // Provider screen (list fetched live from the node).
   await page.getByText('Username/Password').click();
 
-  // Credential form; first login bootstraps the root key on a fresh node.
+  // Credential form. This drives the REAL first-run path: username/password
+  // plus the setup code typed into the revealed field. Regression pin for the
+  // shipped bug where the field rendered but its value was silently dropped
+  // by the app-callback consumer (EnsureAdminSession) — pre-minting the root
+  // key out-of-band in CI would hide that class of bug forever.
   await page.getByPlaceholder('Enter your username').fill(USERNAME);
   await page.getByPlaceholder('Enter your password').fill(PASSWORD);
+  if (SETUP_CODE) {
+    await page
+      .getByRole('button', { name: /first login on a fresh node/i })
+      .click();
+    await page.getByPlaceholder(/startup log/i).fill(SETUP_CODE);
+  }
   await page.getByRole('button', { name: 'Sign In' }).click();
 
   // Consent screen → mint the client key.

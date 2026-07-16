@@ -88,28 +88,19 @@ jobs:
           echo "node never became healthy" >&2
           exit 1
 
-      - name: Bootstrap root key (out-of-band secret)
-        # rc.14 disables trust-on-first-use: mint the root key here presenting
-        # MERO_AUTH_BOOTSTRAP_SECRET so the UI's dev/dev-password login is a plain
-        # existing-user auth (the UI form has no bootstrap-secret field).
-        run: |
-          BODY=$(jq -n --arg u "$MERO_E2E_USER" --arg p "$MERO_E2E_PASS" \
-            --arg s "$MERO_AUTH_BOOTSTRAP_SECRET" --argjson ts "$(date +%s)" \
-            '{auth_method: "user_password", public_key: $u,
-              client_name: "ui-e2e", permissions: ["admin"], timestamp: $ts,
-              provider_data: {username: $u, password: $p, bootstrap_secret: $s}}')
-          RESP=$(curl -fsS -m 10 -X POST http://localhost:4081/auth/token \
-            -H 'Content-Type: application/json' -d "$BODY") || {
-              echo "::error::root-key bootstrap request failed"; exit 1; }
-          echo "$RESP" | jq -e '.data.access_token // empty' > /dev/null || {
-            echo "::error::bootstrap did not return a token: $RESP"; exit 1; }
-          echo "root key bootstrapped for $MERO_E2E_USER"
-
+      # No out-of-band root-key pre-mint here, deliberately: the spec's first
+      # test performs the REAL first login through the UI, typing the setup
+      # code into the form. Pre-minting via curl hid exactly the bug class we
+      # shipped once already — a visible setup-code field whose value never
+      # reached the request.
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
       - name: Run browser e2e
-        run: NODE_URL=http://localhost:4081 npx playwright test
+        run: |
+          NODE_URL=http://localhost:4081 \
+          MERO_E2E_SETUP_CODE="$MERO_AUTH_BOOTSTRAP_SECRET" \
+          npx playwright test
 
       - name: Dump merod log on failure
         if: failure()
