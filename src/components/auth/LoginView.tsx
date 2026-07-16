@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import ProviderSelector from '../providers/ProviderSelector';
 import { handleUrlParams, getStoredUrlParam, clearStoredUrlParams } from '../../utils/urlParams';
+import { resolveSafeCallbackUrl } from '../../utils/callbackUrl';
 import {
   getMero,
   generateClientKeyDirect,
@@ -277,9 +278,17 @@ const LoginView: React.FC = () => {
       });
 
       if (response.access_token && response.refresh_token) {
-        const callback = getStoredUrlParam('callback-url');
-        if (callback) {
-          const returnUrl = new URL(callback);
+        const rawCallback = getStoredUrlParam('callback-url');
+        const returnUrl = resolveSafeCallbackUrl(rawCallback);
+        if (rawCallback && !returnUrl) {
+          // Refuse to redirect the minted token pair to an unvalidated / untrusted
+          // callback origin (open-redirect token exfiltration). Fail closed:
+          // the tokens are never handed out; the user sees an error instead.
+          clearStoredUrlParams();
+          setError('Login callback destination is not allowed.');
+          return;
+        }
+        if (returnUrl) {
           const fragmentParams = new URLSearchParams();
           fragmentParams.set('access_token', response.access_token);
           fragmentParams.set('refresh_token', response.refresh_token);
@@ -358,9 +367,17 @@ const LoginView: React.FC = () => {
       });
 
       if (response.access_token && response.refresh_token) {
-        const callback = getStoredUrlParam('callback-url');
-        if (callback) {
-          const returnUrl = new URL(callback);
+        const rawCallback = getStoredUrlParam('callback-url');
+        const returnUrl = resolveSafeCallbackUrl(rawCallback);
+        if (rawCallback && !returnUrl) {
+          // Refuse to redirect the minted token pair to an unvalidated / untrusted
+          // callback origin (open-redirect token exfiltration). Fail closed:
+          // the tokens are never handed out; the user sees an error instead.
+          clearStoredUrlParams();
+          setError('Login callback destination is not allowed.');
+          return;
+        }
+        if (returnUrl) {
           const fragmentParams = new URLSearchParams();
           fragmentParams.set('access_token', response.access_token);
           fragmentParams.set('refresh_token', response.refresh_token);
