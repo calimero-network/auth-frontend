@@ -1,5 +1,6 @@
-import { clearStoredUrlParams } from './urlParams';
+import { clearStoredUrlParams, getStoredUrlParam } from './urlParams';
 import { getAppEndpointKey } from '../lib/mero';
+import { createRegistryClient, registryClient } from './registryClient';
 
 // Allowlist validation for the SSO `callback-url`.
 //
@@ -20,6 +21,15 @@ import { getAppEndpointKey } from '../lib/mero';
 //   * any additional deployed app origins must be explicitly allowlisted via
 //     the `VITE_ALLOWED_CALLBACK_ORIGINS` build/env var (comma-separated), e.g.
 //     "https://app.example.com,https://chat.example.com"
+//   * a hosted app may also be trusted DYNAMICALLY: when the login flow names
+//     a package (`package-name` param), the app registry's bundle manifest
+//     declares that app's frontend URL (`links.frontend`) — the moral
+//     equivalent of OAuth's registered redirect URIs. A callback whose origin
+//     matches the registry-declared frontend origin is trusted. The manifest
+//     is only consulted from a TRUSTED registry (the built-in default, or a
+//     `registry-url` whose own origin passes the static policy) — otherwise
+//     an attacker could point `registry-url` at a registry that "declares"
+//     their exfiltration origin.
 //   * everything else is rejected — the caller must NOT redirect the tokens.
 
 const isLoopbackHost = (host: string): boolean => {
@@ -71,22 +81,97 @@ const allowedOrigins = (): Set<string> => {
  *   origin. On `null`, the caller MUST NOT redirect the token pair.
  */
 export function resolveSafeCallbackUrl(raw: string | null | undefined): URL | null {
-  if (!raw) return null;
-
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    return null;
-  }
-
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+  const url = parseHttpUrl(raw);
+  if (!url) return null;
 
   if (isLoopbackHost(url.hostname)) return url;
 
   if (allowedOrigins().has(url.origin)) return url;
 
   return null;
+}
+
+const parseHttpUrl = (raw: string | null | undefined): URL | null => {
+  if (!raw) return null;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+  return url;
+};
+
+const DEFAULT_REGISTRY_ORIGIN = new URL(
+  (import.meta.env.VITE_REGISTRY_URL as string | undefined) ||
+    'https://apps.calimero.network',
+).origin;
+
+// One registry verdict per origin per page load: the pre-flight check and the
+// token handoff both consult this, and the answer cannot meaningfully change
+// between them.
+const registryVerdicts = new Map<string, Promise<boolean>>();
+
+/**
+ * True when the app registry declares `origin` as the frontend origin of the
+ * package this login flow is for. Fails closed on any error (no package in
+ * the flow, manifest missing, no frontend link, network failure).
+ */
+const isRegistryDeclaredFrontend = (origin: string): Promise<boolean> => {
+  let verdict = registryVerdicts.get(origin);
+  if (!verdict) {
+    verdict = (async () => {
+      const packageName = getStoredUrlParam('package-name');
+      if (!packageName) return false;
+
+      // Only consult a registry we already trust. The raw `registry-url`
+      // param is attacker-controllable, so it is honored only when its own
+      // origin passes the static policy (loopback / same-origin / env
+      // allowlist) or is the built-in default; anything else falls back to
+      // the default registry.
+      const rawRegistry = getStoredUrlParam('registry-url');
+      const registryUrl = parseHttpUrl(rawRegistry);
+      const registryTrusted =
+        registryUrl !== null &&
+        (registryUrl.origin === DEFAULT_REGISTRY_ORIGIN ||
+          isLoopbackHost(registryUrl.hostname) ||
+          allowedOrigins().has(registryUrl.origin));
+      const client =
+        registryTrusted && registryUrl
+          ? createRegistryClient(registryUrl.origin)
+          : registryClient;
+
+      try {
+        const manifest = await client.getManifest(packageName);
+        const frontend = parseHttpUrl(manifest._bundleLinks?.frontend);
+        return frontend !== null && frontend.origin === origin;
+      } catch (err) {
+        console.warn('Registry lookup for callback trust failed:', err);
+        return false;
+      }
+    })();
+    registryVerdicts.set(origin, verdict);
+  }
+  return verdict;
+};
+
+/**
+ * Full trust resolution for a `callback-url`: the static policy first
+ * (loopback, same-origin, env allowlist), then the registry-declared frontend
+ * origin of the flow's package. Same contract as
+ * [`resolveSafeCallbackUrl`], asynchronously.
+ */
+export async function resolveTrustedCallbackUrl(
+  raw: string | null | undefined,
+): Promise<URL | null> {
+  const staticUrl = resolveSafeCallbackUrl(raw);
+  if (staticUrl) return staticUrl;
+
+  const url = parseHttpUrl(raw);
+  if (!url) return null;
+
+  return (await isRegistryDeclaredFrontend(url.origin)) ? url : null;
 }
 
 /**
@@ -104,14 +189,14 @@ export function resolveSafeCallbackUrl(raw: string | null | undefined): URL | nu
  *   cases the tokens are NOT handed out and no navigation happens; the caller
  *   should surface an error.
  */
-export function redirectTokensToCallback(
+export async function redirectTokensToCallback(
   rawCallback: string | null | undefined,
   tokens: { access_token: string; refresh_token: string },
   extra: Record<string, string | null | undefined> = {},
-): 'ok' | 'missing' | 'untrusted' {
+): Promise<'ok' | 'missing' | 'untrusted'> {
   if (!rawCallback) return 'missing';
 
-  const returnUrl = resolveSafeCallbackUrl(rawCallback);
+  const returnUrl = await resolveTrustedCallbackUrl(rawCallback);
   if (!returnUrl) return 'untrusted';
 
   const fragmentParams = new URLSearchParams();

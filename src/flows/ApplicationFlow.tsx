@@ -65,7 +65,7 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
 
       if (response.access_token && response.refresh_token) {
         const callback = getStoredUrlParam('callback-url');
-        const outcome = redirectTokensToCallback(callback, response, {
+        const outcome = await redirectTokensToCallback(callback, response, {
           context_id: contextId,
           context_identity: identity,
         });

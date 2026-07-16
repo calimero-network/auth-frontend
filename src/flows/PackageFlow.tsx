@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { generateClientKeyDirect } from '../lib/mero';
-import { resolveSafeCallbackUrl, redirectTokensToCallback } from '../utils/callbackUrl';
+import { resolveTrustedCallbackUrl, redirectTokensToCallback } from '../utils/callbackUrl';
 import { ManifestProcessor } from '../components/manifest/ManifestProcessor';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ContextSelector } from '../components/context/ContextSelector';
@@ -110,7 +110,7 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
         const callback = getStoredUrlParam('callback-url');
         // Validate the callback BEFORE the package-flow cleanup + redirect, so a
         // missing/untrusted callback hands out no tokens and leaves state intact.
-        if (!resolveSafeCallbackUrl(callback)) {
+        if (!(await resolveTrustedCallbackUrl(callback))) {
           setError(
             callback
               ? 'Login callback destination is not allowed.'
@@ -123,7 +123,7 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
         sessionStorage.removeItem('installed-application-id');
         localStorage.removeItem('installed-application-id');
         localStorage.removeItem('manifest-info');
-        redirectTokensToCallback(callback, response, {
+        await redirectTokensToCallback(callback, response, {
           application_id: installedAppId,
           context_id: contextId,
           context_identity: identity,
