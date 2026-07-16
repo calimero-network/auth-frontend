@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { generateClientKeyDirect, getAppEndpointKey } from '../lib/mero';
+import { generateClientKeyDirect } from '../lib/mero';
+import { redirectTokensToCallback } from '../utils/callbackUrl';
 import { ApplicationInstallCheck } from '../components/applications/ApplicationInstallCheck';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ContextSelector } from '../components/context/ContextSelector';
 import { ErrorView } from '../components/common/ErrorView';
 import Loader from '../components/common/Loader';
 import { AppMode } from '../types/flows';
-import { clearStoredUrlParams, getStoredUrlParam } from '../utils/urlParams';
+import { getStoredUrlParam } from '../utils/urlParams';
 import { normalizePermissions } from '../utils/permissions';
 
 interface ApplicationFlowProps {
@@ -64,28 +65,19 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
 
       if (response.access_token && response.refresh_token) {
         const callback = getStoredUrlParam('callback-url');
-        if (!callback) {
-          setError('Missing callback URL');
+        const outcome = redirectTokensToCallback(callback, response, {
+          context_id: contextId,
+          context_identity: identity,
+        });
+        if (outcome !== 'ok') {
+          setError(
+            outcome === 'missing'
+              ? 'Missing callback URL'
+              : 'Login callback destination is not allowed.',
+          );
           setGenerating(false);
           return;
         }
-
-        const returnUrl = new URL(callback);
-        const fragmentParams = new URLSearchParams();
-        fragmentParams.set('access_token', response.access_token);
-        fragmentParams.set('refresh_token', response.refresh_token);
-
-        if (contextId) {
-          fragmentParams.set('context_id', contextId);
-        }
-        if (identity) {
-          fragmentParams.set('context_identity', identity);
-        }
-
-        fragmentParams.set('node_url', getAppEndpointKey() || window.location.origin);
-
-        clearStoredUrlParams();
-        window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;
       } else {
         throw new Error('Failed to generate client key');
       }

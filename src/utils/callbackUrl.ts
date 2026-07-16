@@ -1,3 +1,6 @@
+import { clearStoredUrlParams } from './urlParams';
+import { getAppEndpointKey } from '../lib/mero';
+
 // Allowlist validation for the SSO `callback-url`.
 //
 // After a successful login the auth frontend redirects the freshly-minted
@@ -84,4 +87,45 @@ export function resolveSafeCallbackUrl(raw: string | null | undefined): URL | nu
   if (allowedOrigins().has(url.origin)) return url;
 
   return null;
+}
+
+/**
+ * Validate `rawCallback` and, only if it is trusted, hand the minted token pair
+ * (plus `extra` fragment params and the issuing `node_url`) to it by navigating
+ * the browser to `<callback>#access_token=…&refresh_token=…`.
+ *
+ * This is the single, shared token-handoff path for every auth flow — it is the
+ * security boundary that stops an attacker-supplied `callback-url` from
+ * exfiltrating the tokens to an arbitrary origin. Callers must funnel through it
+ * rather than building the redirect inline.
+ *
+ * @returns `'ok'` after redirecting, `'missing'` when no callback was provided,
+ *   or `'untrusted'` when the callback failed validation. In the non-`'ok'`
+ *   cases the tokens are NOT handed out and no navigation happens; the caller
+ *   should surface an error.
+ */
+export function redirectTokensToCallback(
+  rawCallback: string | null | undefined,
+  tokens: { access_token: string; refresh_token: string },
+  extra: Record<string, string | null | undefined> = {},
+): 'ok' | 'missing' | 'untrusted' {
+  if (!rawCallback) return 'missing';
+
+  const returnUrl = resolveSafeCallbackUrl(rawCallback);
+  if (!returnUrl) return 'untrusted';
+
+  const fragmentParams = new URLSearchParams();
+  fragmentParams.set('access_token', tokens.access_token);
+  fragmentParams.set('refresh_token', tokens.refresh_token);
+  for (const [key, value] of Object.entries(extra)) {
+    if (value) fragmentParams.set(key, value);
+  }
+  // Callback contract (mero-react binds its client to this): the node that
+  // issued the tokens, which is NOT this page's origin when the UI is served
+  // separately from the node (app-url param).
+  fragmentParams.set('node_url', getAppEndpointKey() || window.location.origin);
+
+  clearStoredUrlParams();
+  window.location.href = `${returnUrl.toString()}#${fragmentParams.toString()}`;
+  return 'ok';
 }
