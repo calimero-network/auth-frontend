@@ -176,13 +176,29 @@ const LoginView: React.FC = () => {
    * Handle username/password authentication flow.
    * Exchanges credentials for a root token, then routes to permissions or install check.
    *
+   * Since core rc.14 (core#3221) a fresh node only mints its first root key
+   * when the caller presents the node's bootstrap secret ("setup code" —
+   * auto-generated into the node's config.toml and printed at startup by
+   * core#3270). The code is sourced from the form field when the user typed
+   * one, falling back to the `setup-code` URL param the desktop app passes so
+   * its first-run stays a plain username/password login. Once the first
+   * account exists the node ignores the value, so sending it is always safe.
+   *
    * @param username - Provided username
    * @param password - Provided password
+   * @param setupCode - Optional first-login setup code from the form
    */
-  const handleUsernamePasswordAuth = async (username: string, password: string) => {
+  const handleUsernamePasswordAuth = async (
+    username: string,
+    password: string,
+    setupCode?: string,
+  ) => {
     try {
       setUsernamePasswordLoading(true);
       setError(null);
+
+      const effectiveSetupCode =
+        setupCode?.trim() || getStoredUrlParam('setup-code')?.trim() || undefined;
 
       const mero = getMero();
       const tokenPayload = {
@@ -193,7 +209,8 @@ const LoginView: React.FC = () => {
         permissions: [] as string[],
         provider_data: {
           username: username,
-          password: password
+          password: password,
+          ...(effectiveSetupCode ? { bootstrap_secret: effectiveSetupCode } : {})
         }
       };
 
