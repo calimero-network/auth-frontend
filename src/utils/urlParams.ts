@@ -129,7 +129,10 @@ export const clearStoredUrlParams = () => {
     'package-name',
     'package-version',
     'registry-url',
-    'mode'
+    'mode',
+    // First-login bootstrap secret passed by the desktop app (core#3221) —
+    // it's a credential, so never leave it behind after the flow completes.
+    'setup-code'
   ];
   
   keysToRemove.forEach(key => {
