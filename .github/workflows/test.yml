@@ -34,6 +34,18 @@ jobs:
   ui-e2e:
     name: Browser e2e against live merod
     runs-on: ubuntu-latest
+    env:
+      # core >= 0.11.0-rc.14 gates the FIRST root-key bootstrap behind an
+      # out-of-band secret (calimero-network/core#3221) and enforces an 8-char
+      # minimum password at creation (#3081). The merod process below inherits
+      # this env, so its embedded auth accepts the same secret; the "Bootstrap
+      # root key" step then pre-provisions the user so the UI login is a plain
+      # existing-user authentication. CI-only value for an ephemeral node.
+      MERO_AUTH_BOOTSTRAP_SECRET: ui-e2e-ci-bootstrap
+      # Credentials the Playwright spec logs in with (live-login.spec.ts reads
+      # MERO_E2E_USER / MERO_E2E_PASS). Password must satisfy the min length.
+      MERO_E2E_USER: dev
+      MERO_E2E_PASS: dev-password
     steps:
       - uses: actions/checkout@v4
 
@@ -75,6 +87,23 @@ jobs:
           done
           echo "node never became healthy" >&2
           exit 1
+
+      - name: Bootstrap root key (out-of-band secret)
+        # rc.14 disables trust-on-first-use: mint the root key here presenting
+        # MERO_AUTH_BOOTSTRAP_SECRET so the UI's dev/dev-password login is a plain
+        # existing-user auth (the UI form has no bootstrap-secret field).
+        run: |
+          BODY=$(jq -n --arg u "$MERO_E2E_USER" --arg p "$MERO_E2E_PASS" \
+            --arg s "$MERO_AUTH_BOOTSTRAP_SECRET" --argjson ts "$(date +%s)" \
+            '{auth_method: "user_password", public_key: $u,
+              client_name: "ui-e2e", permissions: ["admin"], timestamp: $ts,
+              provider_data: {username: $u, password: $p, bootstrap_secret: $s}}')
+          RESP=$(curl -fsS -m 10 -X POST http://localhost:4081/auth/token \
+            -H 'Content-Type: application/json' -d "$BODY") || {
+              echo "::error::root-key bootstrap request failed"; exit 1; }
+          echo "$RESP" | jq -e '.data.access_token // empty' > /dev/null || {
+            echo "::error::bootstrap did not return a token: $RESP"; exit 1; }
+          echo "root key bootstrapped for $MERO_E2E_USER"
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
