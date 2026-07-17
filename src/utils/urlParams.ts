@@ -130,8 +130,9 @@ export const clearStoredUrlParams = () => {
     'package-version',
     'registry-url',
     'mode',
-    // First-login bootstrap secret passed by the desktop app (core#3221) —
-    // it's a credential, so never leave it behind after the flow completes.
+    // Legacy first-login setup code: older desktop apps (tauri ≤0.0.68)
+    // still pass it in the URL. It is never read anymore (core rc.17+
+    // ignores it), but it is credential-shaped — never leave it behind.
     'setup-code'
   ];
   

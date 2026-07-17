@@ -9,7 +9,6 @@ import {
 interface Provider { name: string; type: string; description?: string; configured?: boolean; config?: Record<string, unknown>; [key: string]: unknown; }
 import ProviderSelector from '../providers/ProviderSelector';
 import { UsernamePasswordForm } from './UsernamePasswordForm';
-import { getStoredUrlParam } from '../../utils/urlParams';
 import Loader from '../common/Loader';
 import { ErrorView } from '../common/ErrorView';
 
@@ -108,26 +107,19 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
   /**
    * Handle username/password authentication.
    *
-   * Mirrors LoginView: the optional first-login setup code (bootstrap
-   * secret, core#3221) comes from the form field or the `setup-code` URL
-   * param, and is omitted entirely when absent. This is the consumer the
-   * app-callback flow (`/auth/login?callback-url=…`) renders, so dropping
-   * the third argument here silently breaks fresh-node first login even
-   * though the field is visible — it must stay in sync with the form's
-   * onSubmit signature.
+   * Mirrors LoginView: always a plain existing-user login — since core
+   * rc.17 the login path never mints keys (the admin account is provisioned
+   * at `merod init` or via `merod auth set-admin`), so there is no setup
+   * code to collect or send.
    */
   const handleUsernamePasswordAuth = async (
     username: string,
     password: string,
-    setupCode?: string,
   ) => {
     setUsernamePasswordLoading(true);
     setError(null);
 
     try {
-      const effectiveSetupCode =
-        setupCode?.trim() || getStoredUrlParam('setup-code')?.trim() || undefined;
-
       const mero = getMero();
       const tokenPayload = {
         auth_method: 'user_password' as const,
@@ -137,8 +129,7 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
         permissions: [] as string[],
         provider_data: {
           username,
-          password,
-          ...(effectiveSetupCode ? { bootstrap_secret: effectiveSetupCode } : {})
+          password
         }
       };
 
