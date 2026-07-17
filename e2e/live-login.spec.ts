@@ -12,8 +12,10 @@
  * in production. The node must run `--auth-mode embedded` with
  * `allow_all_origins = true` in `[server.embedded_auth.cors]` (the UI origin
  * differs from the node origin here; in production they're the same origin).
- * First login on a fresh node bootstraps the root user with these
- * credentials.
+ * The admin account is provisioned before the suite runs (at `merod init`
+ * on core >= rc.17, or by the CI pre-mint step on older releases) — every
+ * login here is a plain existing-user authentication, which is all the UI
+ * supports now that the login path never mints keys.
  *
  * Seam twins (API-level, no browser):
  *   core   crates/auth/tests/client_token_contract.rs + scripts/e2e-auth-seam.sh
@@ -24,15 +26,8 @@ import { test, expect } from '@playwright/test';
 const NODE_URL = process.env.NODE_URL || 'http://localhost:4081';
 const USERNAME = process.env.MERO_E2E_USER || 'dev';
 const PASSWORD = process.env.MERO_E2E_PASS || 'dev-password';
-// First-login setup code (bootstrap secret, core#3221). On a fresh node the
-// FIRST login must present it — and since core >= rc.14 that is the only way
-// an account can ever be created through this UI, so the spec types it into
-// the form like a real user would. CI passes the same value it exports to the
-// merod process; on an already-bootstrapped node the field is simply ignored
-// by the server, keeping local re-runs green.
-const SETUP_CODE = process.env.MERO_E2E_SETUP_CODE || '';
 
-test('first login through the UI bootstraps the account and delivers working tokens', async ({
+test('login through the UI delivers working tokens', async ({
   page,
   request,
 }) => {
@@ -46,19 +41,10 @@ test('first login through the UI bootstraps the account and delivers working tok
   // Provider screen (list fetched live from the node).
   await page.getByText('Username/Password').click();
 
-  // Credential form. This drives the REAL first-run path: username/password
-  // plus the setup code typed into the revealed field. Regression pin for the
-  // shipped bug where the field rendered but its value was silently dropped
-  // by the app-callback consumer (EnsureAdminSession) — pre-minting the root
-  // key out-of-band in CI would hide that class of bug forever.
+  // Credential form: a plain username/password login — the setup-code
+  // field is gone along with the first-login bootstrap flow it served.
   await page.getByPlaceholder('Enter your username').fill(USERNAME);
   await page.getByPlaceholder('Enter your password').fill(PASSWORD);
-  if (SETUP_CODE) {
-    await page
-      .getByRole('button', { name: /first login on a fresh node/i })
-      .click();
-    await page.getByPlaceholder(/startup log/i).fill(SETUP_CODE);
-  }
   await page.getByRole('button', { name: 'Sign In' }).click();
 
   // Consent screen → mint the client key.

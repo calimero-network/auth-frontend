@@ -35,12 +35,15 @@ jobs:
     name: Browser e2e against live merod
     runs-on: ubuntu-latest
     env:
-      # core >= 0.11.0-rc.14 gates the FIRST root-key bootstrap behind an
-      # out-of-band secret (calimero-network/core#3221) and enforces an 8-char
-      # minimum password at creation (#3081). The merod process below inherits
-      # this env, so its embedded auth accepts the same secret; the "Bootstrap
-      # root key" step then pre-provisions the user so the UI login is a plain
-      # existing-user authentication. CI-only value for an ephemeral node.
+      # Admin credentials for the node. On core >= rc.17 `merod init` reads
+      # these from its environment and mints the admin root key up front (the
+      # login path never mints keys; there is no setup code anymore).
+      MERO_AUTH_ADMIN_USER: dev
+      MERO_AUTH_ADMIN_PASSWORD: dev-password
+      # Transitional (remove once the latest core release is >= rc.17): this
+      # job downloads the LATEST merod release, and releases up to rc.16
+      # still gate the first login on a bootstrap secret. The "Provision
+      # admin account" step below presents it; rc.17+ ignores the field.
       MERO_AUTH_BOOTSTRAP_SECRET: ui-e2e-ci-bootstrap
       # Credentials the Playwright spec logs in with (live-login.spec.ts reads
       # MERO_E2E_USER / MERO_E2E_PASS). Password must satisfy the min length.
@@ -88,18 +91,33 @@ jobs:
           echo "node never became healthy" >&2
           exit 1
 
-      # No out-of-band root-key pre-mint here, deliberately: the spec's first
-      # test performs the REAL first login through the UI, typing the setup
-      # code into the form. Pre-minting via curl hid exactly the bug class we
-      # shipped once already — a visible setup-code field whose value never
-      # reached the request.
+      # Version-portable admin provisioning: on core >= rc.17 the account was
+      # already minted at init from MERO_AUTH_ADMIN_* and this is a plain
+      # login (the stale bootstrap_secret field is ignored); on <= rc.16 this
+      # very request mints the root key via the bootstrap secret. Either way
+      # it must return a token — and afterwards the UI login the spec drives
+      # is an ordinary existing-user authentication, which is all the UI
+      # supports now that the setup-code field is gone.
+      - name: Provision admin account (works on rc.16 and rc.17+)
+        run: |
+          BODY=$(jq -n --arg u "$MERO_E2E_USER" --arg p "$MERO_E2E_PASS" \
+            --arg s "$MERO_AUTH_BOOTSTRAP_SECRET" --argjson ts "$(date +%s)" \
+            '{auth_method: "user_password", public_key: $u,
+              client_name: "ui-e2e-ci", permissions: ["admin"], timestamp: $ts,
+              provider_data: {username: $u, password: $p, bootstrap_secret: $s}}')
+          RESP=$(curl -fsS -m 10 -X POST http://localhost:4081/auth/token \
+            -H 'Content-Type: application/json' -d "$BODY") || {
+              echo "::error::admin provisioning/login failed"; exit 1; }
+          TOKEN=$(echo "$RESP" | jq -r '.data.access_token // empty')
+          [ -n "$TOKEN" ] || { echo "::error::no token: $RESP"; exit 1; }
+          echo "admin account ready for user $MERO_E2E_USER"
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
       - name: Run browser e2e
         run: |
           NODE_URL=http://localhost:4081 \
-          MERO_E2E_SETUP_CODE="$MERO_AUTH_BOOTSTRAP_SECRET" \
           npx playwright test
 
       - name: Dump merod log on failure
