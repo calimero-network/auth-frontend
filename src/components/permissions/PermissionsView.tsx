@@ -29,7 +29,11 @@ interface PermissionInfo {
   title: string;
   description: string;
   risk: 'low' | 'medium' | 'high';
-  icon: string;
+  /**
+   * Why the grant is high risk, in the user's terms. Only high-risk entries
+   * carry a badge, so this is the copy that has to justify it.
+   */
+  whyHighRisk?: string;
 }
 
 const PERMISSION_DETAILS: Record<string, PermissionInfo> = {
@@ -37,61 +41,53 @@ const PERMISSION_DETAILS: Record<string, PermissionInfo> = {
     title: 'Create Contexts',
     description: 'Create new private contexts (e.g., vaults, workspaces)',
     risk: 'low',
-    icon: '➕'
   },
   'context:list': {
     title: 'List Contexts',
     description: 'View your existing contexts',
     risk: 'low',
-    icon: '📋'
   },
   'context:execute': {
-    title: 'Execute Smart Contracts',
-    description: 'Run application code in your private contexts',
+    title: 'Run WASM Applications',
+    description: 'Execute this application’s WASM code inside your private contexts',
     risk: 'medium',
-    icon: '⚡'
   },
   'context:alias': {
     title: 'Name Contexts',
     description: 'Give your contexts readable names, and look them up by name',
     risk: 'low',
-    icon: '🏷️'
   },
   'namespace': {
     title: 'Namespaces',
     description: 'View, create, and manage the shared spaces this app works in',
     risk: 'medium',
-    icon: '🗂️'
   },
   'group': {
     title: 'Groups & Members',
     description: 'Create groups inside a namespace and manage who belongs to them',
     risk: 'medium',
-    icon: '👥'
   },
   'blob': {
     title: 'Files',
     description: 'Upload and download files this app stores on your node',
     risk: 'low',
-    icon: '📎'
   },
   'application:list': {
     title: 'List Applications',
     description: 'See which applications are installed on your node',
     risk: 'low',
-    icon: '🔍'
   },
   'application': {
     title: 'Application Management',
     description: 'Install, uninstall, and manage applications (admin only)',
     risk: 'medium',
-    icon: '📦'
   },
   'admin': {
     title: 'Full Node Administration',
     description: 'Complete control over node configuration and all data',
     risk: 'high',
-    icon: '🔐'
+    whyHighRisk:
+      'Unlike the other permissions, this one is not limited to what this application does. It covers the whole node: every context and file you hold, the applications you have installed, and your keys — including the ability to issue new access to itself or to someone else. It cannot be narrowed down, and the only way to take it back is to revoke the key.',
   }
 };
 
@@ -112,7 +108,6 @@ function describePermission(permission: string): PermissionInfo {
       title: base,
       description: 'Additional access requested by this application',
       risk: 'medium' as const,
-      icon: '🔒'
     }
   );
 }
@@ -123,12 +118,10 @@ function describePermission(permission: string): PermissionInfo {
  */
 const COLLAPSE_THRESHOLD = 3;
 
-// Use design system semantic colors
-const RISK_COLORS = {
-  low: tokens.color.semantic.success.value,
-  medium: tokens.color.semantic.warning.value,
-  high: tokens.color.semantic.error.value
-};
+// Only high risk is called out. A badge on every card made "low risk" and
+// "medium risk" the loudest thing on the screen and left nothing for the one
+// grant that actually needs to stand out.
+const HIGH_RISK_COLOR = tokens.color.semantic.error.value;
 
 export function PermissionsView({
   permissions,
@@ -150,7 +143,6 @@ export function PermissionsView({
     () => normalizePermissions(normalizedMode, permissions),
     [normalizedMode, permissions],
   );
-  const hasAdminPermission = normalizedPermissions.includes('admin');
   const primaryLabel = normalizedMode === 'admin' ? 'Generate Token' : 'Approve Permissions';
   const secondaryLabel = normalizedMode === 'admin' ? 'Cancel' : 'Deny';
 
@@ -199,49 +191,72 @@ export function PermissionsView({
     }
   }, []);
   
-  const renderPermissionCard = ({ permission, info }: { permission: string; info: PermissionInfo }) => (
-    <div
-      key={permission}
-      style={{
-        border: `1px solid ${tokens.color.neutral['700'].value}`,
-        borderRadius: tokens.radius.md.value,
-        padding: '12px 16px',
-        backgroundColor: tokens.color.background.secondary.value,
-      }}
-    >
-      <Flex align="flex-start" gap="sm">
-        {/* Risk Badge */}
-        <div style={{
-          backgroundColor: RISK_COLORS[info.risk] + '20',
-          color: RISK_COLORS[info.risk],
-          fontSize: '10px',
-          fontWeight: '700',
-          padding: '4px 8px',
-          borderRadius: '4px',
-          textTransform: 'uppercase',
-          flexShrink: 0,
-          lineHeight: 1,
-        }}>
-          {info.risk} risk
-        </div>
+  const renderPermissionCard = ({ permission, info }: { permission: string; info: PermissionInfo }) => {
+    const isHighRisk = info.risk === 'high';
 
-        {/* Icon */}
-        <span style={{ fontSize: '20px', flexShrink: 0 }}>
-          {info.icon}
-        </span>
+    return (
+      <div
+        key={permission}
+        style={{
+          border: `1px solid ${isHighRisk ? HIGH_RISK_COLOR : tokens.color.neutral['700'].value}`,
+          borderRadius: tokens.radius.md.value,
+          padding: '12px 16px',
+          backgroundColor: isHighRisk
+            ? `${HIGH_RISK_COLOR}12`
+            : tokens.color.background.secondary.value,
+        }}
+      >
+        <Stack spacing="xs">
+          <Flex align="center" gap="sm" wrap="wrap">
+            <Text weight="semibold" size="sm">
+              {info.title}
+            </Text>
+            {isHighRisk && (
+              <span style={{
+                backgroundColor: `${HIGH_RISK_COLOR}20`,
+                color: HIGH_RISK_COLOR,
+                fontSize: '10px',
+                fontWeight: 700,
+                padding: '4px 8px',
+                borderRadius: '4px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                lineHeight: 1,
+                flexShrink: 0,
+              }}>
+                High risk
+              </span>
+            )}
+          </Flex>
 
-        {/* Info */}
-        <Stack spacing="xs" style={{ flex: 1 }}>
-          <Text weight="semibold" size="sm">
-            {info.title}
-          </Text>
           <Text size="xs" color="muted">
             {info.description}
           </Text>
+
+          {isHighRisk && (
+            <div style={{
+              marginTop: '4px',
+              paddingTop: '8px',
+              borderTop: `1px solid ${HIGH_RISK_COLOR}33`,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+            }}>
+              {info.whyHighRisk && (
+                <Text size="xs" color="muted">
+                  <strong style={{ color: HIGH_RISK_COLOR }}>Why this is high risk:</strong>{' '}
+                  {info.whyHighRisk}
+                </Text>
+              )}
+              <Text size="xs">
+                Only approve this if you fully trust the application and understand what it can do.
+              </Text>
+            </div>
+          )}
         </Stack>
-      </Flex>
-    </div>
-  );
+      </div>
+    );
+  };
 
   return (
     <PageShell>
@@ -316,7 +331,6 @@ export function PermissionsView({
                     color: 'var(--color-text-primary)',
                   }}
                 >
-                  <span style={{ fontSize: '20px', flexShrink: 0 }}>🔒</span>
                   <span style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -374,34 +388,6 @@ export function PermissionsView({
               </div>
             </Stack>
 
-            {/* Critical Warning for Admin Permissions */}
-            {hasAdminPermission && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '12px',
-                padding: '12px 14px',
-                borderRadius: 'var(--radius-md)',
-                border: `1px solid ${tokens.color.semantic.error.value}`,
-                background: `${tokens.color.semantic.error.value}18`,
-                color: 'var(--color-text-primary)',
-              }}>
-                <span style={{ fontSize: '20px', flexShrink: 0 }}>🛑</span>
-                <Stack spacing="xs">
-                  <Text weight="bold" size="sm" style={{ 
-                    color: tokens.color.semantic.error.value,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em'
-                  }}>
-                    Admin Access Requested
-                  </Text>
-                  <Text size="xs">
-                    Granting <strong style={{ color: tokens.color.semantic.error.value }}>admin</strong> permission gives this application unrestricted control over your node. Only approve this if you fully trust the application and understand the risks.
-                  </Text>
-                </Stack>
-              </div>
-            )}
-            
             {/* Security Warning */}
             <div style={{
               display: 'flex',
