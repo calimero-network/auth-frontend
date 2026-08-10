@@ -51,6 +51,36 @@ const PERMISSION_DETAILS: Record<string, PermissionInfo> = {
     risk: 'medium',
     icon: '⚡'
   },
+  'context:alias': {
+    title: 'Name Contexts',
+    description: 'Give your contexts readable names, and look them up by name',
+    risk: 'low',
+    icon: '🏷️'
+  },
+  'namespace': {
+    title: 'Namespaces',
+    description: 'View, create, and manage the shared spaces this app works in',
+    risk: 'medium',
+    icon: '🗂️'
+  },
+  'group': {
+    title: 'Groups & Members',
+    description: 'Create groups inside a namespace and manage who belongs to them',
+    risk: 'medium',
+    icon: '👥'
+  },
+  'blob': {
+    title: 'Files',
+    description: 'Upload and download files this app stores on your node',
+    risk: 'low',
+    icon: '📎'
+  },
+  'application:list': {
+    title: 'List Applications',
+    description: 'See which applications are installed on your node',
+    risk: 'low',
+    icon: '🔍'
+  },
   'application': {
     title: 'Application Management',
     description: 'Install, uninstall, and manage applications (admin only)',
@@ -64,6 +94,34 @@ const PERMISSION_DETAILS: Record<string, PermissionInfo> = {
     icon: '🔐'
   }
 };
+
+/**
+ * Scope strings are not always a bare key: core accepts bracket params
+ * (`namespace:list[ns-1]`) and family-wide grants (`namespace` covers every
+ * `namespace:*`). Resolve the most specific copy we have, then fall back to
+ * the family, then to the raw string — so an unknown scope still renders as a
+ * card instead of leaking a bare `group:create` at the user.
+ */
+function describePermission(permission: string): PermissionInfo {
+  const base = permission.split('[')[0].trim();
+  const family = base.split(':')[0];
+
+  return (
+    PERMISSION_DETAILS[base] ||
+    PERMISSION_DETAILS[family] || {
+      title: base,
+      description: 'Additional access requested by this application',
+      risk: 'medium' as const,
+      icon: '🔒'
+    }
+  );
+}
+
+/**
+ * Below this many non-critical permissions the list is short enough to show
+ * outright; at or above it the detail collapses behind a summary row.
+ */
+const COLLAPSE_THRESHOLD = 3;
 
 // Use design system semantic colors
 const RISK_COLORS = {
@@ -82,7 +140,7 @@ export function PermissionsView({
 }: PermissionsViewProps) {
   const [manifestData, setManifestData] = useState<any>(null);
   const [referrer, setReferrer] = useState<string>('');
-  const manifestUrl = getStoredUrlParam('manifest-url');
+  const [showDetails, setShowDetails] = useState(false);
   const storedMode = getStoredUrlParam('mode');
   const normalizedMode = useMemo(() => {
     const candidate = modeProp ?? storedMode ?? '';
@@ -95,7 +153,29 @@ export function PermissionsView({
   const hasAdminPermission = normalizedPermissions.includes('admin');
   const primaryLabel = normalizedMode === 'admin' ? 'Generate Token' : 'Approve Permissions';
   const secondaryLabel = normalizedMode === 'admin' ? 'Cancel' : 'Deny';
-  
+
+  const described = useMemo(
+    () =>
+      normalizedPermissions.map((permission) => ({
+        permission,
+        info: describePermission(permission),
+      })),
+    [normalizedPermissions],
+  );
+
+  // High-risk grants are never collapsed — hiding them behind a toggle would
+  // hide exactly what the user has to see before approving.
+  const critical = described.filter(({ info }) => info.risk === 'high');
+  const routine = described.filter(({ info }) => info.risk !== 'high');
+  const isCollapsible = routine.length >= COLLAPSE_THRESHOLD;
+  const routineVisible = !isCollapsible || showDetails;
+
+  const summaryPreview = useMemo(() => {
+    const titles = routine.slice(0, 3).map(({ info }) => info.title);
+    const hidden = routine.length - titles.length;
+    return hidden > 0 ? `${titles.join(', ')} +${hidden} more` : titles.join(', ');
+  }, [routine]);
+
   useEffect(() => {
     // Load manifest data if available
     const stored = localStorage.getItem('manifest-data');
@@ -119,8 +199,50 @@ export function PermissionsView({
     }
   }, []);
   
-  console.log('PermissionsView props:', { selectedContext, selectedIdentity, manifestUrl, referrer });
-  
+  const renderPermissionCard = ({ permission, info }: { permission: string; info: PermissionInfo }) => (
+    <div
+      key={permission}
+      style={{
+        border: `1px solid ${tokens.color.neutral['700'].value}`,
+        borderRadius: tokens.radius.md.value,
+        padding: '12px 16px',
+        backgroundColor: tokens.color.background.secondary.value,
+      }}
+    >
+      <Flex align="flex-start" gap="sm">
+        {/* Risk Badge */}
+        <div style={{
+          backgroundColor: RISK_COLORS[info.risk] + '20',
+          color: RISK_COLORS[info.risk],
+          fontSize: '10px',
+          fontWeight: '700',
+          padding: '4px 8px',
+          borderRadius: '4px',
+          textTransform: 'uppercase',
+          flexShrink: 0,
+          lineHeight: 1,
+        }}>
+          {info.risk} risk
+        </div>
+
+        {/* Icon */}
+        <span style={{ fontSize: '20px', flexShrink: 0 }}>
+          {info.icon}
+        </span>
+
+        {/* Info */}
+        <Stack spacing="xs" style={{ flex: 1 }}>
+          <Text weight="semibold" size="sm">
+            {info.title}
+          </Text>
+          <Text size="xs" color="muted">
+            {info.description}
+          </Text>
+        </Stack>
+      </Flex>
+    </div>
+  );
+
   return (
     <PageShell>
       <Card
@@ -163,63 +285,93 @@ export function PermissionsView({
             )}
             
             <Text color="muted">
-              This application is requesting the following permissions:
+              {described.length === 1
+                ? 'This application is requesting one permission.'
+                : `This application is requesting ${described.length} permissions.`}
             </Text>
-      
-            {/* Permission Cards */}
+
+            {/* Permission Cards — critical grants always visible, the routine
+                ones summarised behind a disclosure so the popup stays short. */}
             <Stack spacing="sm">
-              {normalizedPermissions.map((permission) => {
-                const info = PERMISSION_DETAILS[permission] || {
-                  title: permission,
-                  description: 'Permission access',
-                  risk: 'medium' as const,
-                  icon: '🔒'
-                };
-                
-                return (
-                  <div
-                    key={permission}
-                    style={{
-                      border: `1px solid ${tokens.color.neutral['700'].value}`,
-                      borderRadius: tokens.radius.md.value,
-                      padding: '12px 16px',
-                      backgroundColor: tokens.color.background.secondary.value,
-                    }}
-                  >
-                    <Flex align="flex-start" gap="sm">
-                      {/* Risk Badge */}
-                      <div style={{
-                        backgroundColor: RISK_COLORS[info.risk] + '20',
-                        color: RISK_COLORS[info.risk],
-                        fontSize: '10px',
-                        fontWeight: '700',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        textTransform: 'uppercase',
-                        flexShrink: 0,
-                        lineHeight: 1,
-                      }}>
-                        {info.risk} risk
-                      </div>
-                      
-                      {/* Icon */}
-                      <span style={{ fontSize: '20px', flexShrink: 0 }}>
-                        {info.icon}
-                      </span>
-                      
-                      {/* Info */}
-                      <Stack spacing="xs" style={{ flex: 1 }}>
-                        <Text weight="semibold" size="sm">
-                          {info.title}
-                        </Text>
-                        <Text size="xs" color="muted">
-                          {info.description}
-                        </Text>
-                      </Stack>
-                    </Flex>
-                  </div>
-                );
-              })}
+              {critical.map(renderPermissionCard)}
+
+              {isCollapsible && (
+                <button
+                  type="button"
+                  onClick={() => setShowDetails((open) => !open)}
+                  aria-expanded={showDetails}
+                  aria-controls="permission-details"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    width: '100%',
+                    textAlign: 'left',
+                    font: 'inherit',
+                    cursor: 'pointer',
+                    border: `1px solid ${tokens.color.neutral['700'].value}`,
+                    borderRadius: tokens.radius.md.value,
+                    padding: '12px 16px',
+                    backgroundColor: tokens.color.background.secondary.value,
+                    color: 'var(--color-text-primary)',
+                  }}
+                >
+                  <span style={{ fontSize: '20px', flexShrink: 0 }}>🔒</span>
+                  <span style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    flex: 1,
+                    minWidth: 0,
+                  }}>
+                    <Text as="span" weight="semibold" size="sm">
+                      {routine.length === 1
+                        ? '1 more permission'
+                        : `${routine.length} standard permissions`}
+                    </Text>
+                    <Text as="span" size="xs" color="muted">
+                      {summaryPreview}
+                    </Text>
+                  </span>
+                  <span style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    flexShrink: 0,
+                  }}>
+                    <Text as="span" size="xs" color="muted">
+                      {showDetails ? 'Hide' : 'Details'}
+                    </Text>
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 12 12"
+                      aria-hidden="true"
+                      style={{
+                        transform: showDetails ? 'rotate(180deg)' : 'none',
+                        transition: 'transform 120ms ease',
+                      }}
+                    >
+                      <path
+                        d="M2 4.5 6 8.5 10 4.5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                </button>
+              )}
+
+              {/* `display: contents` keeps the always-present aria-controls
+                  target from adding a stray gap while collapsed. */}
+              <div id="permission-details" style={{ display: 'contents' }}>
+                {routineVisible && (
+                  <Stack spacing="sm">{routine.map(renderPermissionCard)}</Stack>
+                )}
+              </div>
             </Stack>
 
             {/* Critical Warning for Admin Permissions */}
