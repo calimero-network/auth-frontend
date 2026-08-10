@@ -47,19 +47,19 @@ describe('PermissionsView disclosure', () => {
     // The count is stated up front, but no per-permission detail is rendered.
     expect(screen.getByText('This application is requesting 8 permissions.')).toBeTruthy();
     expect(screen.getByText('8 standard permissions')).toBeTruthy();
-    expect(screen.queryByText('Execute Smart Contracts')).toBeNull();
+    expect(screen.queryByText('Run WASM Applications')).toBeNull();
     expect(screen.queryByText('Groups & Members')).toBeNull();
 
     const toggle = screen.getByRole('button', { expanded: false });
     await userEvent.click(toggle);
 
-    expect(screen.getByText('Execute Smart Contracts')).toBeTruthy();
+    expect(screen.getByText('Run WASM Applications')).toBeTruthy();
     expect(screen.getByText('Groups & Members')).toBeTruthy();
     expect(screen.getByRole('button', { expanded: true })).toBeTruthy();
 
     // ...and it collapses again.
     await userEvent.click(screen.getByRole('button', { expanded: true }));
-    expect(screen.queryByText('Execute Smart Contracts')).toBeNull();
+    expect(screen.queryByText('Run WASM Applications')).toBeNull();
   });
 
   it('shows the approve/deny buttons without expanding anything', () => {
@@ -74,7 +74,8 @@ describe('PermissionsView disclosure', () => {
 
     // Visible immediately — no disclosure to open.
     expect(screen.getByText('Full Node Administration')).toBeTruthy();
-    expect(screen.getByText('Admin Access Requested')).toBeTruthy();
+    expect(screen.getByText('High risk')).toBeTruthy();
+    expect(screen.getByText(/Why this is high risk:/)).toBeTruthy();
     expect(screen.queryByRole('button', { expanded: false })).toBeNull();
   });
 
@@ -83,14 +84,37 @@ describe('PermissionsView disclosure', () => {
 
     expect(screen.getByText('Full Node Administration')).toBeTruthy();
     expect(screen.getByText('8 standard permissions')).toBeTruthy();
-    expect(screen.queryByText('Execute Smart Contracts')).toBeNull();
+    expect(screen.queryByText('Run WASM Applications')).toBeNull();
   });
 
   it('renders a short request without a disclosure at all', () => {
     renderView(['context:execute'], 'single-context');
 
-    expect(screen.getByText('Execute Smart Contracts')).toBeTruthy();
+    expect(screen.getByText('Run WASM Applications')).toBeTruthy();
     expect(screen.queryByRole('button', { expanded: false })).toBeNull();
+  });
+
+  it('badges only the high-risk grant', async () => {
+    const { container } = renderView([...MULTI_CONTEXT, 'admin'], 'multi-context');
+
+    await userEvent.click(screen.getByRole('button', { expanded: false }));
+
+    // Every card used to carry a risk badge, which made "low risk" and "medium
+    // risk" the loudest thing on the screen.
+    expect(container.textContent).not.toMatch(/low risk/i);
+    expect(container.textContent).not.toMatch(/medium risk/i);
+    expect(screen.getByText('High risk')).toBeTruthy();
+  });
+
+  it('renders no emoji in the permission list', async () => {
+    const { container } = renderView([...MULTI_CONTEXT, 'admin'], 'multi-context');
+
+    await userEvent.click(screen.getByRole('button', { expanded: false }));
+
+    const emoji = /\p{Extended_Pictographic}/u;
+    const list = container.querySelector('#permission-details')?.parentElement;
+    expect(list).toBeTruthy();
+    expect(list!.textContent ?? '').not.toMatch(emoji);
   });
 
   it('labels scoped and family-wide variants of a known scope', async () => {
