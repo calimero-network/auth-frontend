@@ -136,9 +136,12 @@ const REVOKED_AUTH_ERRORS = ['token_reuse', 'token_revoked'];
  * The node revoked this token family — a retry can never succeed, only a fresh
  * login.
  *
- * TODO: mero-js#67 adds a terminal `AuthRevokedError` of its own. The app is
- * on mero-js 1.x, which does not carry it yet; once the dependency range picks
- * up a release with it, drop this class and the header sniffing below.
+ * mero-js now exports an `AuthRevokedError` of its own (and an `onAuthRevoked`
+ * hook), which this predates. Collapsing the two is deliberately NOT part of
+ * the bump that made them available: this is the app's most load-bearing path,
+ * and `generateClientKeyDirect` below bypasses the SDK entirely, so the header
+ * sniffing still has to exist for that caller either way. Left as a follow-up
+ * rather than folded into a seventeen-major dependency jump.
  */
 export class AuthRevokedError extends Error {
   constructor(message = 'Your session was revoked. Please sign in again.') {
@@ -163,8 +166,8 @@ export function isAuthRevoked(err: unknown): boolean {
     if (authError && REVOKED_AUTH_ERRORS.includes(authError)) return true;
   }
 
-  // mero-js 1.x rewraps some transport failures into a plain Error that keeps
-  // only the message, so sniff that too.
+  // Some transport failures arrive rewrapped as a plain Error that keeps only
+  // the message, so sniff that too.
   const message = err instanceof Error ? err.message : '';
   return REVOKED_AUTH_ERRORS.some((code) => message.includes(code));
 }

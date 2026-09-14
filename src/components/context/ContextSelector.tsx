@@ -67,7 +67,13 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
   }, [fetchContexts]);
 
   const applicationId = getStoredUrlParam("application-id");
-  const applicationPath = getStoredUrlParam("application-path");
+  // Coordinates, not a URL — see ApplicationInstallCheck.
+  const packageName = getStoredUrlParam("package-name");
+  const packageVersion = getStoredUrlParam("package-version");
+  const coords =
+    packageName && packageVersion
+      ? { package: packageName, version: packageVersion }
+      : null;
   const installedApplicationId =
     sessionStorage.getItem("installed-application-id") ||
     localStorage.getItem("installed-application-id");
@@ -336,10 +342,10 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
                     disabled={creationLoading || !!jsonError}
                     onClick={async () => {
                       if (!validateJson(initArgs)) return;
-                      if (applicationId && applicationPath) {
+                      if (applicationId && coords) {
                         const success = await checkAndInstallApplication(
                           applicationId,
-                          applicationPath,
+                          coords,
                         );
                         if (!success) return;
                       }

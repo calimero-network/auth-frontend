@@ -20,7 +20,7 @@
   "license": "ISC",
   "dependencies": {
     "@calimero-network/mero-icons": "^0.0.4",
-    "@calimero-network/mero-js": "^1.2.1",
+    "@calimero-network/mero-js": "^18.3.0",
     "@calimero-network/mero-tokens": "^0.0.5",
     "@calimero-network/mero-ui": "^0.3.6",
     "@emotion/react": "^11.14.0",
