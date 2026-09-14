@@ -15,7 +15,7 @@ import { PageShell } from '../common/PageShell';
 import Loader from '../common/Loader';
 import { ErrorView } from '../common/ErrorView';
 import { RegistryClient, registryClient } from '../../utils/registryClient';
-import { getMero, getAccessToken, setAppEndpointKey } from '../../lib/mero';
+import { getMero, getAccessToken } from '../../lib/mero';
 
 interface Manifest {
   manifest_version: string;
@@ -101,9 +101,27 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
   const manifestUrl = getStoredUrlParam('manifest-url');
   const packageName = getStoredUrlParam('package-name');
 
-  useEffect(() => {
-    setAppEndpointKey(window.location.origin);
-  }, []);
+  /*
+   * ⚠️ There used to be an effect here doing:
+   *
+   *     useEffect(() => { setAppEndpointKey(window.location.origin); }, []);
+   *
+   * It overwrote the node endpoint with this page's own origin on mount,
+   * unconditionally — throwing away the `app-url` the caller passed. Every
+   * admin call after this screen then went to whatever server happened to be
+   * serving the auth UI: `POST /admin-api/install-application` answered 404
+   * from the static host, and the flow died with "check that your node is
+   * running and reachable" while the node was running and reachable.
+   *
+   * It is invisible in the deployment it was written for — merod serves this
+   * UI itself, so origin and node are the same host and the assignment is a
+   * no-op. It breaks everywhere else: the desktop app, a hosted auth-frontend,
+   * a dev server against a local node.
+   *
+   * Nothing is needed in its place. `handleUrlParams()` already defaults the
+   * endpoint to the origin when no `app-url` is given, and honours `app-url`
+   * when one is — which is the behaviour this was overriding.
+   */
 
   const packageVersion = getStoredUrlParam('package-version');
   const registryUrl = getStoredUrlParam('registry-url');
