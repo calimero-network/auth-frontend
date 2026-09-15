@@ -19,6 +19,7 @@ import { ApplicationInstallCheck } from '../applications/ApplicationInstallCheck
 import { ManifestProcessor } from '../manifest';
 import { normalizePermissions } from '../../utils/permissions';
 import { AppMode } from '../../types/flows';
+import { describeError } from '../../utils/errors';
 
 const LoginView: React.FC = () => {
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -53,7 +54,7 @@ const LoginView: React.FC = () => {
       return true;
     } catch (err) {
       console.error('Failed to load providers:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load authentication providers');
+      setError(describeError(err, 'Failed to load authentication providers'));
       return false;
     }
   }, []);
@@ -246,7 +247,7 @@ const LoginView: React.FC = () => {
     } catch (err) {
       console.error('Authentication error:', err);
       if (!(await handleRevokedSession(err))) {
-        setError(err instanceof Error ? err.message : 'Authentication failed');
+        setError(describeError(err, 'Authentication failed'));
       }
     } finally {
       setUsernamePasswordLoading(false);
@@ -303,7 +304,7 @@ const LoginView: React.FC = () => {
     } catch (err) {
       console.error('Failed to generate admin client key:', err);
       if (!(await handleRevokedSession(err))) {
-        setError(err instanceof Error ? err.message : 'Failed to generate admin client key');
+        setError(describeError(err, 'Failed to generate admin client key'));
       }
     }
   };
@@ -376,7 +377,7 @@ const LoginView: React.FC = () => {
     } catch (err) {
       console.error('Failed to generate client key:', err);
       if (!(await handleRevokedSession(err))) {
-        setError(err instanceof Error ? err.message : 'Failed to generate client key');
+        setError(describeError(err, 'Failed to generate client key'));
       }
     }
   };

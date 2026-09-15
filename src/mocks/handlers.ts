@@ -129,26 +129,58 @@ const generateScopedToken = async (request: Request, statusOnMissingPermissions 
   });
 };
 
+/**
+ * `POST /admin-api/install-application`, with the node's REAL strictness.
+ *
+ * ⚠️ THIS MOCK USED TO ACCEPT ANYTHING, and that is how a broken client
+ * shipped. It read `body.package` if present and otherwise minted an
+ * `app_legacy_…` id — so a request carrying `{ url, metadata }`, which every
+ * released node rejects outright, passed the whole suite green.
+ *
+ * The node's request type is exactly `{ package: String, version: String }`
+ * (core, `crates/server/primitives/src/admin/mod.rs`) behind a deserializer
+ * that denies unknown fields, so anything else comes back 400 with the message
+ * reproduced below — verified against a live 0.11.0-rc.32 node.
+ */
 const installApplicationResolver: Parameters<typeof http.post>[1] = async ({ request }) => {
   await delay(currentScenario.networkDelay + 500); // Simulate installation time
-  
-  const body = await request.json() as any;
-  
+
+  const body = (await request.json()) as Record<string, unknown>;
+
+  const allowed = new Set(['package', 'version']);
+  const unknown = Object.keys(body).find((k) => !allowed.has(k));
+  if (unknown) {
+    return HttpResponse.json(
+      {
+        error:
+          `Invalid JSON data: Failed to deserialize the JSON body into the target type: ` +
+          `${unknown}: unknown field \`${unknown}\`, expected \`package\` or \`version\``,
+      },
+      { status: 400 },
+    );
+  }
+  if (typeof body.package !== 'string' || typeof body.version !== 'string') {
+    return HttpResponse.json(
+      {
+        error:
+          'Invalid JSON data: Failed to deserialize the JSON body into the target type: ' +
+          'missing field `package`',
+      },
+      { status: 400 },
+    );
+  }
+
   if (currentScenario.forceErrors.includes('install')) {
     return HttpResponse.json(
-      { error: 'Installation failed' }, 
+      { error: 'Installation failed' },
       { status: 500 }
     );
   }
-  
-  // Return installed application ID
-  const appId = body.package 
-    ? `app_${body.package.split('.').pop()}_${Date.now()}`
-    : `app_legacy_${Date.now()}`;
-  
+
   return HttpResponse.json({
     data: {
-      applicationId: appId,  // camelCase (httpClient unwraps one level of 'data')
+      // camelCase (httpClient unwraps one level of 'data')
+      applicationId: `app_${String(body.package).split('.').pop()}_${Date.now()}`,
     }
   });
 };

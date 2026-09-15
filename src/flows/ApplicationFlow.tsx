@@ -9,6 +9,7 @@ import Loader from '../components/common/Loader';
 import { AppMode } from '../types/flows';
 import { getStoredUrlParam } from '../utils/urlParams';
 import { normalizePermissions } from '../utils/permissions';
+import { describeError } from '../utils/errors';
 
 interface ApplicationFlowProps {
   mode: AppMode;
@@ -83,7 +84,7 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
       }
     } catch (err) {
       console.error('Failed to generate token:', err);
-      setError(err instanceof Error ? err.message : 'Failed to generate token');
+      setError(describeError(err, 'Failed to generate token'));
       setGenerating(false);
     }
   };

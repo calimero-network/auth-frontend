@@ -15,7 +15,8 @@ import { PageShell } from '../common/PageShell';
 import Loader from '../common/Loader';
 import { ErrorView } from '../common/ErrorView';
 import { RegistryClient, registryClient } from '../../utils/registryClient';
-import { getMero, getAccessToken, setAppEndpointKey } from '../../lib/mero';
+import { getMero, getAccessToken } from '../../lib/mero';
+import { describeError } from '../../utils/errors';
 
 interface Manifest {
   manifest_version: string;
@@ -101,9 +102,27 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
   const manifestUrl = getStoredUrlParam('manifest-url');
   const packageName = getStoredUrlParam('package-name');
 
-  useEffect(() => {
-    setAppEndpointKey(window.location.origin);
-  }, []);
+  /*
+   * ⚠️ There used to be an effect here doing:
+   *
+   *     useEffect(() => { setAppEndpointKey(window.location.origin); }, []);
+   *
+   * It overwrote the node endpoint with this page's own origin on mount,
+   * unconditionally — throwing away the `app-url` the caller passed. Every
+   * admin call after this screen then went to whatever server happened to be
+   * serving the auth UI: `POST /admin-api/install-application` answered 404
+   * from the static host, and the flow died with "check that your node is
+   * running and reachable" while the node was running and reachable.
+   *
+   * It is invisible in the deployment it was written for — merod serves this
+   * UI itself, so origin and node are the same host and the assignment is a
+   * no-op. It breaks everywhere else: the desktop app, a hosted auth-frontend,
+   * a dev server against a local node.
+   *
+   * Nothing is needed in its place. `handleUrlParams()` already defaults the
+   * endpoint to the origin when no `app-url` is given, and honours `app-url`
+   * when one is — which is the behaviour this was overriding.
+   */
 
   const packageVersion = getStoredUrlParam('package-version');
   const registryUrl = getStoredUrlParam('registry-url');
@@ -205,7 +224,7 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
         }
       } catch (err) {
         console.error('Failed to fetch manifest:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch manifest');
+        setError(describeError(err, 'Failed to fetch manifest'));
       } finally {
         setLoading(false);
       }
@@ -269,25 +288,27 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
 
     try {
       const mero = getMero();
-      const metadataObj: Record<string, any> = {
-        name: manifest._bundleMetadata?.name || manifest.name,
-        version: manifest.version,
-        metadata: manifest.id,
-      };
-      if (manifest._bundleMetadata?.description) metadataObj.description = manifest._bundleMetadata.description;
-      if (manifest._bundleMetadata?.author) metadataObj.author = manifest._bundleMetadata.author;
-      if (manifest._bundleLinks) metadataObj.links = manifest._bundleLinks;
-      if (!metadataObj.description && manifest.provides?.length) metadataObj.description = manifest.provides.join(', ');
-      if (manifest.chains?.length) metadataObj.chains = manifest.chains;
 
-      const metadataBytes = Array.from(new TextEncoder().encode(JSON.stringify(metadataObj)));
-
+      // ⚠️ COORDINATES ONLY. Since core#3652 ("registry-only application
+      // distribution", released in 0.11.0-rc.31) the node resolves the
+      // artifact from its OWN configured registry by `package@version`. The
+      // request takes exactly `{ package, version }` and rejects anything else
+      // outright — `unknown field \`url\`, expected \`package\` or \`version\`` —
+      // which is the error every install through this screen was answering
+      // with.
+      //
+      // The metadata block that used to be assembled here went with it: the
+      // node reads name, description, author, links and chains from the
+      // registry entry it fetched, so a client-supplied copy is both refused
+      // and redundant. `manifest.artifact.uri` is likewise no longer used for
+      // installing — the manifest is still fetched, but only to show the user
+      // what they are about to install.
       const installResponse = await mero.admin.installApplication({
-        url: manifest.artifact.uri,
-        metadata: metadataBytes,
-      } as any);
+        package: manifest.id,
+        version: manifest.version,
+      });
 
-      const applicationId = (installResponse as any)?.applicationId;
+      const applicationId = installResponse.applicationId;
       if (!applicationId) throw new Error('Installation succeeded but no application ID returned');
 
       localStorage.setItem('installed-application-id', applicationId);
@@ -313,7 +334,7 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
       }, 500);
     } catch (err) {
       console.error('Installation failed:', err);
-      setError(err instanceof Error ? err.message : 'Failed to install application');
+      setError(describeError(err, 'Failed to install application'));
       setInstalling(false);
     }
   };

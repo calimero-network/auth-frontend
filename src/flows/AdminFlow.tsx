@@ -6,6 +6,7 @@ import Loader from '../components/common/Loader';
 import { getStoredUrlParam } from '../utils/urlParams';
 import { redirectTokensToCallback } from '../utils/callbackUrl';
 import { normalizePermissions } from '../utils/permissions';
+import { describeError } from '../utils/errors';
 
 /**
  * AdminFlow - Handles admin token generation
@@ -51,7 +52,7 @@ export const AdminFlow: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to generate admin token:', err);
-      setError(err instanceof Error ? err.message : 'Failed to generate admin token');
+      setError(describeError(err, 'Failed to generate admin token'));
       setGenerating(false);
     }
   };

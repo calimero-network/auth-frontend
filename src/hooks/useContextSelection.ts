@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { getMero, getAccessToken, getRefreshToken } from '../lib/mero';
+import { describeError } from '../utils/errors';
 
 interface Context {
     id: string;
@@ -29,7 +30,7 @@ export function useContextSelection() {
             const contextsRaw = (response as any)?.data?.contexts ?? (response as any)?.contexts ?? [];
             setContexts(Array.isArray(contextsRaw) ? contextsRaw : []);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to fetch contexts');
+            setError(describeError(err, 'Failed to fetch contexts'));
         } finally {
             setLoading(false);
         }
@@ -49,7 +50,7 @@ export function useContextSelection() {
             const ids = (response as any)?.data?.identities ?? (response as any)?.identities ?? [];
             setIdentities(ids);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to fetch identities');
+            setError(describeError(err, 'Failed to fetch identities'));
         } finally {
             setLoading(false);
         }

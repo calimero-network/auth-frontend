@@ -40,11 +40,19 @@ export function ApplicationInstallCheck({ onComplete, onBack }: ApplicationInsta
   const [isCheckingInstallation, setIsCheckingInstallation] = useState(true);
 
   const applicationId = getStoredUrlParam('application-id');
-  const applicationPath = getStoredUrlParam('application-path');
+  // ⚠️ Coordinates, not a URL. A node installs by `package@version` and
+  // resolves the artifact against its own registry (core#3652, rc.31+); the
+  // `application-path` this used to read is a contract the node deleted.
+  const packageName = getStoredUrlParam('package-name');
+  const packageVersion = getStoredUrlParam('package-version');
+  const coords =
+    packageName && packageVersion
+      ? { package: packageName, version: packageVersion }
+      : null;
 
   useEffect(() => {
     const checkApplication = async () => {
-      if (!applicationId || !applicationPath) {
+      if (!applicationId || !coords) {
         setIsCheckingInstallation(false);
         return;
       }
@@ -86,7 +94,7 @@ export function ApplicationInstallCheck({ onComplete, onBack }: ApplicationInsta
     };
 
     checkApplication();
-  }, [applicationId, applicationPath, onComplete]);
+  }, [applicationId, coords, onComplete]);
 
   if (isLoading || isCheckingInstallation) {
     return <Loader />;
@@ -110,7 +118,7 @@ export function ApplicationInstallCheck({ onComplete, onBack }: ApplicationInsta
     );
   }
 
-  if (!applicationId || !applicationPath) {
+  if (!applicationId || !coords) {
     return (
       <PageShell>
         <Card variant="rounded" color="var(--color-border-brand)">
@@ -152,7 +160,7 @@ export function ApplicationInstallCheck({ onComplete, onBack }: ApplicationInsta
                 <Button
                   variant="primary"
                   onClick={async () => {
-                    const success = await checkAndInstallApplication(applicationId, applicationPath);
+                    const success = await checkAndInstallApplication(applicationId, coords);
                     if (success) {
                       onComplete('', '');
                     }
@@ -191,7 +199,7 @@ export function ApplicationInstallCheck({ onComplete, onBack }: ApplicationInsta
               <Button
                 variant="primary"
                 onClick={async () => {
-                  const success = await checkAndInstallApplication(applicationId, applicationPath);
+                  const success = await checkAndInstallApplication(applicationId, coords);
                   if (success) {
                     onComplete('', '');
                   }

@@ -11,14 +11,39 @@ import {
 } from '@calimero-network/mero-ui';
 import { tokens } from '@calimero-network/mero-tokens';
 import { PageShell } from './PageShell';
+import { isReachabilityMessage } from '../../utils/errors';
 
 interface ErrorViewProps {
   message: string;
   onRetry?: () => void;
   buttonText?: string;
+  /**
+   * Override the footer line. Pass `null` to show none — the default is
+   * derived from the message and is right for every caller today.
+   */
+  hint?: string | null;
 }
 
-export function ErrorView({ message, onRetry, buttonText }: ErrorViewProps) {
+export function ErrorView({ message, onRetry, buttonText, hint }: ErrorViewProps) {
+  /**
+   * ⚠️ THE FOOTER USED TO SAY "check that your node is running and reachable"
+   * UNCONDITIONALLY, which is the wrong advice for most of the errors that
+   * reach this card and was actively harmful for one of them: installing an
+   * application answered `HTTP 400 Bad Request` because the client was sending
+   * a field core had deleted, and the screen told the reader to go and check a
+   * node that had answered in milliseconds. Restarting it, of course, changed
+   * nothing.
+   *
+   * So the connectivity advice is now given only where it could be true — a
+   * request that never landed, or a 5xx — and a refused request says what it
+   * actually was.
+   */
+  const footer =
+    hint !== undefined
+      ? hint
+      : isReachabilityMessage(message)
+        ? 'If the problem persists, check that your node is running and reachable.'
+        : 'The node answered and refused this request — the message above is its own.';
   const handleAction = () => {
     if (onRetry) {
       onRetry();
@@ -56,9 +81,11 @@ export function ErrorView({ message, onRetry, buttonText }: ErrorViewProps) {
               </Text>
             </div>
 
-            <Text size="sm" color="muted">
-              If the problem persists, check that your node is running and reachable.
-            </Text>
+            {footer && (
+              <Text size="sm" color="muted">
+                {footer}
+              </Text>
+            )}
 
             <Flex justify="flex-end">
               <Button

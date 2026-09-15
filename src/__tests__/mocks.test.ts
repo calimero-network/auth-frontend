@@ -172,30 +172,55 @@ describe('MSW Mock Server', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          url: 'ipfs://test',
           package: 'network.calimero.test',
           version: '1.0.0',
         }),
       });
-      
+
       const payload = await response.json();
-      
+
       expect(response.ok).toBe(true);
       expect(payload.data.applicationId).toBeTruthy();
     });
-    
+
+    // ⚠️ THE REGRESSION THIS SUITE MISSED. Both cases above used to send
+    // `url: 'ipfs://test'` alongside the coordinates and pass, because the mock
+    // accepted any body — while every released node answers the real request
+    // with a 400. Asserting the refusal is what makes the mock worth having.
+    it('refuses an install carrying a url, the way a real node does', async () => {
+      const response = await fetch('http://node1.127.0.0.1.nip.io/admin-api/applications/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: 'ipfs://test', metadata: [] }),
+      });
+
+      expect(response.status).toBe(400);
+      const payload = await response.json();
+      expect(payload.error).toContain('unknown field `url`');
+    });
+
+    it('refuses an install that is missing a version', async () => {
+      const response = await fetch('http://node1.127.0.0.1.nip.io/admin-api/applications/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package: 'network.calimero.test' }),
+      });
+
+      expect(response.status).toBe(400);
+    });
+
     it('should fail installation when error is forced', async () => {
       updateScenario({ forceErrors: ['install'] });
-      
+
       const response = await fetch('http://node1.127.0.0.1.nip.io/admin-api/applications/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          url: 'ipfs://test',
           package: 'network.calimero.test',
+          version: '1.0.0',
         }),
       });
-      
+
       expect(response.status).toBe(500);
     });
   });

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { getStoredUrlParam } from '../utils/urlParams';
 import { getMero } from '../lib/mero';
+import { describeError } from '../utils/errors';
 
 export const PROTOCOLS = ['near'] as const;
 export const PROTOCOL_DISPLAY = {
@@ -17,7 +18,7 @@ interface UseContextCreationReturn {
   setSelectedProtocol: (protocol: Protocol | null) => void;
   checkAndInstallApplication: (
     applicationId?: string | null,
-    applicationPath?: string | null
+    coords?: { package: string; version: string } | null
   ) => Promise<boolean>;
   handleContextCreation: (
     applicationIdOverride?: string | null,
@@ -35,8 +36,52 @@ function getStoredApplicationId(): string | null {
   );
 }
 
-function getStoredApplicationPath(): string | null {
-  return getStoredUrlParam('application-path');
+/**
+ * The registry coordinates to install from.
+ *
+ * ⚠️ NOT a URL. Since core#3652 ("registry-only application distribution",
+ * first released in 0.11.0-rc.31) a node installs an application by
+ * `package@version` and resolves the artifact against its OWN configured
+ * registry. `POST /admin-api/install-application` takes exactly
+ * `{ package, version }` and refuses any other field outright:
+ *
+ *   unknown field `url`, expected `package` or `version`
+ *
+ * which is what every install through this screen answered with. The
+ * `application-path` parameter this used to read is that dead contract — a URL
+ * the node will not accept and cannot be given.
+ */
+function getStoredPackageCoords(): { package: string; version: string } | null {
+  const name = getStoredUrlParam('package-name');
+  const version = getStoredUrlParam('package-version');
+  if (!name || !version) return null;
+  return { package: name, version };
+}
+
+/**
+ * The group a new context belongs to.
+ *
+ * ⚠️ `createContext` REQUIRES a `groupId` now, and no longer takes a
+ * `protocol` — a context is not free-standing any more, it lives inside a
+ * group. A namespace's id is usable directly as that group id (verified
+ * against a 0.11.0-rc.32 node: `POST /admin-api/contexts` with
+ * `groupId = namespaceId` creates the context and answers with that same id in
+ * `groupId`), so this reuses the application's existing namespace and only
+ * creates one when the node has none.
+ */
+async function resolveGroupId(applicationId: string): Promise<string> {
+  const mero = getMero();
+
+  // `ListNamespacesResponseData` is the array itself, not an object wrapping
+  // one — the same shape trap the alias listings have.
+  const existing = await mero.admin
+    .listNamespacesForApplication(applicationId)
+    .catch(() => null);
+  const first = existing?.[0]?.namespaceId;
+  if (first) return first;
+
+  const created = await mero.admin.createNamespace({ applicationId });
+  return created.namespaceId;
 }
 
 export function useContextCreation(): UseContextCreationReturn {
@@ -48,7 +93,7 @@ export function useContextCreation(): UseContextCreationReturn {
 
   const checkAndInstallApplication = async (
     applicationId?: string | null,
-    applicationPath?: string | null
+    coords?: { package: string; version: string } | null
   ) => {
     try {
       const targetApplicationId = applicationId || getStoredApplicationId();
@@ -57,8 +102,10 @@ export function useContextCreation(): UseContextCreationReturn {
         throw new Error('Missing application identifier');
       }
 
-      // If we don't have an application path, assume app is already installed
-      if (!applicationPath) {
+      // No coordinates to install from: assume the app is already installed,
+      // which is the same assumption the old path-less branch made.
+      const target = coords ?? getStoredPackageCoords();
+      if (!target) {
         return true;
       }
 
@@ -71,14 +118,16 @@ export function useContextCreation(): UseContextCreationReturn {
       } catch {
         // Application doesn't exist, try to install
         try {
-          await mero.admin.installApplication({
-            url: applicationPath,
-            metadata: [],
-          } as any);
+          await mero.admin.installApplication(target);
           return true;
         } catch (installErr) {
-          const errorMessage = installErr instanceof Error ? installErr.message : '';
-          if (errorMessage === 'fatal: blob hash mismatch') {
+          // ⚠️ `includes`, NOT `===`. The node's sentence now arrives with the
+          // status in front of it (`HTTP 400: fatal: blob hash mismatch`), and
+          // an equality check against the bare string silently stops matching
+          // — which turns the "reinstall this application?" prompt back into a
+          // dead-end error card.
+          const errorMessage = describeError(installErr, '');
+          if (errorMessage.includes('blob hash mismatch')) {
             setApplicationMismatch(true);
             setShowInstallPrompt(true);
             return false;
@@ -100,25 +149,21 @@ export function useContextCreation(): UseContextCreationReturn {
     
     try {
       const mero = getMero();
-      const applicationPath = getStoredApplicationPath();
+      const coords = getStoredPackageCoords();
       let applicationId = applicationIdOverride || getStoredApplicationId();
-      
+
       if (!applicationId || !selectedProtocol) {
         throw new Error('Missing required parameters');
       }
 
-      // Install application when application path is available (legacy flow)
-      if (applicationPath) {
+      // Install first when we were given coordinates to install from.
+      if (coords) {
         try {
-          const installResponse = await mero.admin.installApplication({
-            url: applicationPath,
-            metadata: [],
-          } as any);
-          const newApplicationId = (installResponse as any)?.data?.applicationId ?? (installResponse as any)?.applicationId;
-          applicationId = newApplicationId;
-          sessionStorage.setItem('application-id', newApplicationId);
+          const installResponse = await mero.admin.installApplication(coords);
+          applicationId = installResponse.applicationId;
+          sessionStorage.setItem('application-id', applicationId);
         } catch (installErr) {
-          setError(installErr instanceof Error ? installErr.message : 'Failed to install application');
+          setError(describeError(installErr, 'Failed to install application'));
           return;
         }
       }
@@ -130,21 +175,20 @@ export function useContextCreation(): UseContextCreationReturn {
       // Create context using finalized application ID
       try {
         const createContextResponse = await mero.admin.createContext({
-          protocol: selectedProtocol,
           applicationId,
+          groupId: await resolveGroupId(applicationId),
           initializationParams: initArgs
             ? Array.from(new TextEncoder().encode(initArgs))
             : [],
-        } as any);
+        });
 
-        const respData = (createContextResponse as any)?.data ?? createContextResponse;
-        const { contextId, memberPublicKey } = respData;
+        const { contextId, memberPublicKey } = createContextResponse;
         setSelectedProtocol(null);
         setShowInstallPrompt(false);
         setApplicationMismatch(false);
         return { contextId, memberPublicKey };
       } catch (createErr) {
-        setError(createErr instanceof Error ? createErr.message : 'Failed to create context');
+        setError(describeError(createErr, 'Failed to create context'));
         return;
       }
     } catch (err: any) {

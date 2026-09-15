@@ -21,6 +21,7 @@ import {
   Stack,
   Text,
 } from '@calimero-network/mero-ui';
+import { describeError } from '../utils/errors';
 
 interface PackageFlowProps {
   mode: AppMode;
@@ -133,7 +134,7 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
       }
     } catch (err) {
       console.error('Failed to generate token:', err);
-      setError(err instanceof Error ? err.message : 'Failed to generate token');
+      setError(describeError(err, 'Failed to generate token'));
       setGenerating(false);
     }
   };
