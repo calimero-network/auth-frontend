@@ -16,6 +16,7 @@ import Loader from '../common/Loader';
 import { ErrorView } from '../common/ErrorView';
 import { RegistryClient, registryClient } from '../../utils/registryClient';
 import { getMero, getAccessToken } from '../../lib/mero';
+import { describeError } from '../../utils/errors';
 
 interface Manifest {
   manifest_version: string;
@@ -223,7 +224,7 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
         }
       } catch (err) {
         console.error('Failed to fetch manifest:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch manifest');
+        setError(describeError(err, 'Failed to fetch manifest'));
       } finally {
         setLoading(false);
       }
@@ -333,7 +334,7 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
       }, 500);
     } catch (err) {
       console.error('Installation failed:', err);
-      setError(err instanceof Error ? err.message : 'Failed to install application');
+      setError(describeError(err, 'Failed to install application'));
       setInstalling(false);
     }
   };

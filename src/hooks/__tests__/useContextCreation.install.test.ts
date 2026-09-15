@@ -72,6 +72,43 @@ describe('checkAndInstallApplication', () => {
     expect(bodies[0]).not.toHaveProperty('metadata');
   });
 
+  it("surfaces the node's own words when it refuses the install", async () => {
+    // ⚠️ THE OTHER HALF OF THE SAME BUG REPORT. The node explained itself in
+    // detail and the screen rendered `HTTP 400 Bad Request` over "check that
+    // your node is running and reachable" — so the one sentence naming the
+    // broken field never reached anybody, and the advice pointed at a node
+    // that had answered in milliseconds.
+    sessionStorage.setItem('package-name', 'com.calimero.mero-blocks');
+    sessionStorage.setItem('package-version', '0.0.3');
+    sessionStorage.setItem('application-id', 'some-app-id');
+
+    server.use(
+      http.post(`${NODE}/admin-api/install-application`, () =>
+        HttpResponse.json(
+          {
+            error:
+              'Invalid JSON data: Failed to deserialize the JSON body into the target type: url: unknown field `url`, expected `package` or `version`',
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    const { result } = renderHook(() => useContextCreation());
+    act(() => result.current.setSelectedProtocol('near'));
+
+    await act(async () => {
+      await result.current.handleContextCreation('some-app-id');
+    });
+
+    const message = result.current.error ?? '';
+    expect(message).toContain('unknown field `url`');
+    expect(message).toContain('expected `package` or `version`');
+    expect(message).toContain('400');
+    // Not the generic sentence the screen used to show instead.
+    expect(message).not.toBe('Failed to install application');
+  });
+
   it('does not attempt an install when no coordinates are known', async () => {
     const { result } = renderHook(() => useContextCreation());
 

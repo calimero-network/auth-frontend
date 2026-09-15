@@ -11,6 +11,7 @@ import ProviderSelector from '../providers/ProviderSelector';
 import { UsernamePasswordForm } from './UsernamePasswordForm';
 import Loader from '../common/Loader';
 import { ErrorView } from '../common/ErrorView';
+import { describeError } from '../../utils/errors';
 
 interface EnsureAdminSessionProps {
   children: React.ReactNode;
@@ -52,7 +53,7 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
       return true;
     } catch (err) {
       console.error('Failed to load providers:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load authentication providers');
+      setError(describeError(err, 'Failed to load authentication providers'));
       return false;
     }
   }, []);
@@ -156,7 +157,7 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
         setShowUsernamePasswordForm(false);
         setShowProviders(await loadProviders());
       }
-      setError(err instanceof Error ? err.message : 'Authentication failed');
+      setError(describeError(err, 'Authentication failed'));
     } finally {
       setUsernamePasswordLoading(false);
     }

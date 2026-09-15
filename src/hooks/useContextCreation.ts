@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { getStoredUrlParam } from '../utils/urlParams';
 import { getMero } from '../lib/mero';
+import { describeError } from '../utils/errors';
 
 export const PROTOCOLS = ['near'] as const;
 export const PROTOCOL_DISPLAY = {
@@ -120,8 +121,13 @@ export function useContextCreation(): UseContextCreationReturn {
           await mero.admin.installApplication(target);
           return true;
         } catch (installErr) {
-          const errorMessage = installErr instanceof Error ? installErr.message : '';
-          if (errorMessage === 'fatal: blob hash mismatch') {
+          // ⚠️ `includes`, NOT `===`. The node's sentence now arrives with the
+          // status in front of it (`HTTP 400: fatal: blob hash mismatch`), and
+          // an equality check against the bare string silently stops matching
+          // — which turns the "reinstall this application?" prompt back into a
+          // dead-end error card.
+          const errorMessage = describeError(installErr, '');
+          if (errorMessage.includes('blob hash mismatch')) {
             setApplicationMismatch(true);
             setShowInstallPrompt(true);
             return false;
@@ -157,7 +163,7 @@ export function useContextCreation(): UseContextCreationReturn {
           applicationId = installResponse.applicationId;
           sessionStorage.setItem('application-id', applicationId);
         } catch (installErr) {
-          setError(installErr instanceof Error ? installErr.message : 'Failed to install application');
+          setError(describeError(installErr, 'Failed to install application'));
           return;
         }
       }
@@ -182,7 +188,7 @@ export function useContextCreation(): UseContextCreationReturn {
         setApplicationMismatch(false);
         return { contextId, memberPublicKey };
       } catch (createErr) {
-        setError(createErr instanceof Error ? createErr.message : 'Failed to create context');
+        setError(describeError(createErr, 'Failed to create context'));
         return;
       }
     } catch (err: any) {
