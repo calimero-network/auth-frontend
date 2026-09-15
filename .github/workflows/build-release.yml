@@ -4,7 +4,11 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - main
+      # `master`, not `main`. This repo's default branch is master and there is
+      # no `main`, so this trigger has never once fired — every release since
+      # has depended on the `pull_request: closed` trigger below happening to
+      # succeed.
+      - master
   pull_request:
     types:
       - closed
@@ -29,8 +33,18 @@ jobs:
         with:
           node-version: '20'
 
+      # Pinned, not `npm install -g pnpm`. Unpinned, CI silently follows whatever
+      # pnpm published most recently — which is why this job succeeded in August
+      # and failed in September with no change to the repo:
+      #
+      #   ERR_PNPM_OUTDATED_LOCKFILE
+      #   help: Update your lockfile using "pnpm install --no-frozen-lockfile"
+      #
+      # pnpm 10 moved where `overrides` are read from, so a newer client
+      # resolved a different tree than the committed lockfile. `packageManager`
+      # in package.json is the source of truth; corepack honours it.
       - name: Install pnpm
-        run: npm install -g pnpm
+        run: corepack enable && corepack prepare --activate
 
       - name: Install dependencies
         run: pnpm install
