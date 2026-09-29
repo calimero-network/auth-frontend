@@ -16,8 +16,6 @@ export default defineConfig({
             'react',
             'react-dom',
             'react-router-dom',
-            '@near-wallet-selector/core',
-            '@near-wallet-selector/my-near-wallet'
           ],
         },
       },
