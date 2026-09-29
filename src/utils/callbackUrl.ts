@@ -1,5 +1,6 @@
 import { clearStoredUrlParams, getStoredUrlParam } from './urlParams';
 import { getAppEndpointKey } from '../lib/mero';
+import { isLoopbackHost } from './nodeUrl';
 import { createRegistryClient, registryClient } from './registryClient';
 
 // Allowlist validation for the SSO `callback-url`.
@@ -31,17 +32,6 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     an attacker could point `registry-url` at a registry that "declares"
 //     their exfiltration origin.
 //   * everything else is rejected — the caller must NOT redirect the tokens.
-
-const isLoopbackHost = (host: string): boolean => {
-  const h = host.toLowerCase();
-  return (
-    h === 'localhost' ||
-    h === '127.0.0.1' ||
-    h === '::1' ||
-    h === '[::1]' ||
-    h.endsWith('.localhost')
-  );
-};
 
 const allowedOrigins = (): Set<string> => {
   const origins = new Set<string>();

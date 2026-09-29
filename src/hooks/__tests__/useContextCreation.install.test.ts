@@ -17,7 +17,7 @@ import { http, HttpResponse } from 'msw';
 import { server } from '../../../vitest.setup';
 import { useContextCreation } from '../useContextCreation';
 
-const NODE = 'http://node.test';
+const NODE = 'http://localhost:2528';
 
 describe('checkAndInstallApplication', () => {
   let bodies: Record<string, unknown>[];

@@ -4,6 +4,19 @@ import {
   clearAppEndpoint, 
   clearAccessToken 
 } from '../lib/mero';
+import { isAllowedNodeUrl } from './nodeUrl';
+
+const NODE_URL_PARAMS = ['app-url', 'auth-url']; // kept by the SDK endpoint setters, not as flow params
+
+/** The first node URL in the page's query string that this page may not talk to. */
+export const findRejectedNodeUrl = (): string | null => {
+  const searchParams = new URLSearchParams(window.location.search);
+  for (const key of NODE_URL_PARAMS) {
+    const value = searchParams.get(key);
+    if (value !== null && !isAllowedNodeUrl(value)) return value;
+  }
+  return null;
+};
 
 export const handleUrlParams = () => {
   // Get URL search params
@@ -54,33 +67,22 @@ export const handleUrlParams = () => {
     }
   });
   
-    // Set auth-url if not provided (auth frontend should know its own URL)
-    if (!searchParams.has('auth-url')) {
-      setAuthEndpointURL(window.location.origin);
-    }
-    
-    // Set app-url for node API calls (contexts, etc) - use auth-url as fallback
-    if (!searchParams.has('app-url')) {
-      setAppEndpointKey(window.location.origin);
-    }
+  // A rejected node URL falls back to this page's own node, never to the value.
+  const nodeUrl = (key: string) => {
+    const value = searchParams.get(key);
+    return value && isAllowedNodeUrl(value) ? value : window.location.origin;
+  };
+  setAuthEndpointURL(nodeUrl('auth-url'));
+  setAppEndpointKey(nodeUrl('app-url'));
   
   // Convert URLSearchParams to a plain object and store in localStorage
   // EXCEPT transient params that should always come from URL
   // Note: We need to store package params temporarily to survive OAuth redirects
   // They will be cleared at the end via clearStoredUrlParams()
-  const doNotStore: string[] = [];
-  
   searchParams.forEach((value, key) => {
     params[key] = value;
 
-    // Use SDK storage functions for SDK-related keys to ensure proper prefixing
-    if (key === 'app-url') {
-      setAppEndpointKey(value);
-    } else if (key === 'auth-url') {
-      setAuthEndpointURL(value);
-    } else if (doNotStore.includes(key)) {
-      // Skip storing registry-url and other transient params
-    } else {
+    if (!NODE_URL_PARAMS.includes(key)) {
       // For other keys, use sessionStorage (these are auth-frontend flow params)
       // Store as plain string (no JSON.stringify - value is already a string from URLSearchParams)
       // SessionStorage clears when tab closes, preventing cross-session pollution

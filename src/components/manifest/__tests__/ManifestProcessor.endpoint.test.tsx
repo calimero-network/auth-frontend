@@ -21,7 +21,7 @@ import { render } from '@testing-library/react';
 import { ManifestProcessor } from '../ManifestProcessor';
 import { getAppEndpointKey } from '../../../lib/mero';
 
-const NODE = 'http://node.test';
+const NODE = 'http://localhost:2528';
 
 describe('ManifestProcessor', () => {
   beforeEach(() => {

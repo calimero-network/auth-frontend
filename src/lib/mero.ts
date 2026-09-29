@@ -15,6 +15,7 @@
 
 import { HTTPError, MeroJs } from '@calimero-network/mero-js';
 import type { TokenData, TokenStore } from '@calimero-network/mero-js';
+import { isAllowedNodeUrl } from '../utils/nodeUrl';
 
 const STORAGE_KEYS = {
   ACCESS_TOKEN: 'calimero_access_token',
@@ -205,8 +206,9 @@ export async function hasLiveSession(): Promise<boolean> {
 
 // ---- Endpoint helpers ----
 
+// Re-checked on read: localStorage outlives the link that set it.
 export function getAppEndpointKey(): string | null {
-  return localStorage.getItem(STORAGE_KEYS.APP_ENDPOINT);
+  return readNodeUrl(STORAGE_KEYS.APP_ENDPOINT);
 }
 
 export function setAppEndpointKey(url: string): void {
@@ -216,7 +218,12 @@ export function setAppEndpointKey(url: string): void {
 }
 
 export function getAuthEndpointURL(): string | null {
-  return localStorage.getItem(STORAGE_KEYS.AUTH_ENDPOINT);
+  return readNodeUrl(STORAGE_KEYS.AUTH_ENDPOINT);
+}
+
+function readNodeUrl(key: string): string | null {
+  const url = localStorage.getItem(key);
+  return url && isAllowedNodeUrl(url) ? url : null;
 }
 
 export function setAuthEndpointURL(url: string): void {

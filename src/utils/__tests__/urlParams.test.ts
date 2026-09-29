@@ -9,6 +9,7 @@ vi.mock('../../lib/mero', () => ({
 }));
 
 import { getStoredUrlParam, handleUrlParams } from '../urlParams';
+import { setAppEndpointKey, setAuthEndpointURL } from '../../lib/mero';
 
 describe('urlParams', () => {
   beforeEach(() => {
@@ -139,6 +140,42 @@ describe('urlParams', () => {
       expect(stored).toBe('network.calimero.meropass');
       expect(stored).not.toBe('"network.calimero.meropass"');
       expect(stored?.startsWith('"')).toBe(false);
+    });
+
+    it('stores the serving node, never a foreign app-url or auth-url', () => {
+      (window as any).location.origin = 'https://node.example';
+      (window as any).location.search =
+        '?app-url=https://evil.example&auth-url=https://evil.example';
+
+      handleUrlParams();
+
+      expect(setAppEndpointKey).toHaveBeenCalledWith('https://node.example');
+      expect(setAuthEndpointURL).toHaveBeenCalledWith('https://node.example');
+      expect(setAppEndpointKey).not.toHaveBeenCalledWith('https://evil.example');
+      expect(setAuthEndpointURL).not.toHaveBeenCalledWith('https://evil.example');
+      expect(sessionStorage.getItem('app-url')).toBeNull();
+    });
+
+    it('drops a foreign app-url handed over through session params', () => {
+      (window as any).location.origin = 'https://node.example';
+      sessionStorage.setItem(
+        'calimero-auth-params',
+        JSON.stringify({ 'app-url': 'https://evil.example' }),
+      );
+
+      handleUrlParams();
+
+      expect(setAppEndpointKey).toHaveBeenCalledWith('https://node.example');
+      expect(setAppEndpointKey).not.toHaveBeenCalledWith('https://evil.example');
+    });
+
+    it('stores a loopback app-url when served from loopback', () => {
+      (window as any).location.origin = 'http://localhost:5173';
+      (window as any).location.search = '?app-url=http://localhost:2528';
+
+      handleUrlParams();
+
+      expect(setAppEndpointKey).toHaveBeenCalledWith('http://localhost:2528');
     });
 
     it('should merge sessionStorage params when URL is empty', () => {
