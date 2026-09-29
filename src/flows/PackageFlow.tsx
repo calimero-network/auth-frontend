@@ -177,6 +177,7 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
 
       {step === 'context-selection' && mode === 'single-context' && (
         <ContextSelector
+          applicationId={installedAppId}
           onComplete={(contextId, identity) => {
             setSelectedContextId(contextId);
             setSelectedIdentity(identity);
