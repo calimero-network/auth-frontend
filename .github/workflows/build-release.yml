@@ -5,20 +5,29 @@ on:
   push:
     branches:
       # `master`, not `main`. This repo's default branch is master and there is
-      # no `main`, so this trigger has never once fired — every release since
-      # has depended on the `pull_request: closed` trigger below happening to
-      # succeed.
+      # no `main`.
+      #
+      # ⚠️ This is the ONLY release trigger. There used to be a
+      # `pull_request: closed` trigger with no branch filter, so merging a PR
+      # into ANY branch (a feature branch, a stacked base, dependabot's)
+      # rebuilt the bundle and re-pointed the release tag. core's
+      # crates/auth/build.rs embeds whatever that tag points at into merod, so
+      # that was a path from "merged into a side branch" to "served as /auth on
+      # every node". A merge into master already fires `push`.
       - master
-  pull_request:
-    types:
-      - closed
 
 permissions:
   contents: write
 
+# `push` and a manual dispatch can race; two runs must never both tag.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   build_and_push:
-    if: github.event.pull_request.merged == true || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    # A dispatch from a feature branch must not release it.
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -28,7 +37,24 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Release tags are IMMUTABLE. core pins `v<version>` and downloads that
+      # tag's archive, so re-pointing an existing tag silently changes what an
+      # already-"pinned" core build embeds. A version that is already tagged is
+      # therefore a no-op here: bump package.json to release.
+      - name: Read version and check the tag is new
+        id: get_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" > /dev/null; then
+            echo "::notice::v$VERSION is already tagged; nothing to release (bump package.json to cut a release)"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Node.js
+        if: steps.get_version.outputs.exists == 'false'
         uses: actions/setup-node@v3
         with:
           node-version: '20'
@@ -44,30 +70,25 @@ jobs:
       # resolved a different tree than the committed lockfile. `packageManager`
       # in package.json is the source of truth; corepack honours it.
       - name: Install pnpm
+        if: steps.get_version.outputs.exists == 'false'
         run: corepack enable && corepack prepare --activate
 
       - name: Install dependencies
+        if: steps.get_version.outputs.exists == 'false'
         run: pnpm install
 
       - name: Build app
+        if: steps.get_version.outputs.exists == 'false'
         run: pnpm build
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Read version from package.json
-        id: get_version
-        run: |
-          VERSION=$(jq -r .version package.json)
-          echo "version=$VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
       - name: Set up Git user
+        if: steps.get_version.outputs.exists == 'false'
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
       - name: Push build folder to build branch
+        if: steps.get_version.outputs.exists == 'false'
         run: |
           mkdir temp-deploy
           cp -r build temp-deploy/
@@ -85,17 +106,15 @@ jobs:
 
           VERSION="v${{ steps.get_version.outputs.version }}"
 
-          # Delete local tag if exists
-          git tag -d $VERSION 2>/dev/null || true
-
-          # Delete remote tag if exists
-          git push --delete origin $VERSION 2>/dev/null || true
-
-          git tag $VERSION
+          # Never delete or move an existing tag (see "check the tag is new").
+          # A plain push of a tag that appeared since that check is refused by
+          # the remote, which fails the run instead of re-pointing it.
+          git tag "$VERSION"
           git push --force origin build
-          git push origin $VERSION
+          git push origin "refs/tags/$VERSION"
 
       - name: Create GitHub release
+        if: steps.get_version.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.get_version.outputs.version }}
