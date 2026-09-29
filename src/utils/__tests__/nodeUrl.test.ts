@@ -17,14 +17,16 @@ import { resolveTrustedNodeUrl } from '../nodeUrl';
 
 const ORIGIN = 'https://node.example.com';
 
-const setLocation = (search: string) => {
+const setLocation = (search: string, origin = ORIGIN) => {
   delete (window as any).location;
+  const { hostname } = new URL(origin);
   (window as any).location = {
     search,
     pathname: '/auth/',
     hash: '',
-    href: `${ORIGIN}/auth/${search}`,
-    origin: ORIGIN,
+    href: `${origin}/auth/${search}`,
+    origin,
+    hostname,
   };
 };
 
@@ -36,10 +38,17 @@ describe('resolveTrustedNodeUrl', () => {
     expect(resolveTrustedNodeUrl(ORIGIN)).toBe(ORIGIN);
   });
 
-  it('accepts loopback nodes (desktop, local dev)', () => {
+  it('accepts loopback nodes when the page itself is served from loopback (desktop, local dev)', () => {
+    setLocation('', 'http://localhost:5173');
     expect(resolveTrustedNodeUrl('http://localhost:2528')).toBe('http://localhost:2528');
     expect(resolveTrustedNodeUrl('http://127.0.0.1:4081')).toBe('http://127.0.0.1:4081');
     expect(resolveTrustedNodeUrl('http://node1.localhost')).toBe('http://node1.localhost');
+  });
+
+  it('refuses loopback nodes when the page is served by a remote node', () => {
+    expect(resolveTrustedNodeUrl('http://localhost:2528')).toBeNull();
+    expect(resolveTrustedNodeUrl('http://127.0.0.1:4081')).toBeNull();
+    expect(resolveTrustedNodeUrl('http://node1.localhost')).toBeNull();
   });
 
   it('rejects a foreign origin', () => {
@@ -102,8 +111,16 @@ describe('handleUrlParams endpoint gating', () => {
     expect(calls).not.toContain('https://evil.example');
   });
 
-  it('keeps a trusted loopback app-url', () => {
-    setLocation('?app-url=http%3A%2F%2Flocalhost%3A2528');
+  it('never points the endpoint at loopback from a page served by a remote node', () => {
+    setLocation('?app-url=http%3A%2F%2F127.0.0.1%3A9999');
+    handleUrlParams();
+
+    const calls = vi.mocked(setAppEndpointKey).mock.calls.map(([url]) => url);
+    expect(calls).not.toContain('http://127.0.0.1:9999');
+  });
+
+  it('keeps a loopback app-url on a page served from loopback', () => {
+    setLocation('?app-url=http%3A%2F%2Flocalhost%3A2528', 'http://localhost:5173');
     handleUrlParams();
 
     expect(vi.mocked(setAppEndpointKey).mock.calls.at(-1)?.[0]).toBe('http://localhost:2528');
