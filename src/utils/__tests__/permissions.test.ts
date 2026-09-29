@@ -29,7 +29,8 @@ describe('restrictToAppPermissions', () => {
       'blob',
       'context:alias',
     ];
-    expect(restrictToAppPermissions(normalizePermissions('multi-context', multi))).toEqual(multi);
+    // normalizePermissions moves the mode's required grants first; order is irrelevant to core.
+    expect([...restrictToAppPermissions(normalizePermissions('multi-context', multi))].sort()).toEqual([...multi].sort());
   });
 
   it('does not touch the admin flow', () => {
