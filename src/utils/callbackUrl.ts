@@ -15,8 +15,11 @@ import { createRegistryClient, registryClient } from './registryClient';
 //
 // Trust policy (least surprise, non-breaking for local/desktop):
 //   * scheme must be http/https — blocks `javascript:`, `data:`, `file:` …
-//   * loopback hosts are always allowed (local dev, the node itself, and
-//     desktop app windows served from localhost)
+//   * loopback hosts are allowed when the NODE is loopback too (local dev,
+//     the desktop app). On a remote node a loopback callback is still allowed
+//     for app flows, but never for the admin flow: "localhost" on the
+//     victim's machine is any local process on any port, and it must not be
+//     handed an admin token pair by a crafted link to a remote node.
 //   * the auth frontend's own origin (the node) is always allowed
 //   * any additional deployed app origins must be explicitly allowlisted via
 //     the `VITE_ALLOWED_CALLBACK_ORIGINS` build/env var (comma-separated), e.g.
@@ -41,6 +44,27 @@ const isLoopbackHost = (host: string): boolean => {
     h === '[::1]' ||
     h.endsWith('.localhost')
   );
+};
+
+/** Is the node serving this page itself on loopback (desktop, local dev)? */
+const nodeIsLoopback = (): boolean => {
+  try {
+    return isLoopbackHost(new URL(window.location.origin).hostname);
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Will this login mint an admin token? Mirrors useFlowDetection: a package or
+ * application-id flow never does; an explicit admin request, or no flow
+ * indicator at all (the default), goes to AdminFlow.
+ */
+const isAdminRequest = (): boolean => {
+  if (getStoredUrlParam('package-name')) return false;
+  const permissions = (getStoredUrlParam('permissions') || '').split(',');
+  if (permissions.includes('admin') || getStoredUrlParam('mode') === 'admin') return true;
+  return !getStoredUrlParam('application-id');
 };
 
 const allowedOrigins = (): Set<string> => {
@@ -84,7 +108,9 @@ export function resolveSafeCallbackUrl(raw: string | null | undefined): URL | nu
   const url = parseHttpUrl(raw);
   if (!url) return null;
 
-  if (isLoopbackHost(url.hostname)) return url;
+  if (isLoopbackHost(url.hostname) && (nodeIsLoopback() || !isAdminRequest())) {
+    return url;
+  }
 
   if (allowedOrigins().has(url.origin)) return url;
 
