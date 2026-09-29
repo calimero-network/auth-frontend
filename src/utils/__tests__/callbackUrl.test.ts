@@ -195,3 +195,62 @@ describe('resolveTrustedCallbackUrl (registry-declared frontends)', () => {
     ).toBeNull();
   });
 });
+
+/**
+ * On a REMOTE node, "localhost" in a callback is whatever process happens to
+ * listen on the victim's machine. A crafted link must not hand it an admin
+ * token pair; app flows (scoped tokens) keep working for local app dev.
+ */
+describe('loopback callbacks on a remote node', () => {
+  let savedLocation: Location;
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    localStorage.clear();
+    savedLocation = window.location;
+    delete (window as any).location;
+    (window as any).location = {
+      search: '',
+      pathname: '/auth/',
+      hash: '',
+      href: 'https://node.example.com/auth/',
+      origin: 'https://node.example.com',
+    };
+  });
+
+  afterEach(() => {
+    (window as any).location = savedLocation;
+    sessionStorage.clear();
+  });
+
+  it('refuses a loopback callback for an admin login', () => {
+    sessionStorage.setItem('permissions', 'admin');
+    expect(resolveSafeCallbackUrl('http://localhost:8080/')).toBeNull();
+  });
+
+  it('refuses a loopback callback for mode=admin', () => {
+    sessionStorage.setItem('mode', 'admin');
+    expect(resolveSafeCallbackUrl('http://127.0.0.1:3000/')).toBeNull();
+  });
+
+  it('refuses a loopback callback when no flow is named (defaults to admin)', () => {
+    expect(resolveSafeCallbackUrl('http://evil.localhost/')).toBeNull();
+  });
+
+  it('still allows a loopback callback for a package flow', () => {
+    sessionStorage.setItem('package-name', 'com.calimero.kvstore');
+    sessionStorage.setItem('permissions', 'context:execute');
+    expect(resolveSafeCallbackUrl('http://localhost:5173/')).not.toBeNull();
+  });
+
+  it('still allows a loopback callback for an application-id flow', () => {
+    sessionStorage.setItem('application-id', 'app-1');
+    sessionStorage.setItem('permissions', 'context:execute');
+    expect(resolveSafeCallbackUrl('http://localhost:5173/')).not.toBeNull();
+  });
+
+  it('still allows the node origin itself for an admin login', () => {
+    sessionStorage.setItem('permissions', 'admin');
+    expect(resolveSafeCallbackUrl('https://node.example.com/admin-dashboard/')).not.toBeNull();
+  });
+});
