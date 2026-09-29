@@ -4,6 +4,7 @@ import {
   clearAppEndpoint, 
   clearAccessToken 
 } from '../lib/mero';
+import { resolveTrustedNodeUrl } from './nodeUrl';
 
 export const handleUrlParams = () => {
   // Get URL search params
@@ -74,10 +75,19 @@ export const handleUrlParams = () => {
     params[key] = value;
 
     // Use SDK storage functions for SDK-related keys to ensure proper prefixing
+    //
+    // ⚠️ Never take the endpoint from the URL on trust. It receives the login
+    // password and the admin token pair, so an attacker-chosen `app-url` turns
+    // this page into a credential phish on the node's own origin. An untrusted
+    // value is dropped and the endpoint stays this page's origin (nodeUrl.ts).
     if (key === 'app-url') {
-      setAppEndpointKey(value);
+      const trusted = resolveTrustedNodeUrl(value);
+      if (!trusted) console.warn('Ignoring untrusted app-url:', value);
+      setAppEndpointKey(trusted ?? window.location.origin);
     } else if (key === 'auth-url') {
-      setAuthEndpointURL(value);
+      const trusted = resolveTrustedNodeUrl(value);
+      if (!trusted) console.warn('Ignoring untrusted auth-url:', value);
+      setAuthEndpointURL(trusted ?? window.location.origin);
     } else if (doNotStore.includes(key)) {
       // Skip storing registry-url and other transient params
     } else {
