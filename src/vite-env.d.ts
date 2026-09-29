@@ -18,6 +18,13 @@ interface ImportMetaEnv {
    * (e.g. "https://app.example.com,https://chat.example.com"). See callbackUrl.ts.
    */
   readonly VITE_ALLOWED_CALLBACK_ORIGINS?: string;
+  /**
+   * Comma-separated list of node origins `app-url` / `auth-url` may point at,
+   * in addition to loopback and the auth frontend's own origin. Only needed
+   * when this UI is hosted separately from the nodes it logs into. The login
+   * password and admin tokens are sent there, so keep it tight. See nodeUrl.ts.
+   */
+  readonly VITE_ALLOWED_NODE_ORIGINS?: string;
 }
 
 interface ImportMeta {
