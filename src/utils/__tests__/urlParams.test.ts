@@ -8,7 +8,7 @@ vi.mock('../../lib/mero', () => ({
   clearAccessToken: vi.fn(),
 }));
 
-import { getStoredUrlParam, handleUrlParams } from '../urlParams';
+import { findRejectedNodeUrl, getStoredUrlParam, handleUrlParams } from '../urlParams';
 import { setAppEndpointKey, setAuthEndpointURL } from '../../lib/mero';
 
 describe('urlParams', () => {
@@ -167,6 +167,16 @@ describe('urlParams', () => {
 
       expect(setAppEndpointKey).toHaveBeenCalledWith('https://node.example');
       expect(setAppEndpointKey).not.toHaveBeenCalledWith('https://evil.example');
+    });
+
+    it.each(['?app-url=', '?auth-url='])('treats an empty node URL as absent: %s', (search) => {
+      (window as any).location.origin = 'https://node.example';
+      (window as any).location.search = search;
+
+      expect(findRejectedNodeUrl()).toBeNull();
+      handleUrlParams();
+      expect(setAppEndpointKey).toHaveBeenCalledWith('https://node.example');
+      expect(setAuthEndpointURL).toHaveBeenCalledWith('https://node.example');
     });
 
     it('stores a loopback app-url when served from loopback', () => {

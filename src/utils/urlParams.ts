@@ -6,14 +6,14 @@ import {
 } from '../lib/mero';
 import { isAllowedNodeUrl } from './nodeUrl';
 
-const NODE_URL_PARAMS = ['app-url', 'auth-url']; // kept by the SDK endpoint setters, not as flow params
+export const NODE_URL_PARAMS = ['app-url', 'auth-url']; // kept by the SDK endpoint setters, not as flow params
 
 /** The first node URL in the page's query string that this page may not talk to. */
 export const findRejectedNodeUrl = (): string | null => {
   const searchParams = new URLSearchParams(window.location.search);
   for (const key of NODE_URL_PARAMS) {
     const value = searchParams.get(key);
-    if (value !== null && !isAllowedNodeUrl(value)) return value;
+    if (value && !isAllowedNodeUrl(value)) return value;
   }
   return null;
 };

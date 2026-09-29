@@ -15,14 +15,15 @@ export const isLoopbackHost = (host: string): boolean => {
  */
 export function isAllowedNodeUrl(raw: string): boolean {
   let url: URL;
+  let page: URL;
   try {
     url = new URL(raw);
+    page = new URL(window.location.origin);
   } catch {
     return false;
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
 
-  const page = new URL(window.location.origin);
   if (url.origin === page.origin) return true;
   return isLoopbackHost(page.hostname) && isLoopbackHost(url.hostname);
 }

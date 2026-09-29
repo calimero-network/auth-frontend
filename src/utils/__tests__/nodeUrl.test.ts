@@ -72,6 +72,18 @@ describe('isAllowedNodeUrl', () => {
   });
 });
 
+describe('isAllowedNodeUrl on an opaque page origin', () => {
+  const original = window.location;
+  afterEach(() => {
+    (window as any).location = original;
+  });
+
+  it('rejects instead of throwing', () => {
+    servedFrom('null');
+    expect(isAllowedNodeUrl('https://node.example')).toBe(false);
+  });
+});
+
 describe('getAppEndpointKey', () => {
   const original = window.location;
   beforeEach(() => {

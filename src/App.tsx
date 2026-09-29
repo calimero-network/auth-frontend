@@ -5,7 +5,25 @@ import { PackageFlow } from './flows/PackageFlow';
 import { ApplicationFlow } from './flows/ApplicationFlow';
 import { useFlowDetection } from './hooks/useFlowDetection';
 import { ErrorView } from './components/common/ErrorView';
-import { findRejectedNodeUrl, handleUrlParams } from './utils/urlParams';
+import { findRejectedNodeUrl, handleUrlParams, NODE_URL_PARAMS } from './utils/urlParams';
+
+/** The origin of a rejected node URL, so the error card never echoes link-supplied text. */
+function displayedOrigin(value: string): string {
+  try {
+    const { origin } = new URL(value);
+    if (origin !== 'null') return origin;
+  } catch {
+    /* not a URL */
+  }
+  return 'an invalid address';
+}
+
+/** Reload the same login without the rejected node URLs, so it runs against this node. */
+function continueOnThisNode(): void {
+  const url = new URL(window.location.href);
+  NODE_URL_PARAMS.forEach((key) => url.searchParams.delete(key));
+  window.location.assign(url.toString());
+}
 
 /**
  * App - Main entry point for auth-frontend
@@ -33,10 +51,10 @@ function App() {
   if (rejectedNodeUrl) {
     return (
       <ErrorView
-        message={`This login link points the page at ${rejectedNodeUrl}, but only the node serving it (${window.location.origin}) is accepted. Nothing was sent.`}
+        message={`This login link points the page at ${displayedOrigin(rejectedNodeUrl)}, but only the node serving it (${window.location.origin}) is accepted. Nothing was sent.`}
         hint="If you did not expect this link, close this tab."
         buttonText="Continue on this node"
-        onRetry={() => window.location.assign(window.location.pathname)}
+        onRetry={continueOnThisNode}
       />
     );
   }
