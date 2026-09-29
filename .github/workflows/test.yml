@@ -21,16 +21,23 @@ jobs:
         with:
           node-version: '20'
 
-      # No lockfile is committed; mero-icons pins react 18 peer while the
-      # app is on react 19, so plain `npm install` refuses to resolve.
+      # Install from the COMMITTED lockfile, with the pnpm version pinned by
+      # `packageManager` (corepack), exactly as the release job does. This
+      # used to be `npm install` with no lockfile: every run resolved the `^`
+      # ranges afresh, so a bad or malicious publish of any dependency
+      # (@calimero-network/mero-js included) ran in CI with nobody reviewing
+      # it, and what CI tested was not what the release job shipped.
+      - name: Install pnpm
+        run: corepack enable && corepack prepare --activate
+
       - name: Install dependencies
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+        run: pnpm install --frozen-lockfile
 
       - name: Run tests
-        run: npx vitest run
+        run: pnpm exec vitest run
 
       - name: Build
-        run: npm run build
+        run: pnpm build
 
   ui-e2e:
     name: Browser e2e against live merod
@@ -58,11 +65,14 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install pnpm
+        run: corepack enable && corepack prepare --activate
+
       - name: Install dependencies
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+        run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: npm run build
+        run: pnpm build
 
       - name: Download latest merod release
         env:
@@ -116,7 +126,7 @@ jobs:
 
       - name: Resolve Playwright version
         id: pw
-        run: echo "version=$(npx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         id: pw-cache
@@ -128,7 +138,7 @@ jobs:
       - name: Install Playwright browsers
         if: steps.pw-cache.outputs.cache-hit != 'true'
         timeout-minutes: 8
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       # A cache hit restores the browser but not the shared libraries it
       # links against. This is the apt half alone — seconds, and it cannot
@@ -136,12 +146,12 @@ jobs:
       - name: Install browser system deps
         if: steps.pw-cache.outputs.cache-hit == 'true'
         timeout-minutes: 8
-        run: npx playwright install-deps chromium
+        run: pnpm exec playwright install-deps chromium
 
       - name: Run browser e2e
         run: |
           NODE_URL=http://localhost:4081 \
-          npx playwright test
+          pnpm exec playwright test
 
       - name: Dump merod log on failure
         if: failure()
