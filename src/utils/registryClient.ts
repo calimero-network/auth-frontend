@@ -278,3 +278,51 @@ export function createRegistryClient(baseUrl: string): RegistryClient {
   return new RegistryClient(baseUrl);
 }
 
+
+const isLoopbackHost = (host: string): boolean => {
+  const h = host.toLowerCase();
+  return (
+    h === 'localhost' ||
+    h === '127.0.0.1' ||
+    h === '::1' ||
+    h === '[::1]' ||
+    h.endsWith('.localhost')
+  );
+};
+
+/**
+ * A registry client for the `registry-url` login param, but only when that
+ * registry is one we trust: the built-in default, loopback (local dev
+ * registries), or this page's own origin. Anything else falls back to the
+ * default registry.
+ *
+ * ⚠️ The consent screen shows the manifest this returns, but the node installs
+ * `{package, version}` from its OWN configured registry (core#3652). Taking an
+ * arbitrary `registry-url` let an attacker label `com.evil.x` as "Calimero
+ * Chat" on the screen the user approves.
+ */
+export function trustedRegistryClient(raw: string | null | undefined): RegistryClient {
+  if (!raw) return registryClient;
+
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return registryClient;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return registryClient;
+
+  const defaultOrigin = new URL(
+    import.meta.env.VITE_REGISTRY_URL || 'https://apps.calimero.network',
+  ).origin;
+  const trusted =
+    url.origin === defaultOrigin ||
+    isLoopbackHost(url.hostname) ||
+    url.origin === window.location.origin;
+
+  if (!trusted) {
+    console.warn('Ignoring untrusted registry-url, using the default registry:', raw);
+    return registryClient;
+  }
+  return new RegistryClient(raw);
+}

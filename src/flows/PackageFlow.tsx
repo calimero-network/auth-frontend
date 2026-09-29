@@ -9,7 +9,7 @@ import Loader from '../components/common/Loader';
 import { PageShell } from '../components/common/PageShell';
 import { AppMode } from '../types/flows';
 import { getStoredUrlParam } from '../utils/urlParams';
-import { normalizePermissions } from '../utils/permissions';
+import { normalizePermissions, restrictToAppPermissions } from '../utils/permissions';
 import {
   Button,
   Card,
@@ -59,7 +59,8 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
   const permissions = useMemo(() => {
     const permissionsParam = getStoredUrlParam('permissions');
     const rawPermissions = permissionsParam ? permissionsParam.split(',') : [];
-    return normalizePermissions(mode, rawPermissions);
+    // Never admin/keys here, whatever the URL asks for (see permissions.ts).
+    return restrictToAppPermissions(normalizePermissions(mode, rawPermissions));
   }, [mode]);
 
   const handleManifestComplete = () => {

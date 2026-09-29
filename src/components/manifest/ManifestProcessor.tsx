@@ -14,7 +14,7 @@ import {
 import { PageShell } from '../common/PageShell';
 import Loader from '../common/Loader';
 import { ErrorView } from '../common/ErrorView';
-import { RegistryClient, registryClient } from '../../utils/registryClient';
+import { trustedRegistryClient } from '../../utils/registryClient';
 import { getMero, getAccessToken } from '../../lib/mero';
 import { describeError } from '../../utils/errors';
 
@@ -177,7 +177,8 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
           }
 
           if (!installedLocally) {
-            const client = registryUrl ? new RegistryClient(registryUrl) : registryClient;
+            // Only a trusted registry may label what the user approves.
+            const client = trustedRegistryClient(registryUrl);
             const manifestData = await client.getManifest(packageName, packageVersion || undefined);
             setManifest(manifestData);
             localStorage.setItem('manifest-info', JSON.stringify({
