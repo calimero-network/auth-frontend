@@ -8,7 +8,7 @@ import { ErrorView } from '../components/common/ErrorView';
 import Loader from '../components/common/Loader';
 import { AppMode } from '../types/flows';
 import { getStoredUrlParam } from '../utils/urlParams';
-import { normalizePermissions } from '../utils/permissions';
+import { normalizePermissions, restrictToAppPermissions } from '../utils/permissions';
 import { describeError } from '../utils/errors';
 
 interface ApplicationFlowProps {
@@ -40,7 +40,8 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
   const permissions = useMemo(() => {
     const permissionsParam = getStoredUrlParam('permissions');
     const rawPermissions = permissionsParam ? permissionsParam.split(',') : [];
-    return normalizePermissions(mode, rawPermissions);
+    // Never admin/keys here, whatever the URL asks for (see permissions.ts).
+    return restrictToAppPermissions(normalizePermissions(mode, rawPermissions));
   }, [mode]);
 
   const handleAppCheckComplete = () => {

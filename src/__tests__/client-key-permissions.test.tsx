@@ -89,4 +89,27 @@ describe('client-key permission passthrough (rc.9 contract)', () => {
     expect(requestBody!.context_id).toBe('');
     expect(requestBody!.context_identity).toBe('');
   });
+
+  it('never mints admin or keys grants for an app, whatever the URL asks for', async () => {
+    sessionStorage.setItem('permissions', [...REQUESTED, 'admin', 'keys:create'].join(','));
+
+    let requestBody: { permissions: string[] } | null = null;
+    server.use(
+      http.post('*/admin/client-key', async ({ request }) => {
+        requestBody = (await request.json()) as typeof requestBody;
+        return HttpResponse.json({
+          data: { access_token: 'access', refresh_token: 'refresh' },
+        });
+      }),
+    );
+
+    render(<PackageFlow mode="multi-context" packageName="test-app" />);
+
+    await userEvent.click(screen.getByText('manifest-complete'));
+    await userEvent.click(screen.getByText('approve-permissions'));
+    await userEvent.click(await screen.findByText('Generate Token'));
+
+    await vi.waitFor(() => expect(requestBody).not.toBeNull());
+    expect([...requestBody!.permissions].sort()).toEqual([...REQUESTED].sort());
+  });
 });
