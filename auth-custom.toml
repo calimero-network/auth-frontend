@@ -1,4 +1,11 @@
 # Calimero Authentication Service Configuration
+#
+# Used by Dockerfile.auth.rebuild (standalone mero-auth with this repo's
+# frontend embedded). This is a LOCAL TESTING config, but it is baked into an
+# image that is easy to run anywhere — so it must be safe by default:
+#   * CSP on (the login page handles the admin password and tokens)
+#   * CORS limited to local dev origins, never allow_all_origins
+#   * no mock token endpoint
 
 # Server configuration
 listen_addr = "0.0.0.0:3001"
@@ -16,7 +23,11 @@ path = "./data/auth_db_local"
 
 # CORS configuration
 [cors]
-allow_all_origins = true
+# Local dev origins only. Add your app's origin here rather than opening CORS
+# to every site: with allow_all_origins any page the user visits can drive
+# this service from their browser.
+allow_all_origins = false
+allowed_origins = ["http://localhost:3001", "http://localhost:5173", "http://127.0.0.1:5173"]
 allowed_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 allowed_headers = ["Authorization", "Content-Type", "Accept", "X-CSRF-Token"]
 exposed_headers = ["X-Auth-Error"]
@@ -42,9 +53,9 @@ frame_options = "DENY"          # DENY, SAMEORIGIN, or ALLOW-FROM
 content_type_options = "nosniff"
 referrer_policy = "strict-origin-when-cross-origin"
 
-# Content Security Policy
+# Content Security Policy (core's defaults for the directives)
 [security.headers.csp]
-enabled = false
+enabled = true
 
 # Authentication providers configuration
 [providers]
@@ -64,9 +75,8 @@ max_password_length = 128
 
 # Development/testing configuration
 [development]
-# Enable mock token endpoint for CI/testing (SECURITY: disabled by default)
-enable_mock_auth = true
-# Require authorization header for mock endpoint
-mock_auth_require_header = true
-# Authorization header value required for mock endpoint (set to enable)
-mock_auth_header_value = "Bearer test-auth-token" 
+# Mock token endpoint OFF. It mints admin tokens to anyone presenting the
+# configured header, and a value committed to a public repo is no secret.
+# (The route is compiled only into debug builds, so a --release image never
+# served it — keep it that way if someone rebuilds this in debug.)
+enable_mock_auth = false
