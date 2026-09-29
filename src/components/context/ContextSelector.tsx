@@ -27,6 +27,12 @@ import {
 interface ContextSelectorProps {
   onComplete: (contextId: string, identity: string) => void;
   onBack: () => void;
+  /**
+   * The application whose contexts to offer, when the caller already knows it
+   * (the package flow: the id its install/lookup returned). Authoritative when
+   * given — the `application-id` URL param is then ignored.
+   */
+  applicationId?: string | null;
 }
 
 const PRIMARY_BTN = {
@@ -36,7 +42,11 @@ const PRIMARY_BTN = {
   fontWeight: 600,
 } as const;
 
-export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
+export function ContextSelector({
+  onComplete,
+  onBack,
+  applicationId: applicationIdProp,
+}: ContextSelectorProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   const {
@@ -66,7 +76,15 @@ export function ContextSelector({ onComplete, onBack }: ContextSelectorProps) {
     fetchContexts();
   }, [fetchContexts]);
 
-  const applicationId = getStoredUrlParam("application-id");
+  // ⚠️ In the package flow the app is whatever the install/lookup returned,
+  // passed in as a prop. Never let the URL override it there: a link naming
+  // `package-name=com.evil.x` plus `application-id=<your password manager>`
+  // otherwise listed the password manager's contexts under the attacker's app
+  // name, and minted the token for whichever one you picked.
+  const applicationId =
+    applicationIdProp !== undefined
+      ? applicationIdProp
+      : getStoredUrlParam("application-id");
   // Coordinates, not a URL — see ApplicationInstallCheck.
   const packageName = getStoredUrlParam("package-name");
   const packageVersion = getStoredUrlParam("package-version");
