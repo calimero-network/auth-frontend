@@ -62,7 +62,7 @@ RUN adduser \
 COPY --from=build \
     /usr/local/bin/${APP_NAME} \
     /usr/local/bin/
-# Copy our custom config with CSP disabled
+# Copy our custom config (CSP on, CORS limited to local dev, no mock auth)
 COPY auth-custom.toml /etc/calimero/auth.toml
 
 USER user
