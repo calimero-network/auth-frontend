@@ -29,9 +29,7 @@ const errorText = async () => (await screen.findByTestId('error-view')).textCont
 describe('node URL guard', () => {
   const original = window.location;
   let requested: string[];
-  const record = ({ request }: { request: Request }) => {
-    requested.push(request.url);
-  };
+  let stopRecording: () => void;
 
   beforeEach(() => {
     localStorage.clear();
@@ -39,12 +37,17 @@ describe('node URL guard', () => {
     // An admin session already stored on the node origin.
     localStorage.setItem('calimero_access_token', 'stored-access');
     localStorage.setItem('calimero_refresh_token', 'stored-refresh');
-    requested = [];
+    const mine: string[] = [];
+    const record = ({ request }: { request: Request }) => {
+      mine.push(request.url);
+    };
+    requested = mine;
     server.events.on('request:start', record);
+    stopRecording = () => server.events.removeListener('request:start', record);
   });
 
   afterEach(() => {
-    server.events.removeListener('request:start', record);
+    stopRecording();
     (window as any).location = original;
   });
 
@@ -73,7 +76,8 @@ describe('node URL guard', () => {
 
     render(<App />);
 
-    await vi.waitFor(() => expect(requested.length).toBeGreaterThan(0));
+    await screen.findByText('Review Permissions');
+    expect(requested.length).toBeGreaterThan(0);
     for (const url of requested) {
       expect(new URL(url).origin).toBe(NODE);
     }
@@ -109,7 +113,8 @@ describe('node URL guard', () => {
 
     render(<App />);
 
-    await vi.waitFor(() => expect(requested.length).toBeGreaterThan(0));
+    await screen.findByText('Review Permissions');
+    expect(requested.length).toBeGreaterThan(0);
     expect(screen.queryByText(/is accepted/)).toBeNull();
     for (const url of requested) {
       expect(new URL(url).origin).toBe(NODE);
