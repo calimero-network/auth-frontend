@@ -40,7 +40,6 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
   const permissions = useMemo(() => {
     const permissionsParam = getStoredUrlParam('permissions');
     const rawPermissions = permissionsParam ? permissionsParam.split(',') : [];
-    // Never admin/keys here, whatever the URL asks for (see permissions.ts).
     return restrictToAppPermissions(normalizePermissions(mode, rawPermissions));
   }, [mode]);
 
