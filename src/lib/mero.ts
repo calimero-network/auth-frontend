@@ -2,9 +2,11 @@
  * Shared MeroJs instance for auth-frontend
  *
  * Token ownership: MeroJs owns the live token bundle. It is handed a
- * TokenStore backed by the app's own localStorage keys
+ * TokenStore backed by the app's own storage keys
  * (calimero_access_token, calimero_refresh_token), so every rotation MeroJs
- * performs lands in the keys the rest of the app reads.
+ * performs lands in the keys the rest of the app reads. The keys live in
+ * localStorage when the node is on loopback (desktop, local dev) and in
+ * sessionStorage otherwise.
  *
  * This is load-bearing since calimero-network/core#3083: refresh tokens are
  * SINGLE-USE. Every POST /auth/refresh consumes the token it is given and
@@ -15,6 +17,7 @@
 
 import { HTTPError, MeroJs } from '@calimero-network/mero-js';
 import type { TokenData, TokenStore } from '@calimero-network/mero-js';
+import { nodeIsLoopback } from '../utils/nodeUrl';
 
 const STORAGE_KEYS = {
   ACCESS_TOKEN: 'calimero_access_token',
@@ -24,6 +27,20 @@ const STORAGE_KEYS = {
 } as const;
 
 let meroInstance: MeroJs | null = null;
+
+const SESSION_KEYS = [STORAGE_KEYS.ACCESS_TOKEN, STORAGE_KEYS.REFRESH_TOKEN] as const;
+
+function tokenStorage(): Storage {
+  if (nodeIsLoopback()) return localStorage;
+
+  for (const key of SESSION_KEYS) {
+    const legacy = localStorage.getItem(key);
+    if (legacy === null) continue;
+    if (sessionStorage.getItem(key) === null) sessionStorage.setItem(key, legacy);
+    localStorage.removeItem(key);
+  }
+  return sessionStorage;
+}
 
 /** Read `exp` (seconds) out of a JWT; fall back to an hour from now. */
 function expiresAtFromJwt(token: string): number {
@@ -62,8 +79,9 @@ const tokenStore: TokenStore = {
     };
   },
   setTokens(data: TokenData): void {
-    localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.access_token);
-    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, data.refresh_token);
+    const area = tokenStorage();
+    area.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.access_token);
+    area.setItem(STORAGE_KEYS.REFRESH_TOKEN, data.refresh_token);
   },
   clear(): void {
     clearAccessToken();
@@ -104,7 +122,7 @@ export function setTokens(tokens: { access_token: string; refresh_token: string 
   });
 }
 
-/** Drop the session: MeroJs's in-memory bundle and both localStorage keys. */
+/** Drop the session: MeroJs's in-memory bundle and both stored keys. */
 export function clearTokens(): void {
   meroInstance?.clearToken();
   clearAccessToken();
@@ -112,19 +130,21 @@ export function clearTokens(): void {
 }
 
 export function getAccessToken(): string | null {
-  return localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+  return tokenStorage().getItem(STORAGE_KEYS.ACCESS_TOKEN);
 }
 
 export function clearAccessToken(): void {
   localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+  sessionStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
 }
 
 export function getRefreshToken(): string | null {
-  return localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+  return tokenStorage().getItem(STORAGE_KEYS.REFRESH_TOKEN);
 }
 
 export function clearRefreshToken(): void {
   localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+  sessionStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
 }
 
 // ---- Session ----
