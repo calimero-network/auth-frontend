@@ -1,3 +1,4 @@
+import { isLoopbackHost, nodeIsLoopback } from './nodeUrl';
 import { clearStoredUrlParams, getStoredUrlParam } from './urlParams';
 import { getAppEndpointKey } from '../lib/mero';
 import { createRegistryClient, registryClient } from './registryClient';
@@ -34,26 +35,6 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     an attacker could point `registry-url` at a registry that "declares"
 //     their exfiltration origin.
 //   * everything else is rejected — the caller must NOT redirect the tokens.
-
-const isLoopbackHost = (host: string): boolean => {
-  const h = host.toLowerCase();
-  return (
-    h === 'localhost' ||
-    h === '127.0.0.1' ||
-    h === '::1' ||
-    h === '[::1]' ||
-    h.endsWith('.localhost')
-  );
-};
-
-/** Is the node serving this page itself on loopback (desktop, local dev)? */
-const nodeIsLoopback = (): boolean => {
-  try {
-    return isLoopbackHost(new URL(window.location.origin).hostname);
-  } catch {
-    return false;
-  }
-};
 
 /**
  * Will this login mint an admin token? Mirrors useFlowDetection: a package or

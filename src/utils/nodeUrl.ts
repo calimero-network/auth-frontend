@@ -16,13 +16,14 @@
 // Trust policy, mirroring the callback-url policy in callbackUrl.ts:
 //   * scheme must be http/https
 //   * the auth frontend's own origin (the node serving it) is always allowed
-//   * loopback hosts are allowed (desktop app, local dev against a local node)
+//   * loopback hosts are allowed when the page itself is served from loopback
+//     (desktop app, local dev against a local node)
 //   * any other node origin must be allowlisted at build time via
 //     `VITE_ALLOWED_NODE_ORIGINS` (comma-separated), e.g. for a hosted
 //     auth frontend pointed at remote nodes
 //   * everything else is rejected — the caller falls back to its own origin.
 
-const isLoopbackHost = (host: string): boolean => {
+export const isLoopbackHost = (host: string): boolean => {
   const h = host.toLowerCase();
   return (
     h === 'localhost' ||
@@ -31,6 +32,15 @@ const isLoopbackHost = (host: string): boolean => {
     h === '[::1]' ||
     h.endsWith('.localhost')
   );
+};
+
+/** Is the node serving this page itself on loopback (desktop, local dev)? */
+export const nodeIsLoopback = (): boolean => {
+  try {
+    return isLoopbackHost(new URL(window.location.origin).hostname);
+  } catch {
+    return false;
+  }
 };
 
 const configuredNodeOrigins = (): Set<string> => {
@@ -68,7 +78,7 @@ export function resolveTrustedNodeUrl(raw: string | null | undefined): string | 
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
 
   if (url.origin === window.location.origin) return raw;
-  if (isLoopbackHost(url.hostname)) return raw;
+  if (isLoopbackHost(url.hostname) && nodeIsLoopback()) return raw;
   if (configuredNodeOrigins().has(url.origin)) return raw;
 
   return null;
