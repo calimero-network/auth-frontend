@@ -50,6 +50,17 @@ describe('trustedRegistryClient', () => {
     expect(base('http://localhost:8082')).toBe('http://localhost:8082');
   });
 
+  it('ignores a loopback registry-url when the node is remote', () => {
+    const saved = window.location;
+    delete (window as any).location;
+    (window as any).location = { origin: 'https://node.example.com', href: 'https://node.example.com/auth/' };
+    try {
+      expect(base('http://localhost:8082')).toBe(new URL(import.meta.env.VITE_REGISTRY_URL || DEFAULT).origin);
+    } finally {
+      (window as any).location = saved;
+    }
+  });
+
   it('falls back on garbage and non-http schemes', () => {
     const fallback = new URL(import.meta.env.VITE_REGISTRY_URL || DEFAULT).origin;
     expect(base('not a url')).toBe(fallback);

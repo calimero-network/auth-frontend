@@ -32,7 +32,7 @@ describe('resolveSafeCallbackUrl', () => {
     expect(resolveSafeCallbackUrl('http://attacker.test/cb')).toBeNull();
   });
 
-  it('allows loopback on any port and path', () => {
+  it('allows loopback on any port and path when the node is on loopback', () => {
     for (const u of [
       'http://localhost:5173/',
       'http://localhost:2428/auth/callback',
@@ -196,12 +196,8 @@ describe('resolveTrustedCallbackUrl (registry-declared frontends)', () => {
   });
 });
 
-/**
- * On a REMOTE node, "localhost" in a callback is whatever process happens to
- * listen on the victim's machine. A crafted link must not hand it an admin
- * token pair; app flows (scoped tokens) keep working for local app dev.
- */
 describe('loopback callbacks on a remote node', () => {
+  const REGISTRY = 'https://apps.calimero.network';
   let savedLocation: Location;
 
   beforeEach(() => {
@@ -237,20 +233,75 @@ describe('loopback callbacks on a remote node', () => {
     expect(resolveSafeCallbackUrl('http://evil.localhost/')).toBeNull();
   });
 
-  it('still allows a loopback callback for a package flow', () => {
+  it('refuses a loopback callback for a package flow', () => {
     sessionStorage.setItem('package-name', 'com.calimero.kvstore');
     sessionStorage.setItem('permissions', 'context:execute');
-    expect(resolveSafeCallbackUrl('http://localhost:5173/')).not.toBeNull();
+    expect(resolveSafeCallbackUrl('http://localhost:5173/')).toBeNull();
   });
 
-  it('still allows a loopback callback for an application-id flow', () => {
+  it('refuses a loopback callback for an application-id flow', () => {
     sessionStorage.setItem('application-id', 'app-1');
     sessionStorage.setItem('permissions', 'context:execute');
-    expect(resolveSafeCallbackUrl('http://localhost:5173/')).not.toBeNull();
+    expect(resolveSafeCallbackUrl('http://localhost:5173/')).toBeNull();
   });
 
   it('still allows the node origin itself for an admin login', () => {
     sessionStorage.setItem('permissions', 'admin');
     expect(resolveSafeCallbackUrl('https://node.example.com/admin-dashboard/')).not.toBeNull();
+  });
+
+  it('trusts a loopback callback the registry declares for the flow package', async () => {
+    sessionStorage.setItem('package-name', 'com.calimero.remote-dev');
+    server.use(
+      http.get(`${REGISTRY}/api/v2/bundles`, () =>
+        HttpResponse.json([
+          {
+            version: '1.0',
+            package: 'com.calimero.remote-dev',
+            appVersion: '1.0.0',
+            wasm: { hash: 'sha256:abc' },
+            links: { frontend: 'http://localhost:5199/' },
+          },
+        ]),
+      ),
+    );
+
+    const url = await resolveTrustedCallbackUrl('http://localhost:5199/app');
+    expect(url?.origin).toBe('http://localhost:5199');
+    expect(await resolveTrustedCallbackUrl('http://localhost:5200/app')).toBeNull();
+  });
+
+  it('ignores a loopback registry-url and consults the default registry', async () => {
+    sessionStorage.setItem('package-name', 'com.calimero.remote-reg');
+    sessionStorage.setItem('registry-url', 'http://localhost:8082');
+    server.use(
+      http.get('http://localhost:8082/api/v2/bundles', () =>
+        HttpResponse.json([
+          {
+            version: '1.0',
+            package: 'com.calimero.remote-reg',
+            appVersion: '1.0.0',
+            wasm: { hash: 'sha256:abc' },
+            links: { frontend: 'https://other-f.example' },
+          },
+        ]),
+      ),
+      http.get(`${REGISTRY}/api/v2/bundles`, () =>
+        HttpResponse.json([
+          {
+            version: '1.0',
+            package: 'com.calimero.remote-reg',
+            appVersion: '1.0.0',
+            wasm: { hash: 'sha256:abc' },
+            links: { frontend: 'https://real-f.example' },
+          },
+        ]),
+      ),
+    );
+
+    expect(await resolveTrustedCallbackUrl('https://other-f.example/cb')).toBeNull();
+    expect((await resolveTrustedCallbackUrl('https://real-f.example/cb'))?.origin).toBe(
+      'https://real-f.example',
+    );
   });
 });

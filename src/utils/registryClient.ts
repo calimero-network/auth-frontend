@@ -3,6 +3,8 @@
  * Uses V2 Bundle API: /api/v2/bundles
  */
 
+import { isLoopbackHost, nodeIsLoopback } from './nodeUrl';
+
 // V2 Bundle Manifest format (from registry)
 export interface BundleManifest {
   version: string;           // Bundle format version (e.g., "1.0")
@@ -279,21 +281,11 @@ export function createRegistryClient(baseUrl: string): RegistryClient {
 }
 
 
-const isLoopbackHost = (host: string): boolean => {
-  const h = host.toLowerCase();
-  return (
-    h === 'localhost' ||
-    h === '127.0.0.1' ||
-    h === '::1' ||
-    h === '[::1]' ||
-    h.endsWith('.localhost')
-  );
-};
-
 /**
  * A registry client for the `registry-url` login param, but only when that
  * registry is one we trust: the built-in default, loopback (local dev
- * registries), or this page's own origin. Anything else falls back to the
+ * registries, only when this node is itself on loopback), or this page's own
+ * origin. Anything else falls back to the
  * default registry.
  *
  * ⚠️ The consent screen shows the manifest this returns, but the node installs
@@ -317,7 +309,7 @@ export function trustedRegistryClient(raw: string | null | undefined): RegistryC
   ).origin;
   const trusted =
     url.origin === defaultOrigin ||
-    isLoopbackHost(url.hostname) ||
+    (isLoopbackHost(url.hostname) && nodeIsLoopback()) ||
     url.origin === window.location.origin;
 
   if (!trusted) {
