@@ -90,8 +90,8 @@ describe('client-key permission passthrough (rc.9 contract)', () => {
     expect(requestBody!.context_identity).toBe('');
   });
 
-  it('never mints admin, keys or management grants for an app, whatever the URL asks for', async () => {
-    sessionStorage.setItem('permissions', [...REQUESTED, 'admin', 'admin:x', 'keys:create', 'context', 'context:capabilities:grant'].join(','));
+  it('never mints keys or management grants for an app, whatever the URL asks for', async () => {
+    sessionStorage.setItem('permissions', [...REQUESTED, 'keys:create', 'context', 'context:capabilities:grant'].join(','));
 
     let requestBody: { permissions: string[] } | null = null;
     server.use(

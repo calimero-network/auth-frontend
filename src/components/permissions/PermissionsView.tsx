@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { PageShell } from '../common/PageShell';
+import { CallbackOrigin } from '../common/CallbackOrigin';
 import { getStoredUrlParam } from '../../utils/urlParams';
 import { tokens } from '@calimero-network/mero-tokens';
 import {
@@ -131,8 +132,6 @@ export function PermissionsView({
   onComplete,
   onBack
 }: PermissionsViewProps) {
-  const [manifestData, setManifestData] = useState<any>(null);
-  const [referrer, setReferrer] = useState<string>('');
   const [showDetails, setShowDetails] = useState(false);
   const storedMode = getStoredUrlParam('mode');
   const normalizedMode = useMemo(() => {
@@ -168,29 +167,6 @@ export function PermissionsView({
     return hidden > 0 ? `${titles.join(', ')} +${hidden} more` : titles.join(', ');
   }, [routine]);
 
-  useEffect(() => {
-    // Load manifest data if available
-    const stored = localStorage.getItem('manifest-data');
-    if (stored) {
-      try {
-        setManifestData(JSON.parse(stored));
-      } catch (err) {
-        console.warn('Could not parse manifest data:', err);
-      }
-    }
-    
-    // Get referrer from callback URL
-    const callbackUrl = getStoredUrlParam('callback-url');
-    if (callbackUrl) {
-      try {
-        const url = new URL(callbackUrl);
-        setReferrer(url.origin);
-      } catch (err) {
-        console.warn('Could not parse callback URL:', err);
-      }
-    }
-  }, []);
-  
   const renderPermissionCard = ({ permission, info }: { permission: string; info: PermissionInfo }) => {
     const isHighRisk = info.risk === 'high';
 
@@ -270,35 +246,8 @@ export function PermissionsView({
         </CardHeader>
         <CardContent>
           <Stack spacing="lg">
-            {/* Package Info - Brand colored banner */}
-            {manifestData && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '12px',
-                padding: '12px 14px',
-                borderRadius: 'var(--radius-md)',
-                border: `1px solid ${tokens.color.brand['600'].value}`,
-                background: `${tokens.color.brand['600'].value}14`,
-                color: 'var(--color-text-primary)',
-              }}>
-                <span style={{ fontSize: '24px', flexShrink: 0 }}>📦</span>
-                <Stack spacing="xs">
-                  <Text weight="semibold" size="md">
-                    {manifestData.name}
-                  </Text>
-                  <Text size="sm" color="muted">
-                    Package: {manifestData.id}@{manifestData.version}
-                  </Text>
-                  {referrer && (
-                    <Text size="xs" color="muted">
-                      Requested by: {referrer}
-                    </Text>
-                  )}
-                </Stack>
-              </div>
-            )}
-            
+            <CallbackOrigin />
+
             <Text color="muted">
               {described.length === 1
                 ? 'This application is requesting one permission.'
