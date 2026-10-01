@@ -99,7 +99,6 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
     };
   }, []);
 
-  const manifestUrl = getStoredUrlParam('manifest-url');
   const packageName = getStoredUrlParam('package-name');
 
   /*
@@ -129,8 +128,8 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
 
   useEffect(() => {
     const fetchManifest = async () => {
-      if (!manifestUrl && !packageName) {
-        setError('No manifest URL or package name provided');
+      if (!packageName) {
+        setError('No package name provided');
         setLoading(false);
         return;
       }
@@ -187,41 +186,6 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
               version: manifestData.version,
             }));
           }
-        } else if (manifestUrl) {
-          const response = await fetch(manifestUrl);
-          if (!response.ok) throw new Error(`Failed to fetch manifest: ${response.statusText}`);
-          const manifestData = await response.json();
-
-          let normalizedManifest = { ...manifestData };
-          if (!normalizedManifest.artifact) {
-            if (manifestData.artifacts && Array.isArray(manifestData.artifacts) && manifestData.artifacts.length > 0) {
-              const firstArtifact = manifestData.artifacts[0];
-              normalizedManifest.artifact = {
-                type: firstArtifact.type || 'wasm',
-                target: firstArtifact.target || 'node',
-                digest: firstArtifact.digest || firstArtifact.sha256 || '',
-                uri: firstArtifact.uri || firstArtifact.mirrors?.[0] || '',
-              };
-              delete normalizedManifest.artifacts;
-            } else {
-              normalizedManifest.artifact = { type: 'wasm', target: 'node', digest: '', uri: '' };
-            }
-          }
-          if (normalizedManifest.artifact.uri && normalizedManifest.artifact.uri.startsWith('/')) {
-            try {
-              const manifestBaseUrl = new URL(manifestUrl);
-              normalizedManifest.artifact.uri = new URL(normalizedManifest.artifact.uri, manifestBaseUrl.origin).toString();
-            } catch (e) {
-              console.warn('Failed to convert relative URI to absolute:', e);
-            }
-          }
-
-          setManifest(normalizedManifest);
-          localStorage.setItem('manifest-info', JSON.stringify({
-            id: normalizedManifest.id,
-            name: normalizedManifest.name,
-            version: normalizedManifest.version,
-          }));
         }
       } catch (err) {
         console.error('Failed to fetch manifest:', err);
@@ -232,7 +196,7 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
     };
 
     fetchManifest();
-  }, [manifestUrl, packageName, packageVersion, registryUrl, retryKey]);
+  }, [packageName, packageVersion, registryUrl, retryKey]);
 
   const onCompleteRef = useRef(onComplete);
   useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
