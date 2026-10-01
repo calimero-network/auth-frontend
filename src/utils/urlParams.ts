@@ -69,7 +69,7 @@ export const handleUrlParams = () => {
   // EXCEPT transient params that should always come from URL
   // Note: We need to store package params temporarily to survive OAuth redirects
   // They will be cleared at the end via clearStoredUrlParams()
-  const doNotStore: string[] = [];
+  const doNotStore: string[] = ['calimero_access_token', 'calimero_refresh_token'];
   
   searchParams.forEach((value, key) => {
     params[key] = value;

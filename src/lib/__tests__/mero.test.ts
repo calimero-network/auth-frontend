@@ -231,4 +231,76 @@ describe('lib/mero token handling (core#3083 single-use refresh)', () => {
       expect(getAccessToken()).toBe(fixtures.tokens.admin.access_token);
     });
   });
+
+  describe('session storage location', () => {
+    let savedLocation: Location;
+
+    const onRemoteNode = () => {
+      savedLocation = window.location;
+      delete (window as any).location;
+      (window as any).location = {
+        search: '',
+        pathname: '/auth/',
+        hash: '',
+        href: 'https://node.example.com/auth/',
+        origin: 'https://node.example.com',
+      };
+    };
+
+    afterEach(() => {
+      if (savedLocation) (window as any).location = savedLocation;
+      sessionStorage.clear();
+    });
+
+    it('keeps the session in localStorage on a loopback node', () => {
+      setTokens({ access_token: 'local_access', refresh_token: 'local_refresh' });
+
+      expect(localStorage.getItem(REFRESH_KEY)).toBe('local_refresh');
+      expect(sessionStorage.getItem(REFRESH_KEY)).toBeNull();
+    });
+
+    it('keeps the session out of localStorage on a remote node', () => {
+      onRemoteNode();
+
+      setTokens({ access_token: 'remote_access', refresh_token: 'remote_refresh' });
+
+      expect(localStorage.getItem(ACCESS_KEY)).toBeNull();
+      expect(localStorage.getItem(REFRESH_KEY)).toBeNull();
+      expect(sessionStorage.getItem(REFRESH_KEY)).toBe('remote_refresh');
+      expect(getRefreshToken()).toBe('remote_refresh');
+    });
+
+    it('moves a session left in localStorage into sessionStorage on a remote node', () => {
+      seedStoredSession({ access_token: 'old_access', refresh_token: 'old_refresh' });
+      onRemoteNode();
+
+      expect(getAccessToken()).toBe('old_access');
+      expect(getRefreshToken()).toBe('old_refresh');
+      expect(localStorage.getItem(ACCESS_KEY)).toBeNull();
+      expect(localStorage.getItem(REFRESH_KEY)).toBeNull();
+    });
+
+    it('persists a rotated refresh token to sessionStorage on a remote node', async () => {
+      onRemoteNode();
+      setTokens(fixtures.tokens.admin);
+      reload();
+      sessionStorage.setItem(ACCESS_KEY, 'stale_access_token');
+
+      expect(await hasLiveSession()).toBe(true);
+
+      expect(sessionStorage.getItem(REFRESH_KEY)).not.toBe(fixtures.tokens.admin.refresh_token);
+      expect(localStorage.getItem(REFRESH_KEY)).toBeNull();
+    });
+
+    it('clearTokens drops the session from both storages', () => {
+      onRemoteNode();
+      setTokens({ access_token: 'a', refresh_token: 'r' });
+      localStorage.setItem(REFRESH_KEY, 'leftover');
+
+      clearTokens();
+
+      expect(sessionStorage.getItem(REFRESH_KEY)).toBeNull();
+      expect(localStorage.getItem(REFRESH_KEY)).toBeNull();
+    });
+  });
 });

@@ -141,6 +141,17 @@ describe('urlParams', () => {
       expect(stored?.startsWith('"')).toBe(false);
     });
 
+    it('never stores session token keys taken from the URL', () => {
+      (window as any).location.search =
+        '?package-name=com.test&calimero_access_token=a&calimero_refresh_token=r';
+
+      handleUrlParams();
+
+      expect(sessionStorage.getItem('package-name')).toBe('com.test');
+      expect(sessionStorage.getItem('calimero_access_token')).toBeNull();
+      expect(sessionStorage.getItem('calimero_refresh_token')).toBeNull();
+    });
+
     it('should merge sessionStorage params when URL is empty', () => {
       sessionStorage.setItem(
         'calimero-auth-params',
