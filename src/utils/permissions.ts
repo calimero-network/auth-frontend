@@ -32,34 +32,31 @@ export const normalizePermissions = (
   return ensureUniqueOrder([...required, ...permissions]);
 };
 
+const APP_PERMISSIONS = new Set([
+  'context:create',
+  'context:list',
+  'context:list-own',
+  'context:execute',
+  'context:subscribe',
+  'application:list',
+]);
 
+const APP_PERMISSION_FAMILIES = ['blob', 'namespace', 'group', 'context:alias'];
 
-/**
- * Grants that amount to controlling the node itself: `admin`, and the `keys`
- * family (mint new root/client keys, rewrite any key's permissions — i.e.
- * self-escalate to admin).
- *
- * ⚠️ Only the admin flow may mint these. The package and application-id flows
- * forward `?permissions=` from the URL, and a package's registry-declared
- * frontend is a trusted callback (callbackUrl.ts) — so passing these through
- * let anyone who can publish a package do
- *
- *   ?package-name=com.evil.x&callback-url=https://evil.example&permissions=admin
- *
- * and walk off with an admin token pair after one "Approve". No app needs
- * them: mero-react's getPermissionsForMode never requests either outside
- * AppMode.Admin, which logs in through the admin flow.
- */
-const isNodeControlPermission = (permission: string): boolean => {
-  const p = permission.trim().toLowerCase();
-  return p === 'admin' || p.startsWith('admin[') || p === 'keys' || p.startsWith('keys:') || p.startsWith('keys[');
+const isAppPermission = (permission: string): boolean => {
+  const trimmed = permission.trim();
+  const bracket = trimmed.indexOf('[');
+  const main = bracket === -1 ? trimmed : trimmed.slice(0, bracket);
+  if (APP_PERMISSIONS.has(main)) {
+    return true;
+  }
+  return APP_PERMISSION_FAMILIES.some((family) => main === family || main.startsWith(`${family}:`));
 };
 
-/** Drop node-control grants from a request made by an app (non-admin) flow. */
 export const restrictToAppPermissions = (permissions: string[]): string[] => {
-  const dropped = permissions.filter(isNodeControlPermission);
+  const dropped = permissions.filter((p) => !isAppPermission(p));
   if (dropped.length > 0) {
-    console.warn('Dropping node-control permissions requested by an app flow:', dropped);
+    console.warn('Dropping permissions an app flow may not request:', dropped);
   }
-  return permissions.filter((p) => !isNodeControlPermission(p));
+  return permissions.filter(isAppPermission);
 };

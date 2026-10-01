@@ -3,18 +3,71 @@ import { normalizePermissions, restrictToAppPermissions } from '../permissions';
 import { trustedRegistryClient } from '../registryClient';
 
 describe('restrictToAppPermissions', () => {
-  it('drops admin and the keys family', () => {
+  it('drops admin in every spelling', () => {
     expect(
       restrictToAppPermissions([
         'context:execute',
         'admin',
         'ADMIN',
-        'keys',
-        'keys:create',
-        'keys:permissions:update[k1]',
-        'blob',
+        'Admin',
+        ' admin ',
+        'admin:x',
+        'admin:*',
+        'admin[x]',
+        'admin:x[y]',
       ]),
-    ).toEqual(['context:execute', 'blob']);
+    ).toEqual(['context:execute']);
+  });
+
+  it('drops the keys family in every spelling', () => {
+    expect(
+      restrictToAppPermissions([
+        'context:execute',
+        'keys',
+        'KEYS',
+        'keys:x',
+        'keys:create',
+        'keys[x]',
+        'keys:permissions:update[k1]',
+        'keys:clients:delete',
+      ]),
+    ).toEqual(['context:execute']);
+  });
+
+  it('drops broad management scopes', () => {
+    expect(
+      restrictToAppPermissions([
+        'context:execute',
+        'context',
+        'context[ctx]',
+        'context:delete',
+        'context:leave',
+        'context:invite',
+        'context:capabilities:grant',
+        'context:capabilities:revoke',
+        'context:application:update',
+        'context:execute:x',
+        'application',
+        'application:install',
+        'application:uninstall',
+        'package',
+        'unknown',
+        '',
+      ]),
+    ).toEqual(['context:execute']);
+  });
+
+  it('keeps narrower forms of allowed scopes', () => {
+    const narrow = [
+      'context:execute[ctx]',
+      'context:list-own',
+      'blob:get[b1]',
+      'blob:add:file',
+      'namespace:list',
+      'group:manage[g1]',
+      'context:alias:lookup',
+    ];
+    expect(restrictToAppPermissions(narrow)).toEqual(narrow);
   });
 
   it('keeps everything mero-react asks for in multi-context mode', () => {
@@ -29,8 +82,21 @@ describe('restrictToAppPermissions', () => {
       'blob',
       'context:alias',
     ];
-    // normalizePermissions moves the mode's required grants first; order is irrelevant to core.
     expect([...restrictToAppPermissions(normalizePermissions('multi-context', multi))].sort()).toEqual([...multi].sort());
+  });
+
+  it('keeps everything mero-react asks for in single-context mode', () => {
+    const single = [
+      'context:execute',
+      'context:list',
+      'context:subscribe',
+      'application:list',
+      'blob',
+      'context:alias',
+    ];
+    expect([...restrictToAppPermissions(normalizePermissions('single-context', single))].sort()).toEqual(
+      [...single].sort(),
+    );
   });
 
   it('does not touch the admin flow', () => {
