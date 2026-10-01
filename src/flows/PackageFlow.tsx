@@ -7,9 +7,11 @@ import { ContextSelector } from '../components/context/ContextSelector';
 import { ErrorView } from '../components/common/ErrorView';
 import Loader from '../components/common/Loader';
 import { PageShell } from '../components/common/PageShell';
+import { CallbackOrigin } from '../components/common/CallbackOrigin';
+import { AdminRefused } from '../components/common/AdminRefused';
 import { AppMode } from '../types/flows';
 import { getStoredUrlParam } from '../utils/urlParams';
-import { normalizePermissions, restrictToAppPermissions } from '../utils/permissions';
+import { normalizePermissions, requestsAdmin, restrictToAppPermissions } from '../utils/permissions';
 import {
   Button,
   Card,
@@ -56,11 +58,12 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
   const [selectedIdentity, setSelectedIdentity] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
 
-  const permissions = useMemo(() => {
+  const requested = useMemo(() => {
     const permissionsParam = getStoredUrlParam('permissions');
     const rawPermissions = permissionsParam ? permissionsParam.split(',') : [];
-    return restrictToAppPermissions(normalizePermissions(mode, rawPermissions));
+    return normalizePermissions(mode, rawPermissions);
   }, [mode]);
+  const permissions = useMemo(() => restrictToAppPermissions(requested), [requested]);
 
   const handleManifestComplete = () => {
     const appId =
@@ -138,6 +141,10 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
       setGenerating(false);
     }
   };
+
+  if (requestsAdmin(requested)) {
+    return <AdminRefused />;
+  }
 
   if (generating) {
     return <Loader />;
@@ -356,6 +363,8 @@ const SummaryView: React.FC<SummaryViewProps> = ({
                 </Stack>
               </div>
             </Stack>
+
+            <CallbackOrigin />
 
             <Divider color="muted" spacing="sm" />
 
