@@ -6,9 +6,10 @@ import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ContextSelector } from '../components/context/ContextSelector';
 import { ErrorView } from '../components/common/ErrorView';
 import Loader from '../components/common/Loader';
+import { AdminRefused } from '../components/common/AdminRefused';
 import { AppMode } from '../types/flows';
 import { getStoredUrlParam } from '../utils/urlParams';
-import { normalizePermissions, restrictToAppPermissions } from '../utils/permissions';
+import { normalizePermissions, requestsAdmin, restrictToAppPermissions } from '../utils/permissions';
 import { describeError } from '../utils/errors';
 
 interface ApplicationFlowProps {
@@ -37,11 +38,12 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
 
-  const permissions = useMemo(() => {
+  const requested = useMemo(() => {
     const permissionsParam = getStoredUrlParam('permissions');
     const rawPermissions = permissionsParam ? permissionsParam.split(',') : [];
-    return restrictToAppPermissions(normalizePermissions(mode, rawPermissions));
+    return normalizePermissions(mode, rawPermissions);
   }, [mode]);
+  const permissions = useMemo(() => restrictToAppPermissions(requested), [requested]);
 
   const handleAppCheckComplete = () => {
     setStep('permissions');
@@ -88,6 +90,10 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
       setGenerating(false);
     }
   };
+
+  if (requestsAdmin(requested)) {
+    return <AdminRefused />;
+  }
 
   if (generating) {
     return <Loader />;
