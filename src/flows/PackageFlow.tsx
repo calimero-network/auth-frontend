@@ -7,9 +7,11 @@ import { ContextSelector } from '../components/context/ContextSelector';
 import { ErrorView } from '../components/common/ErrorView';
 import Loader from '../components/common/Loader';
 import { PageShell } from '../components/common/PageShell';
+import { CallbackOrigin } from '../components/common/CallbackOrigin';
+import { AdminRefused } from '../components/common/AdminRefused';
 import { AppMode } from '../types/flows';
 import { getStoredUrlParam } from '../utils/urlParams';
-import { permissionsForPackage } from '../utils/permissions';
+import { isTrustedApp, normalizePermissions, permissionsForPackage, requestsAdmin } from '../utils/permissions';
 import {
   Button,
   Card,
@@ -56,11 +58,18 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
   const [selectedIdentity, setSelectedIdentity] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
 
-  const permissions = useMemo(() => {
+  const rawPermissions = useMemo(() => {
     const permissionsParam = getStoredUrlParam('permissions');
-    const rawPermissions = permissionsParam ? permissionsParam.split(',') : [];
-    return permissionsForPackage(mode, rawPermissions, packageName, getStoredUrlParam('callback-url'));
-  }, [mode, packageName]);
+    return permissionsParam ? permissionsParam.split(',') : [];
+  }, []);
+  const requested = useMemo(() => normalizePermissions(mode, rawPermissions), [mode, rawPermissions]);
+  const permissions = useMemo(
+    () => permissionsForPackage(mode, rawPermissions, packageName, getStoredUrlParam('callback-url')),
+    [mode, rawPermissions, packageName],
+  );
+  // A first-party app is granted admin by the fixed list, never by asking.
+  const refusesAdmin =
+    requestsAdmin(requested) && !isTrustedApp(packageName, getStoredUrlParam('callback-url'));
 
   const handleManifestComplete = (appId: string) => {
     if (appId) {
@@ -145,6 +154,10 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
       setGenerating(false);
     }
   };
+
+  if (refusesAdmin) {
+    return <AdminRefused />;
+  }
 
   if (generating) {
     return <Loader />;
@@ -363,6 +376,8 @@ const SummaryView: React.FC<SummaryViewProps> = ({
                 </Stack>
               </div>
             </Stack>
+
+            <CallbackOrigin />
 
             <Divider color="muted" spacing="sm" />
 
