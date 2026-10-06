@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizePermissions, restrictToAppPermissions } from '../permissions';
+import { normalizePermissions, requestsAdmin, restrictToAppPermissions } from '../permissions';
 import { trustedRegistryClient } from '../registryClient';
 
 describe('restrictToAppPermissions', () => {
@@ -101,6 +101,30 @@ describe('restrictToAppPermissions', () => {
 
   it('does not touch the admin flow', () => {
     expect(normalizePermissions('admin', ['admin'])).toEqual(['admin']);
+  });
+});
+
+describe('requestsAdmin', () => {
+  it('detects admin in every spelling', () => {
+    for (const p of [
+      'admin',
+      'ADMIN',
+      ' admin ',
+      'admin:x',
+      'admin[x]',
+      'admin:x[y]',
+      '["admin"]',
+      '[admin]',
+      'admin context:execute',
+      'blob:x admin',
+    ]) {
+      expect(requestsAdmin(['context:execute', p]), p).toBe(true);
+    }
+  });
+
+  it('does not flag other scopes', () => {
+    expect(requestsAdmin(['context:execute', 'application:list', 'administer', 'blob'])).toBe(false);
+    expect(requestsAdmin([])).toBe(false);
   });
 });
 
