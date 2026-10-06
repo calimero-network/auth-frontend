@@ -2,8 +2,10 @@
 // read the never-written `manifest-data` key.
 import React from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { PermissionsView } from '../PermissionsView';
+
+const origin = () => screen.getByTestId('callback-origin').textContent;
 
 const renderView = (mode = 'multi-context') =>
   render(
@@ -32,32 +34,30 @@ describe('PermissionsView callback origin', () => {
     sessionStorage.setItem('callback-url', 'https://example.org/app/cb?x=1');
     renderView();
 
-    const line = await screen.findByTestId('callback-origin');
-    expect(line.textContent).toBe('Access token will be sent to: https://example.org');
+    await waitFor(() => expect(origin()).toBe('Access token will be sent to: https://example.org'));
   });
 
   it('shows the origin on the admin consent screen too', async () => {
     sessionStorage.setItem('callback-url', 'https://example.org/cb');
     renderView('admin');
 
-    const line = await screen.findByTestId('callback-origin');
-    expect(line.textContent).toContain('https://example.org');
+    await waitFor(() => expect(origin()).toContain('https://example.org'));
   });
 
   it('says so when no callback is given', async () => {
     renderView();
 
-    const line = await screen.findByTestId('callback-origin');
-    expect(line.textContent).toMatch(/no token will be sent/i);
+    await waitFor(() => expect(origin()).toMatch(/no token will be sent/i));
   });
 
   it('says so, and does not name the origin, when the callback is not allowed', async () => {
     sessionStorage.setItem('callback-url', 'https://evil.example/cb');
     renderView();
 
-    const line = await screen.findByTestId('callback-origin');
-    expect(line.textContent).toMatch(/no token will be sent/i);
-    expect(line.textContent).not.toContain('evil.example');
+    await waitFor(() => {
+      expect(origin()).toMatch(/no token will be sent/i);
+      expect(origin()).not.toContain('evil.example');
+    });
   });
 });
 

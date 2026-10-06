@@ -2,7 +2,7 @@
 // consent and summary screens must name the callback origin.
 import React from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../../components/manifest/ManifestProcessor', () => ({
@@ -28,6 +28,9 @@ import { PackageFlow } from '../PackageFlow';
 import { ApplicationFlow } from '../ApplicationFlow';
 
 const CALLBACK = 'https://example.org/app/cb';
+const SENT_TO = 'Access token will be sent to: https://example.org';
+
+const origin = () => screen.getByTestId('callback-origin').textContent;
 
 beforeEach(() => {
   localStorage.clear();
@@ -61,15 +64,11 @@ describe('PackageFlow', () => {
     renderFlow();
 
     await userEvent.click(screen.getByText('mock-install'));
-    expect((await screen.findByTestId('callback-origin')).textContent).toBe(
-      'Access token will be sent to: https://example.org',
-    );
+    await waitFor(() => expect(origin()).toBe(SENT_TO));
 
     await userEvent.click(screen.getByRole('button', { name: 'Approve Permissions' }));
     expect(screen.getByText('Generate Token')).toBeTruthy();
-    expect((await screen.findByTestId('callback-origin')).textContent).toBe(
-      'Access token will be sent to: https://example.org',
-    );
+    await waitFor(() => expect(origin()).toBe(SENT_TO));
   });
 
   it('says on the summary that nothing will be sent when the callback does not resolve', async () => {
@@ -80,8 +79,7 @@ describe('PackageFlow', () => {
     await userEvent.click(screen.getByText('mock-install'));
     await userEvent.click(screen.getByRole('button', { name: 'Approve Permissions' }));
 
-    const line = await screen.findByTestId('callback-origin');
-    expect(line.textContent).toMatch(/no token will be sent/i);
+    await waitFor(() => expect(origin()).toMatch(/no token will be sent/i));
   });
 });
 
@@ -107,8 +105,6 @@ describe('ApplicationFlow', () => {
     renderFlow();
 
     await userEvent.click(screen.getByText('mock-app-check'));
-    expect((await screen.findByTestId('callback-origin')).textContent).toBe(
-      'Access token will be sent to: https://example.org',
-    );
+    await waitFor(() => expect(origin()).toBe(SENT_TO));
   });
 });
