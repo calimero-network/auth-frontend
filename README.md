@@ -124,14 +124,6 @@ https://auth.calimero.network/auth/login?
   permissions=context:execute,application
 ```
 
-#### Manifest URL (Direct)
-```
-https://auth.calimero.network/auth/login?
-  manifest-url=http://localhost:8082/apps/network.calimero.meropass/1.0.0&
-  callback-url=https://app.example.com/callback&
-  permissions=context:execute,application
-```
-
 #### Application ID (Legacy)
 ```
 https://auth.calimero.network/auth/login?
