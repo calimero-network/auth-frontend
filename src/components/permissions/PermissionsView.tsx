@@ -42,6 +42,11 @@ const PERMISSION_DETAILS: Record<string, PermissionInfo> = {
     description: 'Create new private contexts (e.g., vaults, workspaces)',
     risk: 'low',
   },
+  'context:delete': {
+    title: 'Delete Contexts',
+    description: 'Remove contexts from your node (e.g., a project you no longer need)',
+    risk: 'medium',
+  },
   'context:list': {
     title: 'List Contexts',
     description: 'View your existing contexts',
