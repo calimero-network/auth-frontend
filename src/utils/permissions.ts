@@ -34,6 +34,9 @@ export const normalizePermissions = (
 
 const APP_PERMISSIONS = new Set([
   'context:create',
+  // mero-react's MultiContext grant (#82): an app that may create contexts may
+  // delete them. Without it DELETE /admin-api/contexts/:id answers 403.
+  'context:delete',
   'context:list',
   'context:list-own',
   'context:execute',
