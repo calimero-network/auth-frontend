@@ -6,6 +6,8 @@ import {
   resolveSafeCallbackUrl,
   resolveTrustedCallbackUrl,
   redirectTokensToCallback,
+  parseOriginList,
+  resetNodeTrustedOrigins,
 } from '../callbackUrl';
 
 describe('resolveSafeCallbackUrl', () => {
@@ -483,5 +485,110 @@ describe('loopback callbacks on a remote node', () => {
     expect((await resolveTrustedCallbackUrl('https://real-f.example/cb'))?.origin).toBe(
       'https://real-f.example',
     );
+  });
+});
+
+describe('origins the node itself trusts (trusted_callback_origins)', () => {
+  const PREVIEW = 'https://mero-crm-git-feature-calimero-network.vercel.app';
+
+  function serveNodeOrigins(origins: unknown, status = 200) {
+    server.use(
+      http.get(`${window.location.origin}/auth/providers`, () =>
+        HttpResponse.json(
+          { data: { providers: [], count: 0, trusted_callback_origins: origins } },
+          { status },
+        ),
+      ),
+    );
+  }
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    localStorage.clear();
+    resetNodeTrustedOrigins();
+  });
+
+  // The reported bug: a Vercel preview of an app is not the registry-declared
+  // frontend, so its login was refused with no way for the node's owner to
+  // allow it.
+  it('trusts a preview origin the node lists', async () => {
+    serveNodeOrigins([PREVIEW]);
+    const url = await resolveTrustedCallbackUrl(`${PREVIEW}/login`);
+    expect(url?.origin).toBe(PREVIEW);
+  });
+
+  it('still refuses an origin the node does not list', async () => {
+    serveNodeOrigins([PREVIEW]);
+    expect(await resolveTrustedCallbackUrl('https://evil.example/cb')).toBeNull();
+  });
+
+  it('trusts nothing extra when the node has no list (an older node)', async () => {
+    server.use(
+      http.get(`${window.location.origin}/auth/providers`, () =>
+        HttpResponse.json({ data: { providers: [], count: 0 } }),
+      ),
+    );
+    expect(await resolveTrustedCallbackUrl(`${PREVIEW}/login`)).toBeNull();
+  });
+
+  it('fails closed when the node read fails', async () => {
+    serveNodeOrigins([PREVIEW], 500);
+    expect(await resolveTrustedCallbackUrl(`${PREVIEW}/login`)).toBeNull();
+  });
+
+  it('reads the list from this page\'s own origin, not from a URL parameter', async () => {
+    // A link cannot point the check at a node that "lists" the attacker.
+    sessionStorage.setItem('app-url', 'https://evil-node.example');
+    server.use(
+      http.get('https://evil-node.example/auth/providers', () =>
+        HttpResponse.json({ data: { trusted_callback_origins: ['https://evil.example'] } }),
+      ),
+    );
+    serveNodeOrigins([]);
+    expect(await resolveTrustedCallbackUrl('https://evil.example/cb')).toBeNull();
+  });
+
+  it('the redirect hands the tokens to a node-listed origin', async () => {
+    serveNodeOrigins([PREVIEW]);
+    let href = window.location.href;
+    const real = Object.getOwnPropertyDescriptor(window.location, 'href');
+    Object.defineProperty(window.location, 'href', {
+      configurable: true,
+      get: () => href,
+      set: (v: string) => { href = v; },
+    });
+    try {
+      const result = await redirectTokensToCallback(`${PREVIEW}/login`, {
+        access_token: 'AT',
+        refresh_token: 'RT',
+      });
+      expect(result).toBe('ok');
+      expect(href.startsWith(`${PREVIEW}/login#`)).toBe(true);
+    } finally {
+      if (real) Object.defineProperty(window.location, 'href', real);
+    }
+  });
+});
+
+describe('parseOriginList', () => {
+  it('keeps exact http(s) origins and drops everything else', () => {
+    expect([
+      ...parseOriginList([
+        'https://a.example',
+        'https://b.example/',
+        ' http://localhost:5173 ',
+        'https://c.example/path',
+        'javascript:alert(1)',
+        '*.vercel.app',
+        'https://*.vercel.app',
+        42,
+        null,
+      ]),
+    ]).toEqual(['https://a.example', 'https://b.example', 'http://localhost:5173']);
+  });
+
+  it('is empty for anything that is not a list', () => {
+    expect(parseOriginList(undefined).size).toBe(0);
+    expect(parseOriginList('https://a.example').size).toBe(0);
   });
 });
