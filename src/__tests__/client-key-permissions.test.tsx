@@ -134,10 +134,16 @@ describe('client-key permission passthrough (rc.9 contract)', () => {
     };
 
     it('signs Hyperfeed in with full access from its own frontend, unbound', async () => {
-      sessionStorage.setItem('callback-url', 'https://hyperfeed-two.vercel.app/settings');
+      sessionStorage.setItem('callback-url', 'https://hyperfeed.me/settings');
       const body = await mint('multi-context', 'com.calimero.hyperfeed');
       expect(body.permissions).toEqual(['admin']);
       expect(body.context_id).toBe('');
+    });
+
+    it('still signs in Hyperfeed served from its previous vercel.app frontend', async () => {
+      sessionStorage.setItem('callback-url', 'https://hyperfeed-two.vercel.app/settings');
+      const body = await mint('multi-context', 'com.calimero.hyperfeed');
+      expect(body.permissions).toEqual(['admin']);
     });
 
     it('gives the app set to Hyperfeed calling back anywhere else', async () => {

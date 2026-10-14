@@ -62,7 +62,9 @@ const isAppPermission = (permission: string): boolean => {
  * manifest or the request: an app cannot ask its way in.
  */
 export const TRUSTED_APPS: Readonly<Record<string, readonly string[]>> = {
-  'com.calimero.hyperfeed': ['https://hyperfeed-two.vercel.app'],
+  // hyperfeed.me is Hyperfeed's own domain; the vercel.app origin stays until
+  // every node runs a Hyperfeed bundle that names hyperfeed.me.
+  'com.calimero.hyperfeed': ['https://hyperfeed.me', 'https://www.hyperfeed.me', 'https://hyperfeed-two.vercel.app'],
 };
 
 /** Whether `packageName`, calling back to `callbackUrl`, is a trusted first-party app. */

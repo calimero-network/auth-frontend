@@ -141,6 +141,10 @@ describe('trusted first-party apps', () => {
   it('trusts a listed package only at its own origin', () => {
     expect(isTrustedApp('com.calimero.hyperfeed', HYPERFEED)).toBe(true);
     expect(isTrustedApp('com.calimero.hyperfeed', 'https://hyperfeed-two.vercel.app/chat?x=1')).toBe(true);
+    expect(isTrustedApp('com.calimero.hyperfeed', 'https://hyperfeed.me/')).toBe(true);
+    expect(isTrustedApp('com.calimero.hyperfeed', 'https://www.hyperfeed.me/settings')).toBe(true);
+    expect(isTrustedApp('com.calimero.hyperfeed', 'https://evil.hyperfeed.me/')).toBe(false);
+    expect(isTrustedApp('com.calimero.hyperfeed', 'https://hyperfeed.me.evil.example/')).toBe(false);
     expect(isTrustedApp('com.calimero.hyperfeed', 'http://hyperfeed-two.vercel.app/')).toBe(false);
     expect(isTrustedApp('com.calimero.hyperfeed', 'https://hyperfeed-two.vercel.app.evil.example/')).toBe(false);
     expect(isTrustedApp('com.example.other', HYPERFEED)).toBe(false);
