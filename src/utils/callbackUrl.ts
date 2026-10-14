@@ -24,6 +24,14 @@ import { createRegistryClient, registryClient } from './registryClient';
 //   * any additional deployed app origins must be explicitly allowlisted via
 //     the `VITE_ALLOWED_CALLBACK_ORIGINS` build/env var (comma-separated), e.g.
 //     "https://app.example.com,https://chat.example.com"
+//   * the NODE may list more trusted app origins in its own config
+//     (`trusted_callback_origins` in the embedded auth config, which the
+//     desktop app edits under Settings → Developer). The list is read from
+//     `/auth/providers` on THIS page's own origin only — the node serving the
+//     login page — never from a URL parameter, so a link cannot add to it.
+//     Exact origins only, no wildcards; a failed read trusts nothing extra.
+//     This is how Vercel preview deployments, which run on a different origin
+//     from the registry-declared frontend, can log in to a developer's node.
 //   * a hosted app may also be trusted DYNAMICALLY: when the login flow names
 //     a package (`package-name` param), the app registry's bundle manifest
 //     declares that app's frontend URL (`links.frontend`) — the moral
@@ -98,6 +106,57 @@ const parseHttpUrl = (raw: string | null | undefined): URL | null => {
   return url;
 };
 
+/** Parse a list of origins, keeping only well-formed http(s) ones. */
+export const parseOriginList = (raw: unknown): Set<string> => {
+  const origins = new Set<string>();
+  if (!Array.isArray(raw)) return origins;
+  for (const entry of raw) {
+    if (typeof entry !== 'string') continue;
+    const url = parseHttpUrl(entry.trim());
+    // An origin, not a URL with a path: "https://a.example/x" is a typo for
+    // something, and guessing what would widen the list. No wildcards either:
+    // `https://*.vercel.app` parses as a URL, but trusting it would hand tokens
+    // to anyone's Vercel project.
+    if (!url || url.hostname.includes('*')) continue;
+    if (url.origin === entry.trim().replace(/\/$/, '')) origins.add(url.origin);
+  }
+  return origins;
+};
+
+// One read per page load: the list is node config and does not change while
+// the login page is open.
+let nodeTrustedOrigins: Promise<Set<string>> | null = null;
+
+/** Test seam: forget the node's list so the next check reads it again. */
+export const resetNodeTrustedOrigins = (): void => {
+  nodeTrustedOrigins = null;
+};
+
+/**
+ * The extra callback origins the node serving this page trusts, from its own
+ * `/auth/providers`. Same origin only, and empty on any failure (an older node
+ * without the field, a network error, a hosted auth frontend whose own origin
+ * is not a node).
+ */
+const loadNodeTrustedOrigins = (): Promise<Set<string>> => {
+  if (!nodeTrustedOrigins) {
+    nodeTrustedOrigins = (async () => {
+      try {
+        const response = await fetch(new URL('/auth/providers', window.location.origin).toString(), {
+          credentials: 'omit',
+          headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) return new Set<string>();
+        const body = await response.json();
+        return parseOriginList((body?.data ?? body)?.trusted_callback_origins);
+      } catch {
+        return new Set<string>();
+      }
+    })();
+  }
+  return nodeTrustedOrigins;
+};
+
 const DEFAULT_REGISTRY_ORIGIN = new URL(
   (import.meta.env.VITE_REGISTRY_URL as string | undefined) ||
     'https://apps.calimero.network',
@@ -153,8 +212,9 @@ const isRegistryDeclaredFrontend = (origin: string): Promise<boolean> => {
 
 /**
  * Full trust resolution for a `callback-url`: the static policy first
- * (loopback, same-origin, env allowlist), then the registry-declared frontend
- * origin of the flow's package. Same contract as
+ * (loopback, same-origin, env allowlist), then the origins the node's own
+ * config trusts, then the registry-declared frontend origin of the flow's
+ * package. Same contract as
  * [`resolveSafeCallbackUrl`], asynchronously.
  */
 export async function resolveTrustedCallbackUrl(
@@ -165,6 +225,8 @@ export async function resolveTrustedCallbackUrl(
 
   const url = parseHttpUrl(raw);
   if (!url) return null;
+
+  if ((await loadNodeTrustedOrigins()).has(url.origin)) return url;
 
   return (await isRegistryDeclaredFrontend(url.origin)) ? url : null;
 }
