@@ -1,6 +1,6 @@
 import { isLoopbackHost, nodeIsLoopback } from './nodeUrl';
 import { clearStoredUrlParams, getStoredUrlParam } from './urlParams';
-import { getAppEndpointKey } from '../lib/mero';
+import { getAccessToken, getAppEndpointKey } from '../lib/mero';
 import { createRegistryClient, registryClient } from './registryClient';
 
 // Allowlist validation for the SSO `callback-url`.
@@ -36,12 +36,19 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     a package (`package-name` param), the app registry's bundle manifest
 //     declares that app's frontend URL (`links.frontend`) — the moral
 //     equivalent of OAuth's registered redirect URIs. A callback whose origin
-//     matches the registry-declared frontend origin is trusted. The manifest
+//     matches the registry-declared frontend origin is trusted, and so is one
+//     matching any of the bundle's `frontendAliases` (the other URLs the same
+//     frontend is served at: an app that moved domain lists its old one). The manifest
 //     is only consulted from a TRUSTED registry (the built-in default, or a
 //     `registry-url` whose own origin passes the static policy, loopback
 //     included only on a loopback node) — otherwise
 //     an attacker could point `registry-url` at a registry that "declares"
 //     their exfiltration origin.
+//   * the same holds for a bundle of that package INSTALLED on this node: its
+//     `links.frontend` is trusted too, read from the node with the signed-in
+//     session. The registry knows only the latest frontend, and a node running
+//     an older bundle (the desktop opens exactly that one) still opens the app
+//     at the frontend that bundle names.
 //   * everything else is rejected — the caller must NOT redirect the tokens.
 
 const allowedOrigins = (): Set<string> => {
@@ -157,6 +164,19 @@ const loadNodeTrustedOrigins = (): Promise<Set<string>> => {
   return nodeTrustedOrigins;
 };
 
+/**
+ * Whether a bundle that declares `frontend` and `aliases` names `origin`: its
+ * `links.frontend`, or any entry of its `frontendAliases` (the other URLs the
+ * same frontend is served at, e.g. the domain an app moved away from). Only
+ * http(s) entries count, compared by exact origin.
+ */
+const declaresOrigin = (frontend: unknown, aliases: unknown, origin: string): boolean => {
+  const declared = [frontend, ...(Array.isArray(aliases) ? aliases : [])];
+  return declared.some(
+    (url) => parseHttpUrl(typeof url === 'string' ? url : null)?.origin === origin,
+  );
+};
+
 const DEFAULT_REGISTRY_ORIGIN = new URL(
   (import.meta.env.VITE_REGISTRY_URL as string | undefined) ||
     'https://apps.calimero.network',
@@ -168,9 +188,10 @@ const DEFAULT_REGISTRY_ORIGIN = new URL(
 const registryVerdicts = new Map<string, Promise<boolean>>();
 
 /**
- * True when the app registry declares `origin` as the frontend origin of the
- * package this login flow is for. Fails closed on any error (no package in
- * the flow, manifest missing, no frontend link, network failure).
+ * True when the app registry declares `origin` as the frontend origin (or a
+ * `frontendAliases` origin) of the package this login flow is for. Fails
+ * closed on any error (no package in the flow, manifest missing, no frontend
+ * link, network failure).
  */
 const isRegistryDeclaredFrontend = (origin: string): Promise<boolean> => {
   let verdict = registryVerdicts.get(origin);
@@ -198,8 +219,7 @@ const isRegistryDeclaredFrontend = (origin: string): Promise<boolean> => {
 
       try {
         const manifest = await client.getManifest(packageName);
-        const frontend = parseHttpUrl(manifest._bundleLinks?.frontend);
-        return frontend !== null && frontend.origin === origin;
+        return declaresOrigin(manifest._bundleLinks?.frontend, manifest._frontendAliases, origin);
       } catch (err) {
         console.warn('Registry lookup for callback trust failed:', err);
         return false;
@@ -210,12 +230,74 @@ const isRegistryDeclaredFrontend = (origin: string): Promise<boolean> => {
   return verdict;
 };
 
+/** An application row's `metadata`: JSON bytes (an array or base64) or an object. */
+type InstalledMetadata = { links?: { frontend?: unknown }; frontendAliases?: unknown };
+
+const decodeMetadata = (metadata: unknown): InstalledMetadata | null => {
+  try {
+    if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+      return metadata as InstalledMetadata;
+    }
+    let bytes: Uint8Array;
+    if (Array.isArray(metadata)) {
+      bytes = new Uint8Array(metadata as number[]);
+    } else if (typeof metadata === 'string') {
+      bytes = Uint8Array.from(atob(metadata), (c) => c.charCodeAt(0));
+    } else {
+      return null;
+    }
+    return JSON.parse(new TextDecoder('utf-8').decode(bytes));
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * True when a bundle of the flow's package INSTALLED ON THIS NODE declares
+ * `origin` as its frontend or one of its `frontendAliases`. Fails closed on any
+ * error (no package in the flow, no session, the node refusing the list, no
+ * matching install).
+ *
+ * The registry only knows the package's LATEST frontend, so when an app moves
+ * domain, every node still running an older bundle opens it at the old origin
+ * — Calimero Desktop and its per-app launchers load exactly the installed
+ * bundle's `links.frontend` — and a login from there was refused. The node's
+ * own install is at least as trustworthy as the registry's answer: it is the
+ * bundle the node's admin installed, read with the session the user just
+ * signed in with. Not memoized: the first check can run before that session
+ * exists.
+ */
+const isInstalledFrontend = async (origin: string): Promise<boolean> => {
+  const packageName = getStoredUrlParam('package-name');
+  const token = getAccessToken();
+  if (!packageName || !token) return false;
+
+  const nodeUrl = (getAppEndpointKey() || window.location.origin).replace(/\/$/, '');
+  try {
+    const response = await fetch(`${nodeUrl}/admin-api/applications`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return false;
+    const json = await response.json();
+    const apps: unknown = json?.data?.apps;
+    if (!Array.isArray(apps)) return false;
+    return apps.some((app) => {
+      if (app?.package !== packageName) return false;
+      const metadata = decodeMetadata(app.metadata);
+      return declaresOrigin(metadata?.links?.frontend, metadata?.frontendAliases, origin);
+    });
+  } catch (err) {
+    console.warn('Installed-app lookup for callback trust failed:', err);
+    return false;
+  }
+};
+
 /**
  * Full trust resolution for a `callback-url`: the static policy first
  * (loopback, same-origin, env allowlist), then the origins the node's own
- * config trusts, then the registry-declared frontend origin of the flow's
- * package. Same contract as
- * [`resolveSafeCallbackUrl`], asynchronously.
+ * config trusts, then the frontend origins (and `frontendAliases`) declared by
+ * the flow's package as installed on this node, then as published in the
+ * registry. Same contract as [`resolveSafeCallbackUrl`], asynchronously.
  */
 export async function resolveTrustedCallbackUrl(
   raw: string | null | undefined,
@@ -227,7 +309,7 @@ export async function resolveTrustedCallbackUrl(
   if (!url) return null;
 
   if ((await loadNodeTrustedOrigins()).has(url.origin)) return url;
-
+  if (await isInstalledFrontend(url.origin)) return url;
   return (await isRegistryDeclaredFrontend(url.origin)) ? url : null;
 }
 

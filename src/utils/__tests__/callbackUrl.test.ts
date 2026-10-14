@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../../vitest.setup';
+import { permissionsForPackage } from '../permissions';
 import {
   resolveSafeCallbackUrl,
   resolveTrustedCallbackUrl,
@@ -195,6 +196,185 @@ describe('resolveTrustedCallbackUrl (registry-declared frontends)', () => {
     expect(
       await resolveTrustedCallbackUrl('https://mero-chat-e.vercel.app/cb'),
     ).toBeNull();
+  });
+});
+
+/**
+ * Installed-bundle frontend trust: a node running an older bundle of a package
+ * opens it at the frontend THAT bundle names (Calimero Desktop loads exactly
+ * the installed `links.frontend`), while the registry already declares the
+ * newer one. mero-chat moving from mero-chat-pwa.vercel.app to
+ * chat.hyperfeed.me refused every desktop login with "Login callback
+ * destination is not allowed" until the node's own install counted.
+ */
+describe('resolveTrustedCallbackUrl (frontends installed on this node)', () => {
+  const REGISTRY = 'https://apps.calimero.network';
+  const OLD = 'https://mero-chat-pwa.vercel.app';
+  const NEW = 'https://chat.hyperfeed.me';
+
+  const bytes = (value: unknown) => Array.from(new TextEncoder().encode(JSON.stringify(value)));
+
+  function serveInstalled(apps: unknown[], status = 200) {
+    server.use(
+      http.get('*/admin-api/applications', ({ request }) => {
+        if (request.headers.get('Authorization') !== 'Bearer session-token') {
+          return HttpResponse.json({ error: 'unauthorized' }, { status: 401 });
+        }
+        return HttpResponse.json({ data: { apps } }, { status });
+      }),
+    );
+  }
+
+  function serveRegistryFrontend(pkg: string, frontend: string) {
+    server.use(
+      http.get(`${REGISTRY}/api/v2/bundles`, () =>
+        HttpResponse.json([
+          { version: '1.0', package: pkg, appVersion: '2.0.0', wasm: { hash: 'sha256:abc' }, links: { frontend } },
+        ]),
+      ),
+    );
+  }
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    localStorage.clear();
+    sessionStorage.setItem('package-name', 'com.calimero.chat');
+    localStorage.setItem('calimero_access_token', 'session-token');
+    localStorage.setItem('calimero_refresh_token', 'session-refresh');
+  });
+
+  it('trusts the frontend the installed bundle names when the registry has moved on', async () => {
+    serveInstalled([
+      { id: 'app-1', package: 'com.calimero.chat', metadata: bytes({ links: { frontend: `${OLD}/` } }) },
+    ]);
+    serveRegistryFrontend('com.calimero.chat', NEW);
+
+    const url = await resolveTrustedCallbackUrl(`${OLD}/?_cb=1`);
+    expect(url?.origin).toBe(OLD);
+  });
+
+  it('trusts Hyperfeed at the frontend its installed bundle names, and still grants it full access', async () => {
+    // Hyperfeed moved from hyperfeed-two.vercel.app to hyperfeed.me the same way.
+    sessionStorage.setItem('package-name', 'com.calimero.hyperfeed');
+    const callback = 'https://hyperfeed-two.vercel.app/?_cb=1';
+    serveInstalled([
+      {
+        id: 'hyperfeed',
+        package: 'com.calimero.hyperfeed',
+        metadata: bytes({ links: { frontend: 'https://hyperfeed-two.vercel.app' } }),
+      },
+    ]);
+    serveRegistryFrontend('com.calimero.hyperfeed', 'https://hyperfeed.me');
+
+    expect((await resolveTrustedCallbackUrl(callback))?.origin).toBe('https://hyperfeed-two.vercel.app');
+    expect(permissionsForPackage('multi-context', [], 'com.calimero.hyperfeed', callback)).toEqual(['admin']);
+  });
+
+  it('does not trust a frontend installed under a different package', async () => {
+    serveInstalled([
+      { id: 'app-2', package: 'com.evil.app', metadata: bytes({ links: { frontend: 'https://evil-installed.example' } }) },
+    ]);
+    serveRegistryFrontend('com.calimero.chat', NEW);
+
+    expect(await resolveTrustedCallbackUrl('https://evil-installed.example/cb')).toBeNull();
+  });
+
+  it('does not look at the node without a session', async () => {
+    localStorage.clear();
+    serveInstalled([
+      { id: 'app-3', package: 'com.calimero.chat', metadata: bytes({ links: { frontend: 'https://no-session.example' } }) },
+    ]);
+    serveRegistryFrontend('com.calimero.chat', NEW);
+
+    expect(await resolveTrustedCallbackUrl('https://no-session.example/cb')).toBeNull();
+  });
+
+  it('fails closed when the node refuses the list', async () => {
+    serveInstalled([], 403);
+    serveRegistryFrontend('com.calimero.chat', NEW);
+
+    expect(await resolveTrustedCallbackUrl('https://refused.example/cb')).toBeNull();
+  });
+});
+
+/**
+ * `frontendAliases`: the other URLs a bundle says its frontend is served at.
+ * An app that moved domain lists its old one, so a login from wherever it is
+ * still opened there keeps working, from the registry's latest bundle and
+ * from the one a node has installed alike. Never anything not listed.
+ */
+describe('resolveTrustedCallbackUrl (frontend aliases)', () => {
+  const REGISTRY = 'https://apps.calimero.network';
+  const bytes = (value: unknown) => Array.from(new TextEncoder().encode(JSON.stringify(value)));
+
+  function serveRegistry(pkg: string, frontend: string, frontendAliases?: unknown) {
+    server.use(
+      http.get(`${REGISTRY}/api/v2/bundles`, () =>
+        HttpResponse.json([
+          {
+            version: '1.0',
+            package: pkg,
+            appVersion: '2.0.0',
+            wasm: { hash: 'sha256:abc' },
+            links: { frontend },
+            ...(frontendAliases === undefined ? {} : { frontendAliases }),
+          },
+        ]),
+      ),
+    );
+  }
+
+  function serveInstalled(apps: unknown[]) {
+    server.use(http.get('*/admin-api/applications', () => HttpResponse.json({ data: { apps } })));
+  }
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    localStorage.clear();
+  });
+
+  it('trusts an alias the registry declares for the flow package', async () => {
+    sessionStorage.setItem('package-name', 'com.calimero.alias-a');
+    serveRegistry('com.calimero.alias-a', 'https://new-a.example', ['https://old-a.example/']);
+
+    expect((await resolveTrustedCallbackUrl('https://old-a.example/?_cb=1'))?.origin).toBe(
+      'https://old-a.example',
+    );
+  });
+
+  it('refuses an origin the registry lists neither as frontend nor alias', async () => {
+    sessionStorage.setItem('package-name', 'com.calimero.alias-b');
+    serveRegistry('com.calimero.alias-b', 'https://new-b.example', ['https://old-b.example']);
+
+    expect(await resolveTrustedCallbackUrl('https://evil-b-alias.example/cb')).toBeNull();
+  });
+
+  it('ignores aliases that are not a list of http(s) URLs', async () => {
+    sessionStorage.setItem('package-name', 'com.calimero.alias-c');
+    serveRegistry('com.calimero.alias-c', 'https://new-c.example', 'https://old-c.example');
+
+    expect(await resolveTrustedCallbackUrl('https://old-c.example/cb')).toBeNull();
+  });
+
+  it('trusts an alias the installed bundle declares, with the registry saying nothing', async () => {
+    sessionStorage.setItem('package-name', 'com.calimero.alias-d');
+    localStorage.setItem('calimero_access_token', 'session-token');
+    localStorage.setItem('calimero_refresh_token', 'session-refresh');
+    serveInstalled([
+      {
+        id: 'app-d',
+        package: 'com.calimero.alias-d',
+        metadata: bytes({
+          links: { frontend: 'https://new-d.example' },
+          frontendAliases: ['https://old-d.example'],
+        }),
+      },
+    ]);
+    server.use(http.get(`${REGISTRY}/api/v2/bundles`, () => HttpResponse.json([], { status: 404 })));
+
+    expect((await resolveTrustedCallbackUrl('https://old-d.example/cb'))?.origin).toBe(
+      'https://old-d.example',
+    );
   });
 });
 
