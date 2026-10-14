@@ -9,7 +9,7 @@ import Loader from '../components/common/Loader';
 import { PageShell } from '../components/common/PageShell';
 import { AppMode } from '../types/flows';
 import { getStoredUrlParam } from '../utils/urlParams';
-import { normalizePermissions, restrictToAppPermissions } from '../utils/permissions';
+import { permissionsForPackage } from '../utils/permissions';
 import {
   Button,
   Card,
@@ -59,8 +59,8 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
   const permissions = useMemo(() => {
     const permissionsParam = getStoredUrlParam('permissions');
     const rawPermissions = permissionsParam ? permissionsParam.split(',') : [];
-    return restrictToAppPermissions(normalizePermissions(mode, rawPermissions));
-  }, [mode]);
+    return permissionsForPackage(mode, rawPermissions, packageName, getStoredUrlParam('callback-url'));
+  }, [mode, packageName]);
 
   const handleManifestComplete = () => {
     const appId =

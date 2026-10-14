@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizePermissions, restrictToAppPermissions } from '../permissions';
+import { isTrustedApp, normalizePermissions, permissionsForPackage, restrictToAppPermissions } from '../permissions';
 import { trustedRegistryClient } from '../registryClient';
 
 describe('restrictToAppPermissions', () => {
@@ -132,5 +132,28 @@ describe('trustedRegistryClient', () => {
     expect(base('not a url')).toBe(fallback);
     expect(base('javascript:alert(1)')).toBe(fallback);
     expect(base(null)).toBe(fallback);
+  });
+});
+
+describe('trusted first-party apps', () => {
+  const HYPERFEED = 'https://hyperfeed-two.vercel.app/';
+
+  it('trusts a listed package only at its own origin', () => {
+    expect(isTrustedApp('com.calimero.hyperfeed', HYPERFEED)).toBe(true);
+    expect(isTrustedApp('com.calimero.hyperfeed', 'https://hyperfeed-two.vercel.app/chat?x=1')).toBe(true);
+    expect(isTrustedApp('com.calimero.hyperfeed', 'http://hyperfeed-two.vercel.app/')).toBe(false);
+    expect(isTrustedApp('com.calimero.hyperfeed', 'https://hyperfeed-two.vercel.app.evil.example/')).toBe(false);
+    expect(isTrustedApp('com.example.other', HYPERFEED)).toBe(false);
+    expect(isTrustedApp(undefined, HYPERFEED)).toBe(false);
+    expect(isTrustedApp('com.calimero.hyperfeed', null)).toBe(false);
+    expect(isTrustedApp('com.calimero.hyperfeed', 'not a url')).toBe(false);
+  });
+
+  it('grants full access to a trusted app without a context, and the app set otherwise', () => {
+    const asked = ['context:list', 'admin'];
+    expect(permissionsForPackage('multi-context', asked, 'com.calimero.hyperfeed', HYPERFEED)).toEqual(['admin']);
+    // A context-bound key cannot hold admin: core refuses it.
+    expect(permissionsForPackage('single-context', asked, 'com.calimero.hyperfeed', HYPERFEED)).not.toContain('admin');
+    expect(permissionsForPackage('multi-context', asked, 'com.example.other', HYPERFEED)).not.toContain('admin');
   });
 });

@@ -112,4 +112,44 @@ describe('client-key permission passthrough (rc.9 contract)', () => {
     await vi.waitFor(() => expect(requestBody).not.toBeNull());
     expect([...requestBody!.permissions].sort()).toEqual([...REQUESTED].sort());
   });
+
+  // Hyperfeed runs the node for you, as the admin dashboard does: from its own
+  // frontend it signs in with full access, which the consent screen names.
+  // Calimero Desktop grants the same app the same thing (tauri-app TRUSTED_APPS).
+  describe('a trusted first-party app', () => {
+    const mint = async (mode: 'multi-context' | 'single-context', packageName: string) => {
+      let requestBody: { context_id: string; permissions: string[] } | null = null;
+      server.use(
+        http.post('*/admin/client-key', async ({ request }) => {
+          requestBody = (await request.json()) as typeof requestBody;
+          return HttpResponse.json({ data: { access_token: 'access', refresh_token: 'refresh' } });
+        }),
+      );
+      render(<PackageFlow mode={mode} packageName={packageName} />);
+      await userEvent.click(screen.getByText('manifest-complete'));
+      await userEvent.click(screen.getByText('approve-permissions'));
+      await userEvent.click(await screen.findByText('Generate Token'));
+      await vi.waitFor(() => expect(requestBody).not.toBeNull());
+      return requestBody!;
+    };
+
+    it('signs Hyperfeed in with full access from its own frontend, unbound', async () => {
+      sessionStorage.setItem('callback-url', 'https://hyperfeed-two.vercel.app/settings');
+      const body = await mint('multi-context', 'com.calimero.hyperfeed');
+      expect(body.permissions).toEqual(['admin']);
+      expect(body.context_id).toBe('');
+    });
+
+    it('gives the app set to Hyperfeed calling back anywhere else', async () => {
+      sessionStorage.setItem('callback-url', 'https://hyperfeed.evil.example/');
+      const body = await mint('multi-context', 'com.calimero.hyperfeed');
+      expect([...body.permissions].sort()).toEqual([...REQUESTED].sort());
+    });
+
+    it('gives the app set to another package calling back to Hyperfeed\'s frontend', async () => {
+      sessionStorage.setItem('callback-url', 'https://hyperfeed-two.vercel.app/');
+      const body = await mint('multi-context', 'com.example.copycat');
+      expect([...body.permissions].sort()).toEqual([...REQUESTED].sort());
+    });
+  });
 });
