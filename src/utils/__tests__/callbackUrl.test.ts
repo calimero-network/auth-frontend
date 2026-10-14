@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../../vitest.setup';
+import { permissionsForPackage } from '../permissions';
 import {
   resolveSafeCallbackUrl,
   resolveTrustedCallbackUrl,
@@ -248,6 +249,23 @@ describe('resolveTrustedCallbackUrl (frontends installed on this node)', () => {
 
     const url = await resolveTrustedCallbackUrl(`${OLD}/?_cb=1`);
     expect(url?.origin).toBe(OLD);
+  });
+
+  it('trusts Hyperfeed at the frontend its installed bundle names, and still grants it full access', async () => {
+    // Hyperfeed moved from hyperfeed-two.vercel.app to hyperfeed.me the same way.
+    sessionStorage.setItem('package-name', 'com.calimero.hyperfeed');
+    const callback = 'https://hyperfeed-two.vercel.app/?_cb=1';
+    serveInstalled([
+      {
+        id: 'hyperfeed',
+        package: 'com.calimero.hyperfeed',
+        metadata: bytes({ links: { frontend: 'https://hyperfeed-two.vercel.app' } }),
+      },
+    ]);
+    serveRegistryFrontend('com.calimero.hyperfeed', 'https://hyperfeed.me');
+
+    expect((await resolveTrustedCallbackUrl(callback))?.origin).toBe('https://hyperfeed-two.vercel.app');
+    expect(permissionsForPackage('multi-context', [], 'com.calimero.hyperfeed', callback)).toEqual(['admin']);
   });
 
   it('does not trust a frontend installed under a different package', async () => {
