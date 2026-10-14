@@ -1,6 +1,6 @@
 import { isLoopbackHost, nodeIsLoopback } from './nodeUrl';
 import { clearStoredUrlParams, getStoredUrlParam } from './urlParams';
-import { getAppEndpointKey } from '../lib/mero';
+import { getAccessToken, getAppEndpointKey } from '../lib/mero';
 import { createRegistryClient, registryClient } from './registryClient';
 
 // Allowlist validation for the SSO `callback-url`.
@@ -34,6 +34,11 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     included only on a loopback node) — otherwise
 //     an attacker could point `registry-url` at a registry that "declares"
 //     their exfiltration origin.
+//   * the same holds for a bundle of that package INSTALLED on this node: its
+//     `links.frontend` is trusted too, read from the node with the signed-in
+//     session. The registry knows only the latest frontend, and a node running
+//     an older bundle (the desktop opens exactly that one) still opens the app
+//     at the frontend that bundle names.
 //   * everything else is rejected — the caller must NOT redirect the tokens.
 
 const allowedOrigins = (): Set<string> => {
@@ -151,11 +156,70 @@ const isRegistryDeclaredFrontend = (origin: string): Promise<boolean> => {
   return verdict;
 };
 
+/** An application row's `metadata`: JSON bytes (an array or base64) or an object. */
+const decodeMetadata = (metadata: unknown): { links?: { frontend?: unknown } } | null => {
+  try {
+    if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+      return metadata as { links?: { frontend?: unknown } };
+    }
+    let bytes: Uint8Array;
+    if (Array.isArray(metadata)) {
+      bytes = new Uint8Array(metadata as number[]);
+    } else if (typeof metadata === 'string') {
+      bytes = Uint8Array.from(atob(metadata), (c) => c.charCodeAt(0));
+    } else {
+      return null;
+    }
+    return JSON.parse(new TextDecoder('utf-8').decode(bytes));
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * True when a bundle of the flow's package INSTALLED ON THIS NODE declares
+ * `origin` as its frontend. Fails closed on any error (no package in the flow,
+ * no session, the node refusing the list, no matching install).
+ *
+ * The registry only knows the package's LATEST frontend, so when an app moves
+ * domain, every node still running an older bundle opens it at the old origin
+ * — Calimero Desktop and its per-app launchers load exactly the installed
+ * bundle's `links.frontend` — and a login from there was refused. The node's
+ * own install is at least as trustworthy as the registry's answer: it is the
+ * bundle the node's admin installed, read with the session the user just
+ * signed in with. Not memoized: the first check can run before that session
+ * exists.
+ */
+const isInstalledFrontend = async (origin: string): Promise<boolean> => {
+  const packageName = getStoredUrlParam('package-name');
+  const token = getAccessToken();
+  if (!packageName || !token) return false;
+
+  const nodeUrl = (getAppEndpointKey() || window.location.origin).replace(/\/$/, '');
+  try {
+    const response = await fetch(`${nodeUrl}/admin-api/applications`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return false;
+    const json = await response.json();
+    const apps: unknown = json?.data?.apps;
+    if (!Array.isArray(apps)) return false;
+    return apps.some((app) => {
+      if (app?.package !== packageName) return false;
+      const frontend = decodeMetadata(app.metadata)?.links?.frontend;
+      return parseHttpUrl(typeof frontend === 'string' ? frontend : null)?.origin === origin;
+    });
+  } catch (err) {
+    console.warn('Installed-app lookup for callback trust failed:', err);
+    return false;
+  }
+};
+
 /**
  * Full trust resolution for a `callback-url`: the static policy first
- * (loopback, same-origin, env allowlist), then the registry-declared frontend
- * origin of the flow's package. Same contract as
- * [`resolveSafeCallbackUrl`], asynchronously.
+ * (loopback, same-origin, env allowlist), then the frontend origin declared
+ * by the flow's package as installed on this node, then as published in the
+ * registry. Same contract as [`resolveSafeCallbackUrl`], asynchronously.
  */
 export async function resolveTrustedCallbackUrl(
   raw: string | null | undefined,
@@ -166,6 +230,7 @@ export async function resolveTrustedCallbackUrl(
   const url = parseHttpUrl(raw);
   if (!url) return null;
 
+  if (await isInstalledFrontend(url.origin)) return url;
   return (await isRegistryDeclaredFrontend(url.origin)) ? url : null;
 }
 
