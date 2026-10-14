@@ -295,6 +295,87 @@ describe('resolveTrustedCallbackUrl (frontends installed on this node)', () => {
   });
 });
 
+/**
+ * `frontendAliases`: the other URLs a bundle says its frontend is served at.
+ * An app that moved domain lists its old one, so a login from wherever it is
+ * still opened there keeps working, from the registry's latest bundle and
+ * from the one a node has installed alike. Never anything not listed.
+ */
+describe('resolveTrustedCallbackUrl (frontend aliases)', () => {
+  const REGISTRY = 'https://apps.calimero.network';
+  const bytes = (value: unknown) => Array.from(new TextEncoder().encode(JSON.stringify(value)));
+
+  function serveRegistry(pkg: string, frontend: string, frontendAliases?: unknown) {
+    server.use(
+      http.get(`${REGISTRY}/api/v2/bundles`, () =>
+        HttpResponse.json([
+          {
+            version: '1.0',
+            package: pkg,
+            appVersion: '2.0.0',
+            wasm: { hash: 'sha256:abc' },
+            links: { frontend },
+            ...(frontendAliases === undefined ? {} : { frontendAliases }),
+          },
+        ]),
+      ),
+    );
+  }
+
+  function serveInstalled(apps: unknown[]) {
+    server.use(http.get('*/admin-api/applications', () => HttpResponse.json({ data: { apps } })));
+  }
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    localStorage.clear();
+  });
+
+  it('trusts an alias the registry declares for the flow package', async () => {
+    sessionStorage.setItem('package-name', 'com.calimero.alias-a');
+    serveRegistry('com.calimero.alias-a', 'https://new-a.example', ['https://old-a.example/']);
+
+    expect((await resolveTrustedCallbackUrl('https://old-a.example/?_cb=1'))?.origin).toBe(
+      'https://old-a.example',
+    );
+  });
+
+  it('refuses an origin the registry lists neither as frontend nor alias', async () => {
+    sessionStorage.setItem('package-name', 'com.calimero.alias-b');
+    serveRegistry('com.calimero.alias-b', 'https://new-b.example', ['https://old-b.example']);
+
+    expect(await resolveTrustedCallbackUrl('https://evil-b-alias.example/cb')).toBeNull();
+  });
+
+  it('ignores aliases that are not a list of http(s) URLs', async () => {
+    sessionStorage.setItem('package-name', 'com.calimero.alias-c');
+    serveRegistry('com.calimero.alias-c', 'https://new-c.example', 'https://old-c.example');
+
+    expect(await resolveTrustedCallbackUrl('https://old-c.example/cb')).toBeNull();
+  });
+
+  it('trusts an alias the installed bundle declares, with the registry saying nothing', async () => {
+    sessionStorage.setItem('package-name', 'com.calimero.alias-d');
+    localStorage.setItem('calimero_access_token', 'session-token');
+    localStorage.setItem('calimero_refresh_token', 'session-refresh');
+    serveInstalled([
+      {
+        id: 'app-d',
+        package: 'com.calimero.alias-d',
+        metadata: bytes({
+          links: { frontend: 'https://new-d.example' },
+          frontendAliases: ['https://old-d.example'],
+        }),
+      },
+    ]);
+    server.use(http.get(`${REGISTRY}/api/v2/bundles`, () => HttpResponse.json([], { status: 404 })));
+
+    expect((await resolveTrustedCallbackUrl('https://old-d.example/cb'))?.origin).toBe(
+      'https://old-d.example',
+    );
+  });
+});
+
 describe('loopback callbacks on a remote node', () => {
   const REGISTRY = 'https://apps.calimero.network';
   let savedLocation: Location;

@@ -25,6 +25,9 @@ export interface BundleManifest {
     github?: string;
     docs?: string;
   };
+  // Other URLs the same frontend is served at (e.g. an old domain); trusted
+  // for the login callback like links.frontend, never opened.
+  frontendAliases?: string[];
   signature?: {
     pubkey?: string;
     signature?: string;
@@ -59,6 +62,7 @@ export interface RegistryManifest {
     github?: string;
     docs?: string;
   };
+  _frontendAliases?: string[];
 }
 
 export class RegistryClient {
@@ -255,6 +259,7 @@ export class RegistryClient {
       // Store the full bundle metadata object for reference
       _bundleMetadata: bundle.metadata,
       _bundleLinks: bundle.links,
+      _frontendAliases: bundle.frontendAliases,
     };
   }
 

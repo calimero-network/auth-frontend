@@ -28,7 +28,9 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     a package (`package-name` param), the app registry's bundle manifest
 //     declares that app's frontend URL (`links.frontend`) — the moral
 //     equivalent of OAuth's registered redirect URIs. A callback whose origin
-//     matches the registry-declared frontend origin is trusted. The manifest
+//     matches the registry-declared frontend origin is trusted, and so is one
+//     matching any of the bundle's `frontendAliases` (the other URLs the same
+//     frontend is served at: an app that moved domain lists its old one). The manifest
 //     is only consulted from a TRUSTED registry (the built-in default, or a
 //     `registry-url` whose own origin passes the static policy, loopback
 //     included only on a loopback node) — otherwise
@@ -103,6 +105,19 @@ const parseHttpUrl = (raw: string | null | undefined): URL | null => {
   return url;
 };
 
+/**
+ * Whether a bundle that declares `frontend` and `aliases` names `origin`: its
+ * `links.frontend`, or any entry of its `frontendAliases` (the other URLs the
+ * same frontend is served at, e.g. the domain an app moved away from). Only
+ * http(s) entries count, compared by exact origin.
+ */
+const declaresOrigin = (frontend: unknown, aliases: unknown, origin: string): boolean => {
+  const declared = [frontend, ...(Array.isArray(aliases) ? aliases : [])];
+  return declared.some(
+    (url) => parseHttpUrl(typeof url === 'string' ? url : null)?.origin === origin,
+  );
+};
+
 const DEFAULT_REGISTRY_ORIGIN = new URL(
   (import.meta.env.VITE_REGISTRY_URL as string | undefined) ||
     'https://apps.calimero.network',
@@ -114,9 +129,10 @@ const DEFAULT_REGISTRY_ORIGIN = new URL(
 const registryVerdicts = new Map<string, Promise<boolean>>();
 
 /**
- * True when the app registry declares `origin` as the frontend origin of the
- * package this login flow is for. Fails closed on any error (no package in
- * the flow, manifest missing, no frontend link, network failure).
+ * True when the app registry declares `origin` as the frontend origin (or a
+ * `frontendAliases` origin) of the package this login flow is for. Fails
+ * closed on any error (no package in the flow, manifest missing, no frontend
+ * link, network failure).
  */
 const isRegistryDeclaredFrontend = (origin: string): Promise<boolean> => {
   let verdict = registryVerdicts.get(origin);
@@ -144,8 +160,7 @@ const isRegistryDeclaredFrontend = (origin: string): Promise<boolean> => {
 
       try {
         const manifest = await client.getManifest(packageName);
-        const frontend = parseHttpUrl(manifest._bundleLinks?.frontend);
-        return frontend !== null && frontend.origin === origin;
+        return declaresOrigin(manifest._bundleLinks?.frontend, manifest._frontendAliases, origin);
       } catch (err) {
         console.warn('Registry lookup for callback trust failed:', err);
         return false;
@@ -157,10 +172,12 @@ const isRegistryDeclaredFrontend = (origin: string): Promise<boolean> => {
 };
 
 /** An application row's `metadata`: JSON bytes (an array or base64) or an object. */
-const decodeMetadata = (metadata: unknown): { links?: { frontend?: unknown } } | null => {
+type InstalledMetadata = { links?: { frontend?: unknown }; frontendAliases?: unknown };
+
+const decodeMetadata = (metadata: unknown): InstalledMetadata | null => {
   try {
     if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
-      return metadata as { links?: { frontend?: unknown } };
+      return metadata as InstalledMetadata;
     }
     let bytes: Uint8Array;
     if (Array.isArray(metadata)) {
@@ -178,8 +195,9 @@ const decodeMetadata = (metadata: unknown): { links?: { frontend?: unknown } } |
 
 /**
  * True when a bundle of the flow's package INSTALLED ON THIS NODE declares
- * `origin` as its frontend. Fails closed on any error (no package in the flow,
- * no session, the node refusing the list, no matching install).
+ * `origin` as its frontend or one of its `frontendAliases`. Fails closed on any
+ * error (no package in the flow, no session, the node refusing the list, no
+ * matching install).
  *
  * The registry only knows the package's LATEST frontend, so when an app moves
  * domain, every node still running an older bundle opens it at the old origin
@@ -206,8 +224,8 @@ const isInstalledFrontend = async (origin: string): Promise<boolean> => {
     if (!Array.isArray(apps)) return false;
     return apps.some((app) => {
       if (app?.package !== packageName) return false;
-      const frontend = decodeMetadata(app.metadata)?.links?.frontend;
-      return parseHttpUrl(typeof frontend === 'string' ? frontend : null)?.origin === origin;
+      const metadata = decodeMetadata(app.metadata);
+      return declaresOrigin(metadata?.links?.frontend, metadata?.frontendAliases, origin);
     });
   } catch (err) {
     console.warn('Installed-app lookup for callback trust failed:', err);
