@@ -49,6 +49,8 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     session. The registry knows only the latest frontend, and a node running
 //     an older bundle (the desktop opens exactly that one) still opens the app
 //     at the frontend that bundle names.
+//   * a bundle-declared loopback frontend is never trusted: past the static
+//     policy the node is remote, so loopback is the user's own machine.
 //   * everything else is rejected — the caller must NOT redirect the tokens.
 
 const allowedOrigins = (): Set<string> => {
@@ -309,6 +311,9 @@ export async function resolveTrustedCallbackUrl(
   if (!url) return null;
 
   if ((await loadNodeTrustedOrigins()).has(url.origin)) return url;
+  // A bundle names its frontend for every node; past the static policy the
+  // node is remote, and a loopback origin is the user's own machine.
+  if (isLoopbackHost(url.hostname)) return null;
   if (await isInstalledFrontend(url.origin)) return url;
   return (await isRegistryDeclaredFrontend(url.origin)) ? url : null;
 }

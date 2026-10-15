@@ -432,9 +432,22 @@ describe('loopback callbacks on a remote node', () => {
     expect(resolveSafeCallbackUrl('https://node.example.com/admin-dashboard/')).not.toBeNull();
   });
 
-  it('trusts a loopback callback the registry declares for the flow package', async () => {
+  // A bundle names its frontend for every node; seen from a remote node, a
+  // loopback origin is whatever listens on the user's own machine.
+  const LOOPBACK_FORMS = [
+    'http://localhost:5199',
+    'http://127.0.0.2:5199',
+    'http://127.1:5199',
+    'http://0.0.0.0:5199',
+    'http://[::ffff:127.0.0.1]:5199',
+    'http://localhost.:5199',
+  ];
+
+  it.each(LOOPBACK_FORMS)('refuses %s even when the registry declares it', async (frontend) => {
+    resetNodeTrustedOrigins();
     sessionStorage.setItem('package-name', 'com.calimero.remote-dev');
     server.use(
+      http.get('https://node.example.com/auth/providers', () => HttpResponse.json({ data: {} })),
       http.get(`${REGISTRY}/api/v2/bundles`, () =>
         HttpResponse.json([
           {
@@ -442,15 +455,45 @@ describe('loopback callbacks on a remote node', () => {
             package: 'com.calimero.remote-dev',
             appVersion: '1.0.0',
             wasm: { hash: 'sha256:abc' },
-            links: { frontend: 'http://localhost:5199/' },
+            links: { frontend: `${frontend}/` },
           },
         ]),
       ),
     );
 
-    const url = await resolveTrustedCallbackUrl('http://localhost:5199/app');
-    expect(url?.origin).toBe('http://localhost:5199');
-    expect(await resolveTrustedCallbackUrl('http://localhost:5200/app')).toBeNull();
+    expect(await resolveTrustedCallbackUrl(`${frontend}/app`)).toBeNull();
+  });
+
+  it('refuses a loopback frontend the installed bundle declares', async () => {
+    resetNodeTrustedOrigins();
+    sessionStorage.setItem('package-name', 'com.calimero.remote-installed');
+    localStorage.setItem('calimero_access_token', 'session-token');
+    localStorage.setItem('calimero_refresh_token', 'session-refresh');
+    const metadata = Array.from(
+      new TextEncoder().encode(JSON.stringify({ links: { frontend: 'http://localhost:5198/' } })),
+    );
+    server.use(
+      http.get('https://node.example.com/auth/providers', () => HttpResponse.json({ data: {} })),
+      http.get('*/admin-api/applications', () =>
+        HttpResponse.json({ data: { apps: [{ package: 'com.calimero.remote-installed', metadata }] } }),
+      ),
+      http.get(`${REGISTRY}/api/v2/bundles`, () => HttpResponse.json([], { status: 404 })),
+    );
+
+    expect(await resolveTrustedCallbackUrl('http://localhost:5198/app')).toBeNull();
+  });
+
+  it('still trusts a loopback origin the node operator lists', async () => {
+    resetNodeTrustedOrigins();
+    server.use(
+      http.get('https://node.example.com/auth/providers', () =>
+        HttpResponse.json({ data: { trusted_callback_origins: ['http://localhost:5197'] } }),
+      ),
+    );
+
+    expect((await resolveTrustedCallbackUrl('http://localhost:5197/app'))?.origin).toBe(
+      'http://localhost:5197',
+    );
   });
 
   it('ignores a loopback registry-url and consults the default registry', async () => {
