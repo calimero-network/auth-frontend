@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { generateClientKeyDirect } from '../lib/mero';
+import { generateClientKeyDirect, installedApplicationId } from '../lib/mero';
 import { resolveTrustedCallbackUrl, redirectTokensToCallback } from '../utils/callbackUrl';
 import { ManifestProcessor } from '../components/manifest/ManifestProcessor';
 import { PermissionsView } from '../components/permissions/PermissionsView';
@@ -101,10 +101,15 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
       // `GET|POST /admin-api/contexts` require Global scope. Since core
       // 0.11.0-rc.9 enforces token scopes, an app-id-scoped token 403s on all
       // of those routes and the app loops back to login forever.
+      // The key is bound to the installed app instead. A trusted app's `admin`
+      // key stays node-wide: core refuses admin on a bound key.
       const response = await generateClientKeyDirect({
         context_id: contextId || '',
         context_identity: identity || '',
         permissions,
+        ...(permissions.includes('admin')
+          ? {}
+          : { application_id: await installedApplicationId(installedAppId, packageName) }),
       });
 
       if (response.access_token && response.refresh_token) {

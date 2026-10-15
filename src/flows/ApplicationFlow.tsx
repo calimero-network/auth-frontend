@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { generateClientKeyDirect } from '../lib/mero';
+import { generateClientKeyDirect, installedApplicationId } from '../lib/mero';
 import { redirectTokensToCallback } from '../utils/callbackUrl';
 import { ApplicationInstallCheck } from '../components/applications/ApplicationInstallCheck';
 import { PermissionsView } from '../components/permissions/PermissionsView';
@@ -62,6 +62,7 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
         context_id: contextId || '',
         context_identity: identity || '',
         permissions,
+        application_id: await installedApplicationId(applicationId),
       });
 
       if (response.access_token && response.refresh_token) {
