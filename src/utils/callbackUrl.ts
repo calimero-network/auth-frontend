@@ -21,6 +21,9 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     for every flow; a hosted or local app must be the node origin, the env
 //     allowlist, or the registry-declared frontend.
 //   * the auth frontend's own origin (the node) is always allowed
+//   * the first-party frontends bundled below (`BUNDLED_FRONTEND_ORIGINS`) are
+//     always allowed: hosted Calimero apps whose login names no package, so
+//     neither the registry nor an installed bundle can vouch for them
 //   * any additional deployed app origins must be explicitly allowlisted via
 //     the `VITE_ALLOWED_CALLBACK_ORIGINS` build/env var (comma-separated), e.g.
 //     "https://app.example.com,https://chat.example.com"
@@ -50,6 +53,13 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     an older bundle (the desktop opens exactly that one) still opens the app
 //     at the frontend that bundle names.
 //   * everything else is rejected — the caller must NOT redirect the tokens.
+
+// First-party app frontends every build trusts as callback targets. Exact
+// origins only: each one receives this node's tokens. These are callback
+// targets, not registries, so they stay out of `allowedOrigins()`.
+const BUNDLED_FRONTEND_ORIGINS: ReadonlySet<string> = new Set([
+  'https://design.hyperfeed.me',
+]);
 
 const allowedOrigins = (): Set<string> => {
   const origins = new Set<string>();
@@ -97,6 +107,7 @@ export function resolveSafeCallbackUrl(raw: string | null | undefined): URL | nu
   }
 
   if (allowedOrigins().has(url.origin)) return url;
+  if (BUNDLED_FRONTEND_ORIGINS.has(url.origin)) return url;
 
   return null;
 }
@@ -294,7 +305,7 @@ const isInstalledFrontend = async (origin: string): Promise<boolean> => {
 
 /**
  * Full trust resolution for a `callback-url`: the static policy first
- * (loopback, same-origin, env allowlist), then the origins the node's own
+ * (loopback, same-origin, env allowlist, bundled frontends), then the origins the node's own
  * config trusts, then the frontend origins (and `frontendAliases`) declared by
  * the flow's package as installed on this node, then as published in the
  * registry. Same contract as [`resolveSafeCallbackUrl`], asynchronously.

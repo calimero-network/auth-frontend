@@ -53,6 +53,23 @@ describe('resolveSafeCallbackUrl', () => {
     expect(resolveSafeCallbackUrl(sameOrigin)).not.toBeNull();
   });
 
+  it('allows the bundled first-party frontends with no package in the flow', () => {
+    const r = resolveSafeCallbackUrl('https://design.hyperfeed.me/');
+    expect(r).not.toBeNull();
+    expect(r!.toString()).toBe('https://design.hyperfeed.me/');
+  });
+
+  it('matches a bundled frontend by exact origin only', () => {
+    for (const u of [
+      'http://design.hyperfeed.me/',
+      'https://design.hyperfeed.me:8443/',
+      'https://design.hyperfeed.me.evil.example/',
+      'https://evil-design.hyperfeed.me/',
+    ]) {
+      expect(resolveSafeCallbackUrl(u), u).toBeNull();
+    }
+  });
+
   it('does not treat a look-alike host as loopback', () => {
     // localhost.evil.example must NOT be accepted as loopback.
     expect(resolveSafeCallbackUrl('https://localhost.evil.example/cb')).toBeNull();
