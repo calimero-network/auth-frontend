@@ -58,6 +58,15 @@ describe('PackageFlow', () => {
     },
   );
 
+  it('does not refuse a first-party app at its own origin, which the fixed list grants admin', async () => {
+    sessionStorage.setItem('permissions', 'admin');
+    sessionStorage.setItem('callback-url', 'https://hyperfeed.me/cb');
+    render(<PackageFlow mode="multi-context" packageName="com.calimero.hyperfeed" />);
+
+    expect(screen.queryByTestId('error-view')).toBeNull();
+    expect(screen.getByText('mock-install')).toBeTruthy();
+  });
+
   it('names the callback origin on the permissions view and the summary', async () => {
     sessionStorage.setItem('permissions', 'context:execute');
     sessionStorage.setItem('callback-url', CALLBACK);
