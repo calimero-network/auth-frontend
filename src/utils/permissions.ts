@@ -32,6 +32,15 @@ export const normalizePermissions = (
   return ensureUniqueOrder([...required, ...permissions]);
 };
 
+/** True when any entry names `admin` or an `admin:...` scope, however it is cased, padded or bracketed. */
+export const requestsAdmin = (permissions: string[]): boolean =>
+  permissions.some((permission) =>
+    permission
+      .toLowerCase()
+      .split(/[\s,[\]"']+/)
+      .some((word) => word === 'admin' || word.startsWith('admin:')),
+  );
+
 const APP_PERMISSIONS = new Set([
   'context:create',
   'context:list',
