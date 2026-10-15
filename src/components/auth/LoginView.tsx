@@ -82,14 +82,7 @@ const LoginView: React.FC = () => {
       const permissions = permissionsParam ? permissionsParam.split(',') : [];
       const hasAdminPermissions = permissions.includes('admin');
 
-      // Check for manifest flows after authentication
-      const manifestUrl = getStoredUrlParam('manifest-url');
-
-      // For manifest flows, show permissions FIRST
-      if (manifestUrl) {
-        // Store manifest data for PermissionsView to display
-        setShowPermissionsView(true);
-      } else if (hasAdminPermissions) {
+      if (hasAdminPermissions) {
         setShowPermissionsView(true);
       } else {
         setShowApplicationInstallCheck(true);
@@ -124,14 +117,6 @@ const LoginView: React.FC = () => {
    */
   const handleContinueSession = () => {
     console.log('handleContinueSession');
-    
-    // Check for manifest flow first - show permissions before manifest
-    const manifestUrl = getStoredUrlParam('manifest-url');
-    if (manifestUrl) {
-      console.log('handleContinueSession: manifest-url found, showing PermissionsView first');
-      setShowPermissionsView(true);
-      return;
-    }
     
     // Check if admin permissions are requested
     const permissionsParam = getStoredUrlParam('permissions');
@@ -216,12 +201,10 @@ const LoginView: React.FC = () => {
           refresh_token: (tokenResponse as any).data.refresh_token,
         });
 
-        // Check for manifest/package flows after authentication
-        const manifestUrl = getStoredUrlParam('manifest-url');
         const packageName = getStoredUrlParam('package-name');
         
-        // Manifest or package-name flows proceed directly to permissions
-        if (manifestUrl || packageName) {
+        // Package flows proceed directly to permissions
+        if (packageName) {
           setShowPermissionsView(true);
           setShowUsernamePasswordForm(false);
           setCameFromUsernamePassword(true);
@@ -475,12 +458,10 @@ const LoginView: React.FC = () => {
             onComplete={() => {
               setShowPermissionsView(false);
               
-              // Check if this is a manifest flow (via manifest-url OR package-name)
-              const manifestUrl = getStoredUrlParam('manifest-url');
               const packageName = getStoredUrlParam('package-name');
               
-              if (manifestUrl || packageName) {
-                // For manifest flows, show ManifestProcessor first
+              if (packageName) {
+                // Package flows show the manifest processor first
                 setShowManifestProcessor(true);
               } else if (cameFromApplicationCheck) {
                 // App is already installed and permissions approved — generate token and redirect
