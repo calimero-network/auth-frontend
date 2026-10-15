@@ -1,5 +1,5 @@
 /**
- * The consent screen has to stay skimmable: a multi-context app asks for eight
+ * The consent screen has to stay skimmable: a multi-context app asks for ten
  * scopes (mero-react's getPermissionsForMode), and rendering all eight as full
  * cards buried the Approve button under a wall of text. Detail now hides behind
  * a disclosure — except high-risk grants, which must never be collapsed.
@@ -14,8 +14,10 @@ import { PermissionsView } from '../PermissionsView';
 /** What mero-react's getPermissionsForMode(AppMode.MultiContext) sends. */
 const MULTI_CONTEXT = [
   'context:create',
+  'context:delete',
   'context:list',
   'context:execute',
+  'context:subscribe',
   'application:list',
   'namespace',
   'group',
@@ -45,8 +47,8 @@ describe('PermissionsView disclosure', () => {
     renderView(MULTI_CONTEXT, 'multi-context');
 
     // The count is stated up front, but no per-permission detail is rendered.
-    expect(screen.getByText('This application is requesting 8 permissions.')).toBeTruthy();
-    expect(screen.getByText('8 standard permissions')).toBeTruthy();
+    expect(screen.getByText('This application is requesting 10 permissions.')).toBeTruthy();
+    expect(screen.getByText('10 standard permissions')).toBeTruthy();
     expect(screen.queryByText('Run WASM Applications')).toBeNull();
     expect(screen.queryByText('Groups & Members')).toBeNull();
 
@@ -55,6 +57,7 @@ describe('PermissionsView disclosure', () => {
 
     expect(screen.getByText('Run WASM Applications')).toBeTruthy();
     expect(screen.getByText('Groups & Members')).toBeTruthy();
+    expect(screen.getByText('Delete Contexts')).toBeTruthy();
     expect(screen.getByRole('button', { expanded: true })).toBeTruthy();
 
     // ...and it collapses again.
@@ -83,7 +86,7 @@ describe('PermissionsView disclosure', () => {
     renderView([...MULTI_CONTEXT, 'admin'], 'multi-context');
 
     expect(screen.getByText('Full Node Administration')).toBeTruthy();
-    expect(screen.getByText('8 standard permissions')).toBeTruthy();
+    expect(screen.getByText('10 standard permissions')).toBeTruthy();
     expect(screen.queryByText('Run WASM Applications')).toBeNull();
   });
 

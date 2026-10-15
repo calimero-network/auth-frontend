@@ -39,8 +39,23 @@ vi.mock('../components/permissions/PermissionsView', () => ({
 
 const APP_ID = '9e4gX24aMx3KWWViZeYu8E4e8UrntWDEsuDTFJTXdKsu';
 
-/** What mero-react's getPermissionsForMode(AppMode.MultiContext) sends. */
-const REQUESTED = ['context:create', 'context:list', 'context:execute'];
+/**
+ * What mero-react's getPermissionsForMode(AppMode.MultiContext) sends, verbatim.
+ * This used to be only the first three, so the allowlist could drop the rest
+ * (context:delete did) and this test still passed.
+ */
+const REQUESTED = [
+  'context:create',
+  'context:delete',
+  'context:list',
+  'context:execute',
+  'context:subscribe',
+  'application:list',
+  'namespace',
+  'group',
+  'blob',
+  'context:alias',
+];
 
 describe('client-key permission passthrough (rc.9 contract)', () => {
   beforeEach(() => {

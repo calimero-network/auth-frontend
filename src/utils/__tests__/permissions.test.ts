@@ -40,7 +40,6 @@ describe('restrictToAppPermissions', () => {
         'context:execute',
         'context',
         'context[ctx]',
-        'context:delete',
         'context:leave',
         'context:invite',
         'context:capabilities:grant',
@@ -71,8 +70,10 @@ describe('restrictToAppPermissions', () => {
   });
 
   it('keeps everything mero-react asks for in multi-context mode', () => {
+    // Verbatim from mero-react getPermissionsForMode(AppMode.MultiContext).
     const multi = [
       'context:create',
+      'context:delete',
       'context:list',
       'context:execute',
       'context:subscribe',
