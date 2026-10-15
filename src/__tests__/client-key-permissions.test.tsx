@@ -52,8 +52,10 @@ const REQUESTED = ['context:create', 'context:list', 'context:execute'];
 const nodeHas = (...apps: { id: string; package: string }[]) =>
   server.use(
     http.get('*/admin-api/applications/:id', ({ params }) => {
-      const application = apps.find((app) => app.id === params.id) ?? null;
-      return HttpResponse.json({ data: { application } });
+      const application = apps.find((app) => app.id === params.id);
+      return application
+        ? HttpResponse.json({ data: { application } })
+        : HttpResponse.json({ error: 'Application not found' }, { status: 404 });
     }),
   );
 
@@ -169,6 +171,19 @@ describe('client-key permission passthrough (rc.9 contract)', () => {
       const sent = captureMint();
       await approvePackage();
       expect(await screen.findByText(/not installed on this node/i)).toBeTruthy();
+      expect(sent.body).toBeNull();
+    });
+
+    it('reports a failed lookup as such, and mints nothing', async () => {
+      server.use(
+        http.get('*/admin-api/applications/:id', () =>
+          HttpResponse.json({ error: 'storage unavailable' }, { status: 500 }),
+        ),
+      );
+      const sent = captureMint();
+      await approvePackage();
+      expect(await screen.findByText(/storage unavailable/i)).toBeTruthy();
+      expect(screen.queryByText(/not installed on this node/i)).toBeNull();
       expect(sent.body).toBeNull();
     });
 

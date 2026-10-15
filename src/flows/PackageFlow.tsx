@@ -101,8 +101,8 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
       // `GET|POST /admin-api/contexts` require Global scope. Since core
       // 0.11.0-rc.9 enforces token scopes, an app-id-scoped token 403s on all
       // of those routes and the app loops back to login forever.
-      // The key is bound to the installed app instead. A trusted app's `admin`
-      // key stays node-wide: core refuses admin on a bound key.
+      // The key is bound to the installed app instead, except a trusted app's
+      // `admin` key, which is node-wide by definition.
       const response = await generateClientKeyDirect({
         context_id: contextId || '',
         context_identity: identity || '',

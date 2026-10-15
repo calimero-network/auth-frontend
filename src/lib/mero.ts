@@ -275,7 +275,13 @@ export async function installedApplicationId(
   const application = applicationId
     ? await getMero()
         .admin.getApplication(encodeURIComponent(applicationId))
-        .then((response) => response?.application ?? null, () => null)
+        .then(
+          (response) => response?.application ?? null,
+          (err) => {
+            if ((err as { status?: unknown })?.status === 404) return null;
+            throw err;
+          },
+        )
     : null;
   if (
     !application ||
