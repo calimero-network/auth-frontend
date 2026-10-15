@@ -108,7 +108,7 @@ export const EnsureAdminSession: React.FC<EnsureAdminSessionProps> = ({ children
   /**
    * Handle username/password authentication.
    *
-   * Mirrors LoginView: always a plain existing-user login — since core
+   * Always a plain existing-user login: since core
    * rc.17 the login path never mints keys (the admin account is provisioned
    * at `merod init` or via `merod auth set-admin`), so there is no setup
    * code to collect or send.

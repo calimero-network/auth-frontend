@@ -22,6 +22,7 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../vitest.setup';
 import { PackageFlow } from '../flows/PackageFlow';
+import { ApplicationFlow } from '../flows/ApplicationFlow';
 
 // The flow steps before token generation (registry fetch, app install,
 // permission review UI) are not under test — stub them down to their
@@ -29,6 +30,11 @@ import { PackageFlow } from '../flows/PackageFlow';
 vi.mock('../components/manifest/ManifestProcessor', () => ({
   ManifestProcessor: ({ onComplete }: { onComplete: () => void }) => (
     <button onClick={onComplete}>manifest-complete</button>
+  ),
+}));
+vi.mock('../components/applications/ApplicationInstallCheck', () => ({
+  ApplicationInstallCheck: ({ onComplete }: { onComplete: () => void }) => (
+    <button onClick={onComplete}>app-check-complete</button>
   ),
 }));
 vi.mock('../components/permissions/PermissionsView', () => ({
@@ -42,15 +48,55 @@ const APP_ID = '9e4gX24aMx3KWWViZeYu8E4e8UrntWDEsuDTFJTXdKsu';
 /** What mero-react's getPermissionsForMode(AppMode.MultiContext) sends. */
 const REQUESTED = ['context:create', 'context:list', 'context:execute'];
 
+/** The node answers `GET /admin-api/applications/{id}` with only these installs. */
+const nodeHas = (...apps: { id: string; package: string }[]) =>
+  server.use(
+    http.get('*/admin-api/applications/:id', ({ params }) => {
+      const application = apps.find((app) => app.id === params.id);
+      return application
+        ? HttpResponse.json({ data: { application } })
+        : HttpResponse.json({ error: 'Application not found' }, { status: 404 });
+    }),
+  );
+
+/** The node's installed bundle of `pkg` declares `frontend`, so a callback there is trusted. */
+const installedFrontend = (pkg: string, frontend: string) => {
+  localStorage.setItem('calimero_access_token', 'session-token');
+  localStorage.setItem('calimero_refresh_token', 'session-refresh');
+  const metadata = Array.from(new TextEncoder().encode(JSON.stringify({ links: { frontend } })));
+  server.use(
+    http.get('*/admin-api/applications', () =>
+      HttpResponse.json({ data: { apps: [{ id: APP_ID, package: pkg, metadata }] } }),
+    ),
+  );
+};
+
+/** Captures what the flow sends to `POST /admin/client-key`, if anything. */
+const captureMint = () => {
+  const sent: { body: Record<string, unknown> | null } = { body: null };
+  server.use(
+    http.post('*/admin/client-key', async ({ request }) => {
+      sent.body = (await request.json()) as Record<string, unknown>;
+      return HttpResponse.json({ data: { access_token: 'access', refresh_token: 'refresh' } });
+    }),
+  );
+  return sent;
+};
+
 describe('client-key permission passthrough (rc.9 contract)', () => {
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
 
     sessionStorage.setItem('permissions', REQUESTED.join(','));
-    sessionStorage.setItem('callback-url', 'http://app.example.com/');
+    sessionStorage.setItem('callback-url', 'http://localhost:3000/');
     // Set by the (stubbed) manifest/install step in the real flow.
     localStorage.setItem('installed-application-id', APP_ID);
+    nodeHas({ id: APP_ID, package: 'test-app' }, { id: 'copycat-id', package: 'com.example.copycat' });
+    server.use(
+      http.get('*/auth/providers', () => HttpResponse.json({ data: {} })),
+      http.get('*/api/v2/bundles', () => HttpResponse.json([], { status: 404 })),
+    );
   });
 
   it('sends the requested permissions unscoped, with no context binding', async () => {
@@ -113,11 +159,95 @@ describe('client-key permission passthrough (rc.9 contract)', () => {
     expect([...requestBody!.permissions].sort()).toEqual([...REQUESTED].sort());
   });
 
+  describe('binds the key to the application being approved', () => {
+    const approvePackage = async (packageName = 'test-app') => {
+      render(<PackageFlow mode="multi-context" packageName={packageName} />);
+      await userEvent.click(screen.getByText('manifest-complete'));
+      await userEvent.click(screen.getByText('approve-permissions'));
+      await userEvent.click(await screen.findByText('Generate Token'));
+    };
+
+    it('names the installed application in the package flow', async () => {
+      const sent = captureMint();
+      await approvePackage();
+      await vi.waitFor(() => expect(sent.body).not.toBeNull());
+      expect(sent.body!.application_id).toBe(APP_ID);
+    });
+
+    it('mints nothing when the node does not have the application', async () => {
+      nodeHas();
+      const sent = captureMint();
+      await approvePackage();
+      expect(await screen.findByText(/not installed on this node/i)).toBeTruthy();
+      expect(sent.body).toBeNull();
+    });
+
+    it('mints nothing when the installed application belongs to another package', async () => {
+      nodeHas({ id: APP_ID, package: 'com.example.other' });
+      const sent = captureMint();
+      await approvePackage();
+      expect(await screen.findByText(/not installed on this node/i)).toBeTruthy();
+      expect(sent.body).toBeNull();
+    });
+
+    it('reports a failed lookup as such, and mints nothing', async () => {
+      server.use(
+        http.get('*/admin-api/applications/:id', () =>
+          HttpResponse.json({ error: 'storage unavailable' }, { status: 500 }),
+        ),
+      );
+      const sent = captureMint();
+      await approvePackage();
+      expect(await screen.findByText(/storage unavailable/i)).toBeTruthy();
+      expect(screen.queryByText(/not installed on this node/i)).toBeNull();
+      expect(sent.body).toBeNull();
+    });
+
+    it('mints nothing for an untrusted callback', async () => {
+      sessionStorage.setItem('callback-url', 'https://evil.example/');
+      const sent = captureMint();
+      await approvePackage();
+      expect(await screen.findByText(/callback destination is not allowed/i)).toBeTruthy();
+      expect(sent.body).toBeNull();
+    });
+
+    it('names the installed application in the application flow', async () => {
+      const sent = captureMint();
+      render(<ApplicationFlow mode="multi-context" applicationId={APP_ID} applicationPath="" />);
+      await userEvent.click(screen.getByText('app-check-complete'));
+      await userEvent.click(screen.getByText('approve-permissions'));
+      await vi.waitFor(() => expect(sent.body).not.toBeNull());
+      expect(sent.body!.application_id).toBe(APP_ID);
+    });
+
+    it('mints nothing in the application flow for an untrusted callback', async () => {
+      sessionStorage.setItem('callback-url', 'https://evil.example/');
+      const sent = captureMint();
+      render(<ApplicationFlow mode="multi-context" applicationId={APP_ID} applicationPath="" />);
+      await userEvent.click(screen.getByText('app-check-complete'));
+      await userEvent.click(screen.getByText('approve-permissions'));
+      expect(await screen.findByText(/callback destination is not allowed/i)).toBeTruthy();
+      expect(sent.body).toBeNull();
+    });
+
+    it('mints nothing in the application flow when the node does not have the application', async () => {
+      const sent = captureMint();
+      render(<ApplicationFlow mode="multi-context" applicationId="not-installed" applicationPath="" />);
+      await userEvent.click(screen.getByText('app-check-complete'));
+      await userEvent.click(screen.getByText('approve-permissions'));
+      expect(await screen.findByText(/not installed on this node/i)).toBeTruthy();
+      expect(sent.body).toBeNull();
+    });
+  });
+
   // Hyperfeed runs the node for you, as the admin dashboard does: from its own
   // frontend it signs in with full access, which the consent screen names.
   // Calimero Desktop grants the same app the same thing (tauri-app TRUSTED_APPS).
   describe('a trusted first-party app', () => {
     const mint = async (mode: 'multi-context' | 'single-context', packageName: string) => {
+      nodeHas({ id: APP_ID, package: packageName });
+      sessionStorage.setItem('package-name', packageName);
+      installedFrontend(packageName, sessionStorage.getItem('callback-url')!);
       let requestBody: { context_id: string; permissions: string[] } | null = null;
       server.use(
         http.post('*/admin/client-key', async ({ request }) => {
@@ -138,6 +268,7 @@ describe('client-key permission passthrough (rc.9 contract)', () => {
       const body = await mint('multi-context', 'com.calimero.hyperfeed');
       expect(body.permissions).toEqual(['admin']);
       expect(body.context_id).toBe('');
+      expect(body).not.toHaveProperty('application_id');
     });
 
     it('still signs in Hyperfeed served from its previous vercel.app frontend', async () => {
@@ -147,7 +278,7 @@ describe('client-key permission passthrough (rc.9 contract)', () => {
     });
 
     it('gives the app set to Hyperfeed calling back anywhere else', async () => {
-      sessionStorage.setItem('callback-url', 'https://hyperfeed.evil.example/');
+      sessionStorage.setItem('callback-url', 'https://hyperfeed.other.example/');
       const body = await mint('multi-context', 'com.calimero.hyperfeed');
       expect([...body.permissions].sort()).toEqual([...REQUESTED].sort());
     });

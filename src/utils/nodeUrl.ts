@@ -23,14 +23,19 @@
 //     auth frontend pointed at remote nodes
 //   * everything else is rejected — the caller falls back to its own origin.
 
+// Takes a parsed URL hostname, so `127.1` and `[::ffff:127.0.0.1]` arrive canonical.
 export const isLoopbackHost = (host: string): boolean => {
-  const h = host.toLowerCase();
+  const h = host.toLowerCase().replace(/\.$/, '');
   return (
     h === 'localhost' ||
-    h === '127.0.0.1' ||
+    h.endsWith('.localhost') ||
+    /^127\.\d+\.\d+\.\d+$/.test(h) ||
+    h === '0.0.0.0' ||
     h === '::1' ||
     h === '[::1]' ||
-    h.endsWith('.localhost')
+    h === '[::]' ||
+    h === '[::ffff:0:0]' ||
+    /^\[::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}\]$/.test(h)
   );
 };
 

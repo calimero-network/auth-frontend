@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { generateClientKeyDirect } from '../lib/mero';
-import { redirectTokensToCallback } from '../utils/callbackUrl';
+import { generateClientKeyDirect, installedApplicationId } from '../lib/mero';
+import { redirectTokensToCallback, resolveTrustedCallbackUrl } from '../utils/callbackUrl';
 import { ApplicationInstallCheck } from '../components/applications/ApplicationInstallCheck';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ContextSelector } from '../components/context/ContextSelector';
@@ -58,14 +58,22 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
   const generateAndRedirect = async (contextId: string | null, identity: string | null) => {
     setGenerating(true);
     try {
+      const callback = getStoredUrlParam('callback-url');
+      // Validate the callback before minting, so an untrusted one leaves no key on the node.
+      if (!(await resolveTrustedCallbackUrl(callback))) {
+        setError(callback ? 'Login callback destination is not allowed.' : 'Missing callback URL');
+        setGenerating(false);
+        return;
+      }
+
       const response = await generateClientKeyDirect({
         context_id: contextId || '',
         context_identity: identity || '',
         permissions,
+        application_id: await installedApplicationId(applicationId),
       });
 
       if (response.access_token && response.refresh_token) {
-        const callback = getStoredUrlParam('callback-url');
         const outcome = await redirectTokensToCallback(callback, response, {
           context_id: contextId,
           context_identity: identity,

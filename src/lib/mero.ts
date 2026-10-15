@@ -255,12 +255,42 @@ export interface GenerateClientKeyRequest {
   context_id: string;
   context_identity: string;
   permissions: string[];
+  application_id?: string;
 }
 
 export interface GenerateClientKeyResponse {
   access_token: string;
   refresh_token: string;
   [key: string]: unknown;
+}
+
+/**
+ * `applicationId` as this node has it installed, to bind a client key to. Throws when the
+ * node does not have it, or has it under a package other than `packageName`.
+ */
+export async function installedApplicationId(
+  applicationId: string | null,
+  packageName?: string,
+): Promise<string> {
+  const application = applicationId
+    ? await getMero()
+        .admin.getApplication(encodeURIComponent(applicationId))
+        .then(
+          (response) => response?.application ?? null,
+          (err) => {
+            if ((err as { status?: unknown })?.status === 404) return null;
+            throw err;
+          },
+        )
+    : null;
+  if (
+    !application ||
+    application.id !== applicationId ||
+    (packageName !== undefined && application.package !== packageName)
+  ) {
+    throw new Error('This application is not installed on this node.');
+  }
+  return application.id;
 }
 
 export async function generateClientKeyDirect(
