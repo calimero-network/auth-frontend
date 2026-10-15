@@ -95,6 +95,19 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
   const generateAndRedirect = async (contextId: string | null, identity: string | null) => {
     setGenerating(true);
     try {
+      const callback = getStoredUrlParam('callback-url');
+      // Validate the callback before minting, so a missing or untrusted one
+      // leaves no key on the node and the flow's state intact.
+      if (!(await resolveTrustedCallbackUrl(callback))) {
+        setError(
+          callback
+            ? 'Login callback destination is not allowed.'
+            : 'Missing callback URL',
+        );
+        setGenerating(false);
+        return;
+      }
+
       // Pass the requested permissions through unscoped. Rewriting them to
       // `context:*[<application-id>]` mints tokens core rejects: bracket params
       // on context permissions are context ids, and `POST /jsonrpc` /
@@ -113,19 +126,6 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
       });
 
       if (response.access_token && response.refresh_token) {
-        const callback = getStoredUrlParam('callback-url');
-        // Validate the callback BEFORE the package-flow cleanup + redirect, so a
-        // missing/untrusted callback hands out no tokens and leaves state intact.
-        if (!(await resolveTrustedCallbackUrl(callback))) {
-          setError(
-            callback
-              ? 'Login callback destination is not allowed.'
-              : 'Missing callback URL',
-          );
-          setGenerating(false);
-          return;
-        }
-
         sessionStorage.removeItem('installed-application-id');
         localStorage.removeItem('installed-application-id');
         localStorage.removeItem('manifest-info');

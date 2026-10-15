@@ -59,6 +59,18 @@ const nodeHas = (...apps: { id: string; package: string }[]) =>
     }),
   );
 
+/** The node's installed bundle of `pkg` declares `frontend`, so a callback there is trusted. */
+const installedFrontend = (pkg: string, frontend: string) => {
+  localStorage.setItem('calimero_access_token', 'session-token');
+  localStorage.setItem('calimero_refresh_token', 'session-refresh');
+  const metadata = Array.from(new TextEncoder().encode(JSON.stringify({ links: { frontend } })));
+  server.use(
+    http.get('*/admin-api/applications', () =>
+      HttpResponse.json({ data: { apps: [{ id: APP_ID, package: pkg, metadata }] } }),
+    ),
+  );
+};
+
 /** Captures what the flow sends to `POST /admin/client-key`, if anything. */
 const captureMint = () => {
   const sent: { body: Record<string, unknown> | null } = { body: null };
@@ -77,10 +89,14 @@ describe('client-key permission passthrough (rc.9 contract)', () => {
     sessionStorage.clear();
 
     sessionStorage.setItem('permissions', REQUESTED.join(','));
-    sessionStorage.setItem('callback-url', 'http://app.example.com/');
+    sessionStorage.setItem('callback-url', 'http://localhost:3000/');
     // Set by the (stubbed) manifest/install step in the real flow.
     localStorage.setItem('installed-application-id', APP_ID);
     nodeHas({ id: APP_ID, package: 'test-app' }, { id: 'copycat-id', package: 'com.example.copycat' });
+    server.use(
+      http.get('*/auth/providers', () => HttpResponse.json({ data: {} })),
+      http.get('*/api/v2/bundles', () => HttpResponse.json([], { status: 404 })),
+    );
   });
 
   it('sends the requested permissions unscoped, with no context binding', async () => {
@@ -187,6 +203,14 @@ describe('client-key permission passthrough (rc.9 contract)', () => {
       expect(sent.body).toBeNull();
     });
 
+    it('mints nothing for an untrusted callback', async () => {
+      sessionStorage.setItem('callback-url', 'https://evil.example/');
+      const sent = captureMint();
+      await approvePackage();
+      expect(await screen.findByText(/callback destination is not allowed/i)).toBeTruthy();
+      expect(sent.body).toBeNull();
+    });
+
     it('names the installed application in the application flow', async () => {
       const sent = captureMint();
       render(<ApplicationFlow mode="multi-context" applicationId={APP_ID} applicationPath="" />);
@@ -194,6 +218,16 @@ describe('client-key permission passthrough (rc.9 contract)', () => {
       await userEvent.click(screen.getByText('approve-permissions'));
       await vi.waitFor(() => expect(sent.body).not.toBeNull());
       expect(sent.body!.application_id).toBe(APP_ID);
+    });
+
+    it('mints nothing in the application flow for an untrusted callback', async () => {
+      sessionStorage.setItem('callback-url', 'https://evil.example/');
+      const sent = captureMint();
+      render(<ApplicationFlow mode="multi-context" applicationId={APP_ID} applicationPath="" />);
+      await userEvent.click(screen.getByText('app-check-complete'));
+      await userEvent.click(screen.getByText('approve-permissions'));
+      expect(await screen.findByText(/callback destination is not allowed/i)).toBeTruthy();
+      expect(sent.body).toBeNull();
     });
 
     it('mints nothing in the application flow when the node does not have the application', async () => {
@@ -212,6 +246,8 @@ describe('client-key permission passthrough (rc.9 contract)', () => {
   describe('a trusted first-party app', () => {
     const mint = async (mode: 'multi-context' | 'single-context', packageName: string) => {
       nodeHas({ id: APP_ID, package: packageName });
+      sessionStorage.setItem('package-name', packageName);
+      installedFrontend(packageName, sessionStorage.getItem('callback-url')!);
       let requestBody: { context_id: string; permissions: string[] } | null = null;
       server.use(
         http.post('*/admin/client-key', async ({ request }) => {
@@ -242,7 +278,7 @@ describe('client-key permission passthrough (rc.9 contract)', () => {
     });
 
     it('gives the app set to Hyperfeed calling back anywhere else', async () => {
-      sessionStorage.setItem('callback-url', 'https://hyperfeed.evil.example/');
+      sessionStorage.setItem('callback-url', 'https://hyperfeed.other.example/');
       const body = await mint('multi-context', 'com.calimero.hyperfeed');
       expect([...body.permissions].sort()).toEqual([...REQUESTED].sort());
     });
