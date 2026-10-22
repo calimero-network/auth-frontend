@@ -24,6 +24,7 @@ import { server } from '../../vitest.setup';
 import { PackageFlow } from '../flows/PackageFlow';
 import { ApplicationFlow } from '../flows/ApplicationFlow';
 import { AdminFlow } from '../flows/AdminFlow';
+import { idBytes, toBase32, toBase58 } from '../utils/__tests__/appIds';
 
 // The flow steps before token generation (registry fetch, app install,
 // permission review UI) are not under test — stub them down to their
@@ -228,5 +229,88 @@ describe('application binding at mint', () => {
     await userEvent.click(screen.getByText('approve-permissions'));
     await vi.waitFor(() => expect(box.body).not.toBeNull());
     expect('application_id' in box.body!).toBe(false);
+  });
+});
+
+describe('app-origin callbacks follow the id the login minted for', () => {
+  const ID_A = toBase58(idBytes(1));
+  const ID_B = toBase58(idBytes(2));
+  const LABEL_A = toBase32(idBytes(1));
+  const LABEL_B = toBase32(idBytes(2));
+  const originalHref = window.location.href;
+
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    sessionStorage.setItem('permissions', 'context:list');
+    window.location.href = originalHref;
+    server.use(
+      http.post('*/admin/client-key', () =>
+        HttpResponse.json({ data: { access_token: 'access', refresh_token: 'refresh' } }),
+      ),
+    );
+  });
+
+  const appCallback = (label: string) => `http://${label}.localhost:5173/`;
+  const delivered = () => window.location.href.includes('access_token=');
+
+  it('admin login refuses an app-origin callback even when application-id names that app', async () => {
+    sessionStorage.setItem('permissions', 'admin');
+    sessionStorage.setItem('application-id', ID_A);
+    sessionStorage.setItem('callback-url', appCallback(LABEL_A));
+    render(<AdminFlow />);
+    await userEvent.click(screen.getByText('approve-permissions'));
+    await screen.findByText(/not allowed/i);
+    expect(delivered()).toBe(false);
+  });
+
+  it('admin login refuses an app-origin callback left over from a stale installed app id', async () => {
+    sessionStorage.setItem('permissions', 'admin');
+    localStorage.setItem('installed-application-id', ID_B);
+    sessionStorage.setItem('callback-url', appCallback(LABEL_B));
+    render(<AdminFlow />);
+    await userEvent.click(screen.getByText('approve-permissions'));
+    await screen.findByText(/not allowed/i);
+    expect(delivered()).toBe(false);
+  });
+
+  it('package login refuses the label of an application-id param that is not the minted app', async () => {
+    sessionStorage.setItem('application-id', ID_A);
+    sessionStorage.setItem('callback-url', appCallback(LABEL_A));
+    localStorage.setItem('installed-application-id', ID_B);
+    render(<PackageFlow mode="multi-context" packageName="test-app" />);
+    await userEvent.click(screen.getByText('manifest-complete'));
+    await userEvent.click(screen.getByText('approve-permissions'));
+    await userEvent.click(await screen.findByText('Generate Token'));
+    await screen.findByText(/not allowed/i);
+    expect(delivered()).toBe(false);
+  });
+
+  it('package login accepts the label of the app it minted for', async () => {
+    sessionStorage.setItem('callback-url', appCallback(LABEL_B));
+    localStorage.setItem('installed-application-id', ID_B);
+    render(<PackageFlow mode="multi-context" packageName="test-app" />);
+    await userEvent.click(screen.getByText('manifest-complete'));
+    await userEvent.click(screen.getByText('approve-permissions'));
+    await userEvent.click(await screen.findByText('Generate Token'));
+    await vi.waitFor(() => expect(delivered()).toBe(true));
+  });
+
+  it('application login refuses the label of a stored id that is not the minted prop', async () => {
+    sessionStorage.setItem('application-id', ID_A);
+    sessionStorage.setItem('callback-url', appCallback(LABEL_A));
+    render(<ApplicationFlow mode="multi-context" applicationId={ID_B} applicationPath="" />);
+    await userEvent.click(screen.getByText('app-check-complete'));
+    await userEvent.click(screen.getByText('approve-permissions'));
+    await screen.findByText(/not allowed/i);
+    expect(delivered()).toBe(false);
+  });
+
+  it('application login accepts the label of the minted prop', async () => {
+    sessionStorage.setItem('callback-url', appCallback(LABEL_A));
+    render(<ApplicationFlow mode="multi-context" applicationId={ID_A} applicationPath="" />);
+    await userEvent.click(screen.getByText('app-check-complete'));
+    await userEvent.click(screen.getByText('approve-permissions'));
+    await vi.waitFor(() => expect(delivered()).toBe(true));
   });
 });

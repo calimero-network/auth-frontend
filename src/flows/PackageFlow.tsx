@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { generateClientKeyDirect } from '../lib/mero';
-import { resolveTrustedCallbackUrl, redirectTokensToCallback } from '../utils/callbackUrl';
+import { redirectTokensToCallback } from '../utils/callbackUrl';
 import { ManifestProcessor } from '../components/manifest/ManifestProcessor';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ContextSelector } from '../components/context/ContextSelector';
@@ -110,24 +110,23 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
 
       if (response.access_token && response.refresh_token) {
         const callback = getStoredUrlParam('callback-url');
-        // Validate the callback BEFORE the package-flow cleanup + redirect, so a
-        // missing/untrusted callback hands out no tokens and leaves state intact.
-        if (!(await resolveTrustedCallbackUrl(callback))) {
+        // The handoff re-checks the callback before the cleanup below, so a
+        // refused callback hands out no tokens and leaves state intact.
+        const outcome = await redirectTokensToCallback(
+          callback,
+          response,
+          { application_id: installedAppId, context_id: contextId, context_identity: identity },
+          installedAppId,
+        );
+        if (outcome !== 'ok') {
           setError(
-            callback
-              ? 'Login callback destination is not allowed.'
-              : 'Missing callback URL',
+            outcome === 'missing'
+              ? 'Missing callback URL'
+              : 'Login callback destination is not allowed.',
           );
           setGenerating(false);
           return;
         }
-
-        // The handoff re-checks the callback against the installed app id, so clear it after.
-        await redirectTokensToCallback(callback, response, {
-          application_id: installedAppId,
-          context_id: contextId,
-          context_identity: identity,
-        });
         sessionStorage.removeItem('installed-application-id');
         localStorage.removeItem('installed-application-id');
         localStorage.removeItem('manifest-info');

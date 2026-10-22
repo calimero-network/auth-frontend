@@ -51,9 +51,11 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     an older bundle (the desktop opens exactly that one) still opens the app
 //     at the frontend that bundle names.
 //   * an APP ORIGIN `{label}.{suffix}`, where label is the 52-char base32 of an
-//     application id, is decided by that alone: the suffix must be the node's
-//     own hostname (`localhost` on a loopback node) and the label must be the
-//     application this login is for. No other trust path can admit it.
+//     application id, is decided by that alone: the scheme and port must be the
+//     login page's, the suffix the node's own hostname (`localhost` on a
+//     loopback node), and the label the application id the key was minted for.
+//     The apps-port origin (`http://localhost:<port>/<label>/`) and
+//     `calimero-app.{label}` are not label-shaped hosts and are not covered here.
 //   * everything else is rejected — the caller must NOT redirect the tokens.
 
 const allowedOrigins = (): Set<string> => {
@@ -91,13 +93,17 @@ const allowedOrigins = (): Set<string> => {
  *
  * @returns the parsed `URL` when the callback is trusted, or `null` when it is
  *   missing, malformed, uses a non-http(s) scheme, or points at an untrusted
- *   origin. On `null`, the caller MUST NOT redirect the token pair.
+ *   origin. `applicationId` is the exact id the key was minted with (none for
+ *   an unbound key); an app-origin callback is accepted only for that id. On `null`, the caller MUST NOT redirect the token pair.
  */
-export function resolveSafeCallbackUrl(raw: string | null | undefined): URL | null {
+export function resolveSafeCallbackUrl(
+  raw: string | null | undefined,
+  applicationId?: string | null,
+): URL | null {
   const url = parseHttpUrl(raw);
   if (!url) return null;
 
-  const appOrigin = checkAppOrigin(url);
+  const appOrigin = checkAppOrigin(url, applicationId);
   if (appOrigin !== 'not-app-origin') return appOrigin === 'bound' ? url : null;
 
   if (isLoopbackHost(url.hostname) && nodeIsLoopback()) {
@@ -109,31 +115,30 @@ export function resolveSafeCallbackUrl(raw: string | null | undefined): URL | nu
   return null;
 }
 
-/** The application this login is for: the `application-id` param, else the installed app. */
-const loginApplicationHex = (): string | null =>
-  applicationIdHex(
-    getStoredUrlParam('application-id') || getStoredUrlParam('installed-application-id'),
-  );
-
 /**
  * Verdict for a callback on an app origin. A 52-char first label is always an
- * app origin: it is refused unless it decodes to the login's application and
- * the rest of the host is this node's own hostname.
+ * app origin: it is refused unless it decodes to `applicationId`, and the
+ * scheme, port and rest of the host are the login page's own.
  */
-const checkAppOrigin = (url: URL): 'not-app-origin' | 'bound' | 'refused' => {
+const checkAppOrigin = (
+  url: URL,
+  applicationId: string | null | undefined,
+): 'not-app-origin' | 'bound' | 'refused' => {
   const [label, ...rest] = url.hostname.split('.');
   if (label.length !== APP_LABEL_LENGTH || rest.length === 0) return 'not-app-origin';
 
   const suffix = rest.join('.');
-  let nodeHost = '';
+  let page: URL | null = null;
   try {
-    nodeHost = new URL(window.location.origin).hostname;
+    page = new URL(window.location.origin);
   } catch {
-    /* no window origin: only a loopback suffix can match below */
+    /* no window origin: nothing can match below */
   }
-  const suffixOk = suffix === nodeHost || (nodeIsLoopback() && suffix === 'localhost');
+  if (!page || url.protocol !== page.protocol || url.port !== page.port) return 'refused';
+
+  const suffixOk = suffix === page.hostname || (nodeIsLoopback() && suffix === 'localhost');
   const hex = labelHex(label);
-  return suffixOk && hex !== null && hex === loginApplicationHex() ? 'bound' : 'refused';
+  return suffixOk && hex !== null && hex === applicationIdHex(applicationId) ? 'bound' : 'refused';
 };
 
 const parseHttpUrl = (raw: string | null | undefined): URL | null => {
@@ -336,12 +341,13 @@ const isInstalledFrontend = async (origin: string): Promise<boolean> => {
  */
 export async function resolveTrustedCallbackUrl(
   raw: string | null | undefined,
+  applicationId?: string | null,
 ): Promise<URL | null> {
-  const staticUrl = resolveSafeCallbackUrl(raw);
+  const staticUrl = resolveSafeCallbackUrl(raw, applicationId);
   if (staticUrl) return staticUrl;
 
   const url = parseHttpUrl(raw);
-  if (!url || checkAppOrigin(url) !== 'not-app-origin') return null;
+  if (!url || checkAppOrigin(url, applicationId) !== 'not-app-origin') return null;
 
   if ((await loadNodeTrustedOrigins()).has(url.origin)) return url;
   if (await isInstalledFrontend(url.origin)) return url;
@@ -358,6 +364,9 @@ export async function resolveTrustedCallbackUrl(
  * exfiltrating the tokens to an arbitrary origin. Callers must funnel through it
  * rather than building the redirect inline.
  *
+ * `applicationId` is the id the tokens were minted with, as in
+ * [`resolveSafeCallbackUrl`].
+ *
  * @returns `'ok'` after redirecting, `'missing'` when no callback was provided,
  *   or `'untrusted'` when the callback failed validation. In the non-`'ok'`
  *   cases the tokens are NOT handed out and no navigation happens; the caller
@@ -367,10 +376,11 @@ export async function redirectTokensToCallback(
   rawCallback: string | null | undefined,
   tokens: { access_token: string; refresh_token: string },
   extra: Record<string, string | null | undefined> = {},
+  applicationId?: string | null,
 ): Promise<'ok' | 'missing' | 'untrusted'> {
   if (!rawCallback) return 'missing';
 
-  const returnUrl = await resolveTrustedCallbackUrl(rawCallback);
+  const returnUrl = await resolveTrustedCallbackUrl(rawCallback, applicationId);
   if (!returnUrl) return 'untrusted';
 
   const fragmentParams = new URLSearchParams();

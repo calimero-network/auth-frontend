@@ -25,6 +25,14 @@ describe('urlParams', () => {
     window.history.replaceState = vi.fn();
   });
 
+  describe('installed-application-id', () => {
+    it('is never taken from the URL', () => {
+      (window as any).location.search = '?installed-application-id=FromTheUrl&package-name=x';
+      handleUrlParams();
+      expect(getStoredUrlParam('installed-application-id')).toBeNull();
+    });
+  });
+
   describe('getStoredUrlParam', () => {
     it('should return null for non-existent key', () => {
       expect(getStoredUrlParam('non-existent')).toBeNull();

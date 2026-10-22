@@ -25,6 +25,20 @@ describe('useFlowDetection', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
+  describe('Repeated params', () => {
+    it('resolves a repeated application-id to the last value, as handleUrlParams stores it', () => {
+      (window as any).location.search = '?application-id=first&application-id=last';
+      const { result } = renderHook(() => useFlowDetection());
+      expect(result.current.applicationId).toBe('last');
+    });
+
+    it('resolves a repeated package-name to the last value', () => {
+      (window as any).location.search = '?package-name=first&package-name=last';
+      const { result } = renderHook(() => useFlowDetection());
+      expect(result.current.packageName).toBe('last');
+    });
+  });
+
   describe('Package Flow Detection', () => {
     it('should detect package flow from URL params', () => {
       (window as any).location.search = '?package-name=network.calimero.meropass&mode=multi-context&permissions=context:create,context:list&callback-url=http://localhost:5173/';

@@ -9,6 +9,7 @@ import {
   parseOriginList,
   resetNodeTrustedOrigins,
 } from '../callbackUrl';
+import { idBytes, toBase32, toBase58 } from './appIds';
 
 describe('resolveSafeCallbackUrl', () => {
   it('rejects a missing / empty callback', () => {
@@ -594,97 +595,88 @@ describe('parseOriginList', () => {
 });
 
 /**
- * App-origin callbacks: `http://{label}.{base_domain}:{port}` where label is
- * the lowercase unpadded base32 of the 32-byte application id.
+ * App-origin callbacks: `{scheme}://{label}.{node host}:{node port}` where
+ * label is the lowercase unpadded base32 of the 32-byte application id.
+ * The login page in tests is http://localhost:5173.
  */
 describe('app-origin callbacks', () => {
-  const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-  const B32 = 'abcdefghijklmnopqrstuvwxyz234567';
-  const idBytes = (seed: number) => Uint8Array.from({ length: 32 }, (_, i) => (seed + i * 7) % 256);
-
-  const toBase58 = (bytes: Uint8Array): string => {
-    let n = BigInt('0x' + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join(''));
-    let out = '';
-    while (n > 0n) {
-      out = B58[Number(n % 58n)] + out;
-      n /= 58n;
-    }
-    return out;
-  };
-  const toBase32 = (bytes: Uint8Array): string => {
-    let bits = '';
-    for (const b of bytes) bits += b.toString(2).padStart(8, '0');
-    bits = bits.padEnd(Math.ceil(bits.length / 5) * 5, '0');
-    let out = '';
-    for (let i = 0; i < bits.length; i += 5) out += B32[parseInt(bits.slice(i, i + 5), 2)];
-    return out;
-  };
-
-  const APP_A = idBytes(1);
-  const APP_B = idBytes(2);
-  const labelA = toBase32(APP_A);
-  const labelB = toBase32(APP_B);
+  const idA = toBase58(idBytes(1));
+  const idB = toBase58(idBytes(2));
+  const labelA = toBase32(idBytes(1));
+  const labelB = toBase32(idBytes(2));
+  const cbA = `http://${labelA}.localhost:5173/`;
 
   beforeEach(() => {
     sessionStorage.clear();
     localStorage.clear();
-    sessionStorage.setItem('application-id', toBase58(APP_A));
   });
 
-  it('builds 52-char labels', () => {
-    expect(labelA).toHaveLength(52);
-  });
-
-  it('accepts the label of the login application on a loopback node', async () => {
-    const url = await resolveTrustedCallbackUrl(`http://${labelA}.localhost:2428/`);
+  it('accepts the label of the application the login minted for', async () => {
+    const url = await resolveTrustedCallbackUrl(cbA, idA);
     expect(url?.hostname).toBe(`${labelA}.localhost`);
-    expect(resolveSafeCallbackUrl(`http://${labelA}.localhost:2428/`)).not.toBeNull();
+    expect(resolveSafeCallbackUrl(cbA, idA)).not.toBeNull();
   });
 
-  it('accepts the label of the app resolved from package-name (installed id)', async () => {
-    sessionStorage.removeItem('application-id');
-    sessionStorage.setItem('package-name', 'com.example.app');
-    localStorage.setItem('installed-application-id', toBase58(APP_A));
-    expect(await resolveTrustedCallbackUrl(`http://${labelA}.localhost:2428/`)).not.toBeNull();
+  it("refuses another application's label", async () => {
+    expect(await resolveTrustedCallbackUrl(`http://${labelB}.localhost:5173/`, idA)).toBeNull();
+    expect(resolveSafeCallbackUrl(`http://${labelB}.localhost:5173/`, idA)).toBeNull();
   });
 
-  it("refuses another application's label even on a loopback node", async () => {
-    expect(await resolveTrustedCallbackUrl(`http://${labelB}.localhost:2428/`)).toBeNull();
-    expect(resolveSafeCallbackUrl(`http://${labelB}.localhost:2428/`)).toBeNull();
+  it('refuses an app origin when the login minted without an application id', async () => {
+    expect(await resolveTrustedCallbackUrl(cbA)).toBeNull();
+    expect(resolveSafeCallbackUrl(cbA)).toBeNull();
   });
 
-  it('refuses a label when the login names no application', async () => {
-    sessionStorage.clear();
-    expect(await resolveTrustedCallbackUrl(`http://${labelA}.localhost:2428/`)).toBeNull();
+  it('ignores stored application ids: only the explicit argument counts', async () => {
+    sessionStorage.setItem('application-id', idA);
+    sessionStorage.setItem('installed-application-id', idA);
+    localStorage.setItem('installed-application-id', idA);
+    expect(await resolveTrustedCallbackUrl(cbA)).toBeNull();
+    expect(await resolveTrustedCallbackUrl(cbA, idB)).toBeNull();
   });
 
-  it('refuses a 52-char label that is not base32', async () => {
+  it('refuses a 52-char label that is not base32 even when the id is a valid one', async () => {
     const bad = '1'.repeat(52);
-    expect(await resolveTrustedCallbackUrl(`http://${bad}.localhost:2428/`)).toBeNull();
+    expect(await resolveTrustedCallbackUrl(`http://${bad}.localhost:5173/`, idA)).toBeNull();
+    // The same shape with a valid label is accepted, so the refusal above is the base32 check.
+    expect(await resolveTrustedCallbackUrl(cbA, idA)).not.toBeNull();
   });
 
   it('refuses a 52-char base32 label with non-zero padding bits (not a 32-byte id)', async () => {
     const noncanonical = labelA.slice(0, 51) + 'b';
-    expect(await resolveTrustedCallbackUrl(`http://${noncanonical}.localhost:2428/`)).toBeNull();
-  });
-
-  it('refuses a wrong-length label under a foreign suffix', async () => {
-    expect(await resolveTrustedCallbackUrl(`https://${labelA.slice(0, 51)}.evil.com/`)).toBeNull();
-    expect(await resolveTrustedCallbackUrl(`https://${labelA}a.evil.com/`)).toBeNull();
+    expect(await resolveTrustedCallbackUrl(`http://${noncanonical}.localhost:5173/`, idA)).toBeNull();
   });
 
   it('refuses the right label under a foreign suffix', async () => {
-    expect(await resolveTrustedCallbackUrl(`https://${labelA}.evil.com/`)).toBeNull();
-    expect(await resolveTrustedCallbackUrl(`http://${labelA}.localhost.evil.com/`)).toBeNull();
+    expect(await resolveTrustedCallbackUrl(`http://${labelA}.evil.com:5173/`, idA)).toBeNull();
+    expect(await resolveTrustedCallbackUrl(`http://${labelA}.localhost.evil.com:5173/`, idA)).toBeNull();
   });
 
-  it('on a non-loopback node accepts only the node own hostname as suffix', async () => {
+  it('refuses a wrong-length label even when the rest is the node own hostname', async () => {
+    // Not an app origin, so it falls to the loopback rule, which admits any localhost
+    // port on a loopback node - but never through the app-origin binding.
+    expect(await resolveTrustedCallbackUrl(`http://${labelA.slice(0, 51)}.evil.com:5173/`, idA)).toBeNull();
+    expect(await resolveTrustedCallbackUrl(`http://${labelA}a.evil.com:5173/`, idA)).toBeNull();
+  });
+
+  it('refuses https when the login page is http', async () => {
+    expect(await resolveTrustedCallbackUrl(`https://${labelA}.localhost:5173/`, idA)).toBeNull();
+  });
+
+  it('refuses another port than the login page', async () => {
+    expect(await resolveTrustedCallbackUrl(`http://${labelA}.localhost:2428/`, idA)).toBeNull();
+    expect(await resolveTrustedCallbackUrl(`http://${labelA}.localhost/`, idA)).toBeNull();
+  });
+
+  it('on a non-loopback node accepts only the node own scheme, host and port', async () => {
     const original = window.location.origin;
     (window.location as any).origin = 'https://node.example.org';
     try {
-      expect(await resolveTrustedCallbackUrl(`https://${labelA}.node.example.org/`)).not.toBeNull();
-      expect(await resolveTrustedCallbackUrl(`https://${labelA}.localhost/`)).toBeNull();
-      expect(await resolveTrustedCallbackUrl(`https://${labelA}.evil.com/`)).toBeNull();
+      expect(await resolveTrustedCallbackUrl(`https://${labelA}.node.example.org/`, idA)).not.toBeNull();
+      expect(await resolveTrustedCallbackUrl(`http://${labelA}.node.example.org/`, idA)).toBeNull();
+      expect(await resolveTrustedCallbackUrl(`https://${labelA}.node.example.org:8443/`, idA)).toBeNull();
+      expect(await resolveTrustedCallbackUrl(`https://${labelA}.localhost/`, idA)).toBeNull();
+      expect(await resolveTrustedCallbackUrl(`https://${labelA}.evil.com/`, idA)).toBeNull();
     } finally {
       (window.location as any).origin = original;
     }

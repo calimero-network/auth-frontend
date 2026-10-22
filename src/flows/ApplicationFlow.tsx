@@ -70,7 +70,7 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
         const outcome = await redirectTokensToCallback(callback, response, {
           context_id: contextId,
           context_identity: identity,
-        });
+        }, applicationId);
         if (outcome !== 'ok') {
           setError(
             outcome === 'missing'

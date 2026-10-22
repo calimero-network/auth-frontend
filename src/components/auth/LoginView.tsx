@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import ProviderSelector from '../providers/ProviderSelector';
 import { handleUrlParams, getStoredUrlParam } from '../../utils/urlParams';
-import { resolveTrustedCallbackUrl, redirectTokensToCallback } from '../../utils/callbackUrl';
+import { redirectTokensToCallback } from '../../utils/callbackUrl';
 import {
   getMero,
   generateClientKeyDirect,
@@ -349,28 +349,30 @@ const LoginView: React.FC = () => {
       // an application-id-scoped token is rejected with 403 on all of those
       // routes, which locks every app in a redirect-back-to-login loop.
 
+      const mintedApplicationId = localStorage.getItem('installed-application-id') ?? undefined;
       const response = await generateClientKeyDirect({
         context_id: contextId || '',
         context_identity: identity || '',
         permissions,
-        application_id: localStorage.getItem('installed-application-id') ?? undefined,
+        application_id: mintedApplicationId,
       });
 
       if (response.access_token && response.refresh_token) {
         const callback = getStoredUrlParam('callback-url');
-        // Capture the app id before the shared handoff clears/redirects.
-        const installedAppIdForRedirect = localStorage.getItem('installed-application-id');
-        if (!(await resolveTrustedCallbackUrl(callback))) {
+        const outcome = await redirectTokensToCallback(
+          callback,
+          response,
+          { application_id: mintedApplicationId },
+          mintedApplicationId,
+        );
+        if (outcome !== 'ok') {
           setError(
-            callback
-              ? 'Login callback destination is not allowed.'
-              : 'Missing callback URL',
+            outcome === 'missing'
+              ? 'Missing callback URL'
+              : 'Login callback destination is not allowed.',
           );
           return;
         }
-        await redirectTokensToCallback(callback, response, {
-          application_id: installedAppIdForRedirect,
-        });
         localStorage.removeItem('installed-application-id');
       } else {
         throw new Error('Failed to generate client key');
