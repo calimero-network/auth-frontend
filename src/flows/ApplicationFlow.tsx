@@ -137,6 +137,7 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
 
       {step === 'context-selection' && mode === 'single-context' && (
         <ContextSelector
+          applicationId={installedId}
           onComplete={(contextId, identity) => generateAndRedirect(contextId, identity)}
           onBack={() => setStep('permissions')}
         />

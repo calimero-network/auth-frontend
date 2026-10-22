@@ -731,6 +731,18 @@ describe('app-origin callbacks', () => {
       expect(await resolveTrustedCallbackUrl(url)).toBeNull();
     });
 
+    it("refuses another app's label on any loopback host, not just localhost", async () => {
+      const url = `http://foo.localhost:4000/${labelB}/`;
+      expect(await resolveTrustedCallbackUrl(url, idA)).toBeNull();
+      expect(resolveSafeCallbackUrl(url, idA)).toBeNull();
+    });
+
+    it('accepts the minted label on a *.localhost apps-port host', async () => {
+      const url = `http://foo.localhost:4000/${labelA}/`;
+      expect(await resolveTrustedCallbackUrl(url, idA)).not.toBeNull();
+      expect(resolveSafeCallbackUrl(url, idA)).not.toBeNull();
+    });
+
     it('leaves ordinary loopback paths alone', async () => {
       expect(await resolveTrustedCallbackUrl('http://localhost:4000/', idA)).not.toBeNull();
       expect(await resolveTrustedCallbackUrl('http://localhost:4000/dashboard/', idA)).not.toBeNull();

@@ -60,8 +60,6 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     not bound (it fails closed unless allowlisted).
 //   * everything else is rejected — the caller must NOT redirect the tokens.
 
-const APPS_PORT_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']); // hosts whose path names the app
-
 const allowedOrigins = (): Set<string> => {
   const origins = new Set<string>();
 
@@ -128,14 +126,8 @@ const checkAppOrigin = (
   url: URL,
   applicationId: string | null | undefined,
 ): 'not-app-origin' | 'bound' | 'refused' => {
-  // Apps-port origin on a loopback node: `http://localhost:<port>/<label>/`.
-  if (APPS_PORT_HOSTS.has(url.hostname) && nodeIsLoopback()) {
-    const pathHex = labelHex(url.pathname.split('/')[1] ?? '');
-    if (pathHex !== null) return pathHex === applicationIdHex(applicationId) ? 'bound' : 'refused';
-  }
-
   const [label, ...rest] = url.hostname.split('.');
-  if (label.length !== APP_LABEL_LENGTH || rest.length === 0) return 'not-app-origin';
+  if (label.length !== APP_LABEL_LENGTH || rest.length === 0) return checkAppsPortPath(url, applicationId);
 
   const suffix = rest.join('.');
   let page: URL | null = null;
@@ -149,6 +141,17 @@ const checkAppOrigin = (
   const suffixOk = suffix === page.hostname || (nodeIsLoopback() && suffix === 'localhost');
   const hex = labelHex(label);
   return suffixOk && hex !== null && hex === applicationIdHex(applicationId) ? 'bound' : 'refused';
+};
+
+// The apps port routes on the first path segment and ignores the Host header.
+const checkAppsPortPath = (
+  url: URL,
+  applicationId: string | null | undefined,
+): 'not-app-origin' | 'bound' | 'refused' => {
+  if (!isLoopbackHost(url.hostname) || !nodeIsLoopback()) return 'not-app-origin';
+  const pathHex = labelHex(url.pathname.split('/')[1] ?? '');
+  if (pathHex === null) return 'not-app-origin';
+  return pathHex === applicationIdHex(applicationId) ? 'bound' : 'refused';
 };
 
 const parseHttpUrl = (raw: string | null | undefined): URL | null => {
