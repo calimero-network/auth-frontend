@@ -648,15 +648,27 @@ describe('app-origin callbacks', () => {
   });
 
   it('refuses the right label under a foreign suffix', async () => {
-    expect(await resolveTrustedCallbackUrl(`http://${labelA}.evil.com:5173/`, idA)).toBeNull();
-    expect(await resolveTrustedCallbackUrl(`http://${labelA}.localhost.evil.com:5173/`, idA)).toBeNull();
+    // Loopback hosts the loopback rule alone would accept: only the app-origin check refuses them.
+    expect(await resolveTrustedCallbackUrl(`http://${labelA}.foo.localhost:5173/`, idA)).toBeNull();
+    expect(await resolveTrustedCallbackUrl(`http://${labelA}.sub.foo.localhost:5173/`, idA)).toBeNull();
+    expect(resolveSafeCallbackUrl(`http://${labelA}.foo.localhost:5173/`, idA)).toBeNull();
   });
 
-  it('refuses a wrong-length label even when the rest is the node own hostname', async () => {
-    // Not an app origin, so it falls to the loopback rule, which admits any localhost
-    // port on a loopback node - but never through the app-origin binding.
-    expect(await resolveTrustedCallbackUrl(`http://${labelA.slice(0, 51)}.evil.com:5173/`, idA)).toBeNull();
-    expect(await resolveTrustedCallbackUrl(`http://${labelA}a.evil.com:5173/`, idA)).toBeNull();
+  it('treats a wrong-length label as an ordinary loopback host, not an app origin', async () => {
+    expect(await resolveTrustedCallbackUrl(`http://${labelA.slice(0, 51)}.localhost:5173/`, idB)).not.toBeNull();
+    expect(await resolveTrustedCallbackUrl(`http://${labelA}a.localhost:5173/`, idB)).not.toBeNull();
+  });
+
+  it('on an IPv6 loopback page binds the label under localhost to the minted id', async () => {
+    const original = window.location.origin;
+    (window.location as any).origin = 'http://[::1]:5173';
+    try {
+      expect(await resolveTrustedCallbackUrl(cbA, idA)).not.toBeNull();
+      expect(await resolveTrustedCallbackUrl(cbA, idB)).toBeNull();
+      expect(await resolveTrustedCallbackUrl(`http://${labelA}.foo.localhost:5173/`, idA)).toBeNull();
+    } finally {
+      (window.location as any).origin = original;
+    }
   });
 
   it('refuses https when the login page is http', async () => {
@@ -680,5 +692,30 @@ describe('app-origin callbacks', () => {
     } finally {
       (window.location as any).origin = original;
     }
+  });
+
+  describe('apps-port origin (loopback host, label as the first path segment)', () => {
+    const portUrl = (label: string) => `http://localhost:4000/${label}/index.html`;
+
+    it('accepts the label of the application the login minted for', async () => {
+      expect(await resolveTrustedCallbackUrl(portUrl(labelA), idA)).not.toBeNull();
+      expect(resolveSafeCallbackUrl(portUrl(labelA), idA)).not.toBeNull();
+    });
+
+    it("refuses another application's label", async () => {
+      expect(await resolveTrustedCallbackUrl(portUrl(labelB), idA)).toBeNull();
+      expect(resolveSafeCallbackUrl(portUrl(labelB), idA)).toBeNull();
+    });
+
+    it('refuses any label for an unbound (admin) mint', async () => {
+      expect(await resolveTrustedCallbackUrl(portUrl(labelA))).toBeNull();
+      expect(resolveSafeCallbackUrl(portUrl(labelA))).toBeNull();
+    });
+
+    it('leaves ordinary loopback paths alone', async () => {
+      expect(await resolveTrustedCallbackUrl('http://localhost:4000/', idA)).not.toBeNull();
+      expect(await resolveTrustedCallbackUrl('http://localhost:4000/dashboard/', idA)).not.toBeNull();
+      expect(await resolveTrustedCallbackUrl(`http://localhost:4000/${labelA.slice(0, 51)}/`)).not.toBeNull();
+    });
   });
 });

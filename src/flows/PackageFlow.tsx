@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { generateClientKeyDirect } from '../lib/mero';
-import { redirectTokensToCallback } from '../utils/callbackUrl';
+import { callbackRefusal, redirectTokensToCallback } from '../utils/callbackUrl';
 import { ManifestProcessor } from '../components/manifest/ManifestProcessor';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ContextSelector } from '../components/context/ContextSelector';
@@ -62,10 +62,7 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
     return permissionsForPackage(mode, rawPermissions, packageName, getStoredUrlParam('callback-url'));
   }, [mode, packageName]);
 
-  const handleManifestComplete = () => {
-    const appId =
-      localStorage.getItem('installed-application-id') ||
-      sessionStorage.getItem('installed-application-id');
+  const handleManifestComplete = (appId: string) => {
     if (appId) {
       setInstalledAppId(appId);
 
@@ -95,6 +92,15 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
   const generateAndRedirect = async (contextId: string | null, identity: string | null) => {
     setGenerating(true);
     try {
+      // Core refuses `admin` on an application-bound key, so a full-access
+      // trusted-app login mints unbound.
+      const boundId = permissions.includes('admin') ? null : installedAppId;
+      const refusal = await callbackRefusal(getStoredUrlParam('callback-url'), boundId);
+      if (refusal) {
+        setError(refusal);
+        setGenerating(false);
+        return;
+      }
       // Pass the requested permissions through unscoped. Rewriting them to
       // `context:*[<application-id>]` mints tokens core rejects: bracket params
       // on context permissions are context ids, and `POST /jsonrpc` /
@@ -105,7 +111,7 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
         context_id: contextId || '',
         context_identity: identity || '',
         permissions,
-        application_id: installedAppId ?? undefined,
+        application_id: boundId ?? undefined,
       });
 
       if (response.access_token && response.refresh_token) {
@@ -115,8 +121,8 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
         const outcome = await redirectTokensToCallback(
           callback,
           response,
-          { application_id: installedAppId, context_id: contextId, context_identity: identity },
-          installedAppId,
+          { application_id: boundId, context_id: contextId, context_identity: identity },
+          boundId,
         );
         if (outcome !== 'ok') {
           setError(

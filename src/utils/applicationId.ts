@@ -18,7 +18,15 @@ export const applicationIdHex = (id: string | null | undefined): string | null =
     n = n * 58n + BigInt(digit);
   }
   const hex = n.toString(16).padStart(APP_ID_BYTES * 2, '0');
-  return hex.length === APP_ID_BYTES * 2 ? hex : null;
+  return hex.length === APP_ID_BYTES * 2 && encodeBase58(hex) === id ? hex : null;
+};
+
+/** Canonical base58 of the bytes: one leading '1' per leading zero byte. */
+const encodeBase58 = (hex: string): string => {
+  let n = BigInt(`0x${hex}`);
+  let out = '';
+  for (; n > 0n; n /= 58n) out = BASE58[Number(n % 58n)] + out;
+  return '1'.repeat((/^(?:00)*/.exec(hex)?.[0].length ?? 0) / 2) + out;
 };
 
 /** The 32 bytes (as hex) behind an app-origin label (canonical lowercase base32), or null. */

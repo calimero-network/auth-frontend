@@ -8,7 +8,7 @@ vi.mock('../../lib/mero', () => ({
   clearAccessToken: vi.fn(),
 }));
 
-import { getStoredUrlParam, handleUrlParams } from '../urlParams';
+import { getStoredUrlParam, handleUrlParams, repeatedFlowParams } from '../urlParams';
 
 describe('urlParams', () => {
   beforeEach(() => {
@@ -30,6 +30,29 @@ describe('urlParams', () => {
       (window as any).location.search = '?installed-application-id=FromTheUrl&package-name=x';
       handleUrlParams();
       expect(getStoredUrlParam('installed-application-id')).toBeNull();
+    });
+  });
+
+  describe('repeatedFlowParams', () => {
+    it('names every flow param the URL repeats', () => {
+      expect(
+        repeatedFlowParams(
+          '?callback-url=a&callback-url=b&application-id=x&application-id=y&package-name=p&package-name=q&permissions=a&permissions=admin&mode=m&mode=n',
+        ),
+      ).toEqual(['callback-url', 'application-id', 'package-name', 'permissions', 'mode']);
+    });
+
+    it('is empty for single values and for repeats of other params', () => {
+      expect(repeatedFlowParams('?callback-url=a&permissions=b&app-url=x&app-url=y')).toEqual([]);
+    });
+  });
+
+  describe('mode and permissions guard', () => {
+    it('reads a repeated mode as the last value, the one that gets stored', () => {
+      localStorage.setItem('package-name', 'old');
+      (window as any).location.search = '?mode=single-context&mode=admin';
+      handleUrlParams();
+      expect(localStorage.getItem('package-name')).toBeNull();
     });
   });
 

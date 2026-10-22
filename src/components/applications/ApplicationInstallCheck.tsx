@@ -18,7 +18,7 @@ import {
 import { PageShell } from '../common/PageShell';
 
 interface ApplicationInstallCheckProps {
-  onComplete: (contextId: string, identity: string) => void;
+  onComplete: (applicationId: string) => void;
   onBack: () => void;
 }
 
@@ -65,7 +65,7 @@ export function ApplicationInstallCheck({ onComplete, onBack }: ApplicationInsta
         try {
           await mero.admin.getApplication(applicationId);
           localStorage.setItem('installed-application-id', applicationId);
-          onComplete('', '');
+          onComplete(applicationId);
           return;
         } catch (_directErr) {
           // Not found by direct UUID — fall through to package registry lookup
@@ -77,7 +77,7 @@ export function ApplicationInstallCheck({ onComplete, onBack }: ApplicationInsta
           const installedId = (latestResponse as any)?.applicationId;
           if (installedId) {
             localStorage.setItem('installed-application-id', installedId);
-            onComplete('', '');
+            onComplete(installedId);
             return;
           }
         } catch (_pkgErr) {
@@ -162,7 +162,7 @@ export function ApplicationInstallCheck({ onComplete, onBack }: ApplicationInsta
                   onClick={async () => {
                     const success = await checkAndInstallApplication(applicationId, coords);
                     if (success) {
-                      onComplete('', '');
+                      onComplete(applicationId);
                     }
                   }}
                   disabled={isLoading}
@@ -201,7 +201,7 @@ export function ApplicationInstallCheck({ onComplete, onBack }: ApplicationInsta
                 onClick={async () => {
                   const success = await checkAndInstallApplication(applicationId, coords);
                   if (success) {
-                    onComplete('', '');
+                    onComplete(applicationId);
                   }
                 }}
                 disabled={isLoading}

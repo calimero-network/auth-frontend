@@ -54,8 +54,8 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     application id, is decided by that alone: the scheme and port must be the
 //     login page's, the suffix the node's own hostname (`localhost` on a
 //     loopback node), and the label the application id the key was minted for.
-//     The apps-port origin (`http://localhost:<port>/<label>/`) and
-//     `calimero-app.{label}` are not label-shaped hosts and are not covered here.
+//     The apps-port origin on a loopback node (`http://localhost:<port>/<label>/`)
+//     is bound the same way by its first path segment.
 //   * everything else is rejected — the caller must NOT redirect the tokens.
 
 const allowedOrigins = (): Set<string> => {
@@ -124,6 +124,12 @@ const checkAppOrigin = (
   url: URL,
   applicationId: string | null | undefined,
 ): 'not-app-origin' | 'bound' | 'refused' => {
+  // Apps-port origin on a loopback node: `http://localhost:<port>/<label>/`.
+  if (isLoopbackHost(url.hostname) && nodeIsLoopback()) {
+    const pathHex = labelHex(url.pathname.split('/')[1] ?? '');
+    if (pathHex !== null) return pathHex === applicationIdHex(applicationId) ? 'bound' : 'refused';
+  }
+
   const [label, ...rest] = url.hostname.split('.');
   if (label.length !== APP_LABEL_LENGTH || rest.length === 0) return 'not-app-origin';
 
@@ -352,6 +358,17 @@ export async function resolveTrustedCallbackUrl(
   if ((await loadNodeTrustedOrigins()).has(url.origin)) return url;
   if (await isInstalledFrontend(url.origin)) return url;
   return (await isRegistryDeclaredFrontend(url.origin)) ? url : null;
+}
+
+/** Why a callback would get no tokens, or null when it would. Run before minting. */
+export async function callbackRefusal(
+  raw: string | null | undefined,
+  applicationId?: string | null,
+): Promise<string | null> {
+  if (!raw) return 'Missing callback URL';
+  return (await resolveTrustedCallbackUrl(raw, applicationId))
+    ? null
+    : 'Login callback destination is not allowed.';
 }
 
 /**

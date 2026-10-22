@@ -6,6 +6,14 @@ import {
 } from '../lib/mero';
 import { resolveTrustedNodeUrl } from './nodeUrl';
 
+const SINGLE_VALUE_PARAMS = ['callback-url', 'application-id', 'package-name', 'permissions', 'mode'];
+
+/** Flow params a URL repeats: no legitimate client does, and parsers disagree on which value wins. */
+export const repeatedFlowParams = (search: string): string[] => {
+  const params = new URLSearchParams(search);
+  return SINGLE_VALUE_PARAMS.filter((key) => params.getAll(key).length > 1);
+};
+
 export const handleUrlParams = () => {
   // Get URL search params
   const searchParams = new URLSearchParams(window.location.search);
@@ -13,8 +21,8 @@ export const handleUrlParams = () => {
   
   // Clear flow params from localStorage (old sessions) to prevent pollution
   // SessionStorage already handles per-tab isolation
-  const modeFromUrl = searchParams.get('mode');
-  if (modeFromUrl === 'admin' || searchParams.get('permissions') === 'admin') {
+  const modeFromUrl = searchParams.getAll('mode').at(-1);
+  if (modeFromUrl === 'admin' || searchParams.getAll('permissions').at(-1) === 'admin') {
     localStorage.removeItem('package-name');
     localStorage.removeItem('package-version');
     localStorage.removeItem('registry-url');

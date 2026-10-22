@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { generateClientKeyDirect } from '../lib/mero';
-import { redirectTokensToCallback } from '../utils/callbackUrl';
+import { callbackRefusal, redirectTokensToCallback } from '../utils/callbackUrl';
 import { ApplicationInstallCheck } from '../components/applications/ApplicationInstallCheck';
 import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ContextSelector } from '../components/context/ContextSelector';
@@ -36,6 +36,8 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
   const [step, setStep] = useState<Step>('app-check');
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  // The installed id the check resolved `applicationId` to; it can differ (a package id).
+  const [installedId, setInstalledId] = useState(applicationId);
 
   const permissions = useMemo(() => {
     const permissionsParam = getStoredUrlParam('permissions');
@@ -43,7 +45,8 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
     return restrictToAppPermissions(normalizePermissions(mode, rawPermissions));
   }, [mode]);
 
-  const handleAppCheckComplete = () => {
+  const handleAppCheckComplete = (resolvedId: string) => {
+    setInstalledId(resolvedId);
     setStep('permissions');
   };
 
@@ -58,11 +61,17 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
   const generateAndRedirect = async (contextId: string | null, identity: string | null) => {
     setGenerating(true);
     try {
+      const refusal = await callbackRefusal(getStoredUrlParam('callback-url'), installedId);
+      if (refusal) {
+        setError(refusal);
+        setGenerating(false);
+        return;
+      }
       const response = await generateClientKeyDirect({
         context_id: contextId || '',
         context_identity: identity || '',
         permissions,
-        application_id: applicationId,
+        application_id: installedId,
       });
 
       if (response.access_token && response.refresh_token) {
@@ -70,7 +79,7 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
         const outcome = await redirectTokensToCallback(callback, response, {
           context_id: contextId,
           context_identity: identity,
-        }, applicationId);
+        }, installedId);
         if (outcome !== 'ok') {
           setError(
             outcome === 'missing'
