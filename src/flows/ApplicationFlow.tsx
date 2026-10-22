@@ -62,6 +62,7 @@ export const ApplicationFlow: React.FC<ApplicationFlowProps> = ({
         context_id: contextId || '',
         context_identity: identity || '',
         permissions,
+        application_id: applicationId,
       });
 
       if (response.access_token && response.refresh_token) {

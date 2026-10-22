@@ -255,6 +255,8 @@ export interface GenerateClientKeyRequest {
   context_id: string;
   context_identity: string;
   permissions: string[];
+  /** Binds the minted key to this application (base58); omitted for unbound keys. */
+  application_id?: string;
 }
 
 export interface GenerateClientKeyResponse {

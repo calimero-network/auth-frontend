@@ -353,6 +353,7 @@ const LoginView: React.FC = () => {
         context_id: contextId || '',
         context_identity: identity || '',
         permissions,
+        application_id: localStorage.getItem('installed-application-id') ?? undefined,
       });
 
       if (response.access_token && response.refresh_token) {
@@ -367,10 +368,10 @@ const LoginView: React.FC = () => {
           );
           return;
         }
-        localStorage.removeItem('installed-application-id');
         await redirectTokensToCallback(callback, response, {
           application_id: installedAppIdForRedirect,
         });
+        localStorage.removeItem('installed-application-id');
       } else {
         throw new Error('Failed to generate client key');
       }

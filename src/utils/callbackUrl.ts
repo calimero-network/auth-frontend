@@ -1,6 +1,7 @@
 import { isLoopbackHost, nodeIsLoopback } from './nodeUrl';
 import { clearStoredUrlParams, getStoredUrlParam } from './urlParams';
 import { getAccessToken, getAppEndpointKey } from '../lib/mero';
+import { APP_LABEL_LENGTH, applicationIdHex, labelHex } from './applicationId';
 import { createRegistryClient, registryClient } from './registryClient';
 
 // Allowlist validation for the SSO `callback-url`.
@@ -49,6 +50,10 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     session. The registry knows only the latest frontend, and a node running
 //     an older bundle (the desktop opens exactly that one) still opens the app
 //     at the frontend that bundle names.
+//   * an APP ORIGIN `{label}.{suffix}`, where label is the 52-char base32 of an
+//     application id, is decided by that alone: the suffix must be the node's
+//     own hostname (`localhost` on a loopback node) and the label must be the
+//     application this login is for. No other trust path can admit it.
 //   * everything else is rejected — the caller must NOT redirect the tokens.
 
 const allowedOrigins = (): Set<string> => {
@@ -92,6 +97,9 @@ export function resolveSafeCallbackUrl(raw: string | null | undefined): URL | nu
   const url = parseHttpUrl(raw);
   if (!url) return null;
 
+  const appOrigin = checkAppOrigin(url);
+  if (appOrigin !== 'not-app-origin') return appOrigin === 'bound' ? url : null;
+
   if (isLoopbackHost(url.hostname) && nodeIsLoopback()) {
     return url;
   }
@@ -100,6 +108,33 @@ export function resolveSafeCallbackUrl(raw: string | null | undefined): URL | nu
 
   return null;
 }
+
+/** The application this login is for: the `application-id` param, else the installed app. */
+const loginApplicationHex = (): string | null =>
+  applicationIdHex(
+    getStoredUrlParam('application-id') || getStoredUrlParam('installed-application-id'),
+  );
+
+/**
+ * Verdict for a callback on an app origin. A 52-char first label is always an
+ * app origin: it is refused unless it decodes to the login's application and
+ * the rest of the host is this node's own hostname.
+ */
+const checkAppOrigin = (url: URL): 'not-app-origin' | 'bound' | 'refused' => {
+  const [label, ...rest] = url.hostname.split('.');
+  if (label.length !== APP_LABEL_LENGTH || rest.length === 0) return 'not-app-origin';
+
+  const suffix = rest.join('.');
+  let nodeHost = '';
+  try {
+    nodeHost = new URL(window.location.origin).hostname;
+  } catch {
+    /* no window origin: only a loopback suffix can match below */
+  }
+  const suffixOk = suffix === nodeHost || (nodeIsLoopback() && suffix === 'localhost');
+  const hex = labelHex(label);
+  return suffixOk && hex !== null && hex === loginApplicationHex() ? 'bound' : 'refused';
+};
 
 const parseHttpUrl = (raw: string | null | undefined): URL | null => {
   if (!raw) return null;
@@ -306,7 +341,7 @@ export async function resolveTrustedCallbackUrl(
   if (staticUrl) return staticUrl;
 
   const url = parseHttpUrl(raw);
-  if (!url) return null;
+  if (!url || checkAppOrigin(url) !== 'not-app-origin') return null;
 
   if ((await loadNodeTrustedOrigins()).has(url.origin)) return url;
   if (await isInstalledFrontend(url.origin)) return url;

@@ -105,6 +105,7 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
         context_id: contextId || '',
         context_identity: identity || '',
         permissions,
+        application_id: installedAppId ?? undefined,
       });
 
       if (response.access_token && response.refresh_token) {
@@ -121,14 +122,15 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
           return;
         }
 
-        sessionStorage.removeItem('installed-application-id');
-        localStorage.removeItem('installed-application-id');
-        localStorage.removeItem('manifest-info');
+        // The handoff re-checks the callback against the installed app id, so clear it after.
         await redirectTokensToCallback(callback, response, {
           application_id: installedAppId,
           context_id: contextId,
           context_identity: identity,
         });
+        sessionStorage.removeItem('installed-application-id');
+        localStorage.removeItem('installed-application-id');
+        localStorage.removeItem('manifest-info');
       } else {
         throw new Error('Failed to generate client key');
       }

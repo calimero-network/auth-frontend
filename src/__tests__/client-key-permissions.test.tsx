@@ -22,6 +22,8 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../vitest.setup';
 import { PackageFlow } from '../flows/PackageFlow';
+import { ApplicationFlow } from '../flows/ApplicationFlow';
+import { AdminFlow } from '../flows/AdminFlow';
 
 // The flow steps before token generation (registry fetch, app install,
 // permission review UI) are not under test — stub them down to their
@@ -29,6 +31,11 @@ import { PackageFlow } from '../flows/PackageFlow';
 vi.mock('../components/manifest/ManifestProcessor', () => ({
   ManifestProcessor: ({ onComplete }: { onComplete: () => void }) => (
     <button onClick={onComplete}>manifest-complete</button>
+  ),
+}));
+vi.mock('../components/applications/ApplicationInstallCheck', () => ({
+  ApplicationInstallCheck: ({ onComplete }: { onComplete: () => void }) => (
+    <button onClick={onComplete}>app-check-complete</button>
   ),
 }));
 vi.mock('../components/permissions/PermissionsView', () => ({
@@ -172,5 +179,54 @@ describe('client-key permission passthrough (rc.9 contract)', () => {
       const body = await mint('multi-context', 'com.example.copycat');
       expect([...body.permissions].sort()).toEqual([...REQUESTED].sort());
     });
+  });
+});
+
+describe('application binding at mint', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    sessionStorage.setItem('permissions', 'context:list');
+    sessionStorage.setItem('callback-url', 'http://app.example.com/');
+    localStorage.setItem('installed-application-id', APP_ID);
+  });
+
+  const captureMint = () => {
+    const box: { body: Record<string, unknown> | null } = { body: null };
+    server.use(
+      http.post('*/admin/client-key', async ({ request }) => {
+        box.body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ data: { access_token: 'access', refresh_token: 'refresh' } });
+      }),
+    );
+    return box;
+  };
+
+  it('sends the installed application id for a package login', async () => {
+    const box = captureMint();
+    render(<PackageFlow mode="multi-context" packageName="test-app" />);
+    await userEvent.click(screen.getByText('manifest-complete'));
+    await userEvent.click(screen.getByText('approve-permissions'));
+    await userEvent.click(await screen.findByText('Generate Token'));
+    await vi.waitFor(() => expect(box.body).not.toBeNull());
+    expect(box.body!.application_id).toBe(APP_ID);
+  });
+
+  it('sends the application-id param for an application login', async () => {
+    const box = captureMint();
+    render(<ApplicationFlow mode="multi-context" applicationId={APP_ID} applicationPath="" />);
+    await userEvent.click(screen.getByText('app-check-complete'));
+    await userEvent.click(screen.getByText('approve-permissions'));
+    await vi.waitFor(() => expect(box.body).not.toBeNull());
+    expect(box.body!.application_id).toBe(APP_ID);
+  });
+
+  it('sends no application id for an admin login', async () => {
+    const box = captureMint();
+    sessionStorage.setItem('permissions', 'admin');
+    render(<AdminFlow />);
+    await userEvent.click(screen.getByText('approve-permissions'));
+    await vi.waitFor(() => expect(box.body).not.toBeNull());
+    expect('application_id' in box.body!).toBe(false);
   });
 });
