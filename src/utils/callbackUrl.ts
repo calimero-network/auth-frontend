@@ -55,8 +55,12 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     login page's, the suffix the node's own hostname (`localhost` on a
 //     loopback node), and the label the application id the key was minted for.
 //     The apps-port origin on a loopback node (`http://localhost:<port>/<label>/`)
-//     is bound the same way by its first path segment.
+//     is bound the same way by its first path segment. The apps-port origin is
+//     shared by all apps, and the Windows `calimero-app.{label}` host form is
+//     not bound (it fails closed unless allowlisted).
 //   * everything else is rejected — the caller must NOT redirect the tokens.
+
+const APPS_PORT_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']); // hosts whose path names the app
 
 const allowedOrigins = (): Set<string> => {
   const origins = new Set<string>();
@@ -125,7 +129,7 @@ const checkAppOrigin = (
   applicationId: string | null | undefined,
 ): 'not-app-origin' | 'bound' | 'refused' => {
   // Apps-port origin on a loopback node: `http://localhost:<port>/<label>/`.
-  if (isLoopbackHost(url.hostname) && nodeIsLoopback()) {
+  if (APPS_PORT_HOSTS.has(url.hostname) && nodeIsLoopback()) {
     const pathHex = labelHex(url.pathname.split('/')[1] ?? '');
     if (pathHex !== null) return pathHex === applicationIdHex(applicationId) ? 'bound' : 'refused';
   }

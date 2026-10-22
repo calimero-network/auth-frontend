@@ -76,6 +76,10 @@ const REQUESTED = [
   'context:alias',
 ];
 
+beforeEach(() => {
+  stub.race = null;
+});
+
 describe('client-key permission passthrough (rc.9 contract)', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -264,7 +268,6 @@ describe('app-origin callbacks follow the id the login minted for', () => {
     sessionStorage.setItem('permissions', 'context:list');
     stub.installed = '';
     stub.resolved = ID_A;
-    stub.race = null;
     window.location.href = originalHref;
     server.use(
       http.post('*/admin/client-key', () =>
@@ -370,6 +373,32 @@ describe('app-origin callbacks follow the id the login minted for', () => {
     await userEvent.click(await screen.findByText('Generate Token'));
     await vi.waitFor(() => expect(delivered()).toBe(true));
     expect(box.body!.application_id).toBe(ID_A);
+  });
+
+  it('trusted-app login mints unbound but keeps the installed app id in the callback fragment', async () => {
+    const box: { body: Record<string, unknown> | null } = { body: null };
+    server.use(
+      http.post('*/admin/client-key', async ({ request }) => {
+        box.body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ data: { access_token: 'access', refresh_token: 'refresh' } });
+      }),
+    );
+    sessionStorage.setItem('callback-url', 'https://hyperfeed.me/');
+    resetNodeTrustedOrigins();
+    server.use(
+      http.get('*/auth/providers', () =>
+        HttpResponse.json({ data: { trusted_callback_origins: ['https://hyperfeed.me'] } }),
+      ),
+    );
+    stub.installed = ID_A;
+    render(<PackageFlow mode="multi-context" packageName="com.calimero.hyperfeed" />);
+    await userEvent.click(screen.getByText('manifest-complete'));
+    await userEvent.click(screen.getByText('approve-permissions'));
+    await userEvent.click(await screen.findByText('Generate Token'));
+    await vi.waitFor(() => expect(delivered()).toBe(true));
+    expect('application_id' in box.body!).toBe(false);
+    const fragment = new URLSearchParams(window.location.href.split('#')[1]);
+    expect(fragment.get('application_id')).toBe(ID_A);
   });
 
   it('sends no mint request for a callback that would be refused', async () => {

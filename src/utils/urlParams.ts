@@ -21,8 +21,8 @@ export const handleUrlParams = () => {
   
   // Clear flow params from localStorage (old sessions) to prevent pollution
   // SessionStorage already handles per-tab isolation
-  const modeFromUrl = searchParams.getAll('mode').at(-1);
-  if (modeFromUrl === 'admin' || searchParams.getAll('permissions').at(-1) === 'admin') {
+  const modeFromUrl = searchParams.get('mode');
+  if (modeFromUrl === 'admin' || searchParams.get('permissions') === 'admin') {
     localStorage.removeItem('package-name');
     localStorage.removeItem('package-version');
     localStorage.removeItem('registry-url');

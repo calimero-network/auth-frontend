@@ -121,7 +121,7 @@ export const PackageFlow: React.FC<PackageFlowProps> = ({
         const outcome = await redirectTokensToCallback(
           callback,
           response,
-          { application_id: boundId, context_id: contextId, context_identity: identity },
+          { application_id: installedAppId, context_id: contextId, context_identity: identity },
           boundId,
         );
         if (outcome !== 'ok') {

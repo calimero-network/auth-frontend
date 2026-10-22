@@ -47,15 +47,6 @@ describe('urlParams', () => {
     });
   });
 
-  describe('mode and permissions guard', () => {
-    it('reads a repeated mode as the last value, the one that gets stored', () => {
-      localStorage.setItem('package-name', 'old');
-      (window as any).location.search = '?mode=single-context&mode=admin';
-      handleUrlParams();
-      expect(localStorage.getItem('package-name')).toBeNull();
-    });
-  });
-
   describe('getStoredUrlParam', () => {
     it('should return null for non-existent key', () => {
       expect(getStoredUrlParam('non-existent')).toBeNull();

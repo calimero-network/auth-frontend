@@ -712,6 +712,25 @@ describe('app-origin callbacks', () => {
       expect(resolveSafeCallbackUrl(portUrl(labelA))).toBeNull();
     });
 
+    it("refuses another app's origin whose path names the minted app", async () => {
+      const url = `http://${labelB}.localhost:5173/${labelA}/`;
+      expect(await resolveTrustedCallbackUrl(url, idA)).toBeNull();
+      expect(resolveSafeCallbackUrl(url, idA)).toBeNull();
+    });
+
+    it('lets the host label decide and ignores the path on an app origin', async () => {
+      const url = `http://${labelA}.localhost:5173/${labelB}/`;
+      expect(await resolveTrustedCallbackUrl(url, idA)).not.toBeNull();
+      expect(await resolveTrustedCallbackUrl(url, idB)).toBeNull();
+    });
+
+    it('binds the plain loopback apps port to the minted app only', async () => {
+      const url = `http://localhost:4000/${labelA}/`;
+      expect(await resolveTrustedCallbackUrl(url, idA)).not.toBeNull();
+      expect(await resolveTrustedCallbackUrl(url, idB)).toBeNull();
+      expect(await resolveTrustedCallbackUrl(url)).toBeNull();
+    });
+
     it('leaves ordinary loopback paths alone', async () => {
       expect(await resolveTrustedCallbackUrl('http://localhost:4000/', idA)).not.toBeNull();
       expect(await resolveTrustedCallbackUrl('http://localhost:4000/dashboard/', idA)).not.toBeNull();

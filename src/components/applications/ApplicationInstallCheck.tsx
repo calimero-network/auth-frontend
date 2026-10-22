@@ -160,9 +160,9 @@ export function ApplicationInstallCheck({ onComplete, onBack }: ApplicationInsta
                 <Button
                   variant="primary"
                   onClick={async () => {
-                    const success = await checkAndInstallApplication(applicationId, coords);
-                    if (success) {
-                      onComplete(applicationId);
+                    const installedId = await checkAndInstallApplication(applicationId, coords);
+                    if (installedId) {
+                      onComplete(installedId);
                     }
                   }}
                   disabled={isLoading}
@@ -199,9 +199,9 @@ export function ApplicationInstallCheck({ onComplete, onBack }: ApplicationInsta
               <Button
                 variant="primary"
                 onClick={async () => {
-                  const success = await checkAndInstallApplication(applicationId, coords);
-                  if (success) {
-                    onComplete(applicationId);
+                  const installedId = await checkAndInstallApplication(applicationId, coords);
+                  if (installedId) {
+                    onComplete(installedId);
                   }
                 }}
                 disabled={isLoading}

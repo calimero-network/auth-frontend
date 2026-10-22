@@ -56,12 +56,12 @@ describe('checkAndInstallApplication', () => {
 
     const { result } = renderHook(() => useContextCreation());
 
-    let ok: boolean | undefined;
+    let installedId: string | null | undefined;
     await act(async () => {
-      ok = await result.current.checkAndInstallApplication('some-app-id');
+      installedId = await result.current.checkAndInstallApplication('some-app-id');
     });
 
-    expect(ok).toBe(true);
+    expect(installedId).toBe('app-installed');
     expect(bodies).toHaveLength(1);
     expect(bodies[0]).toEqual({
       package: 'com.calimero.mero-blocks',
@@ -112,13 +112,13 @@ describe('checkAndInstallApplication', () => {
   it('does not attempt an install when no coordinates are known', async () => {
     const { result } = renderHook(() => useContextCreation());
 
-    let ok: boolean | undefined;
+    let installedId: string | null | undefined;
     await act(async () => {
-      ok = await result.current.checkAndInstallApplication('some-app-id');
+      installedId = await result.current.checkAndInstallApplication('some-app-id');
     });
 
     // Treated as already installed, exactly as the path-less branch used to be.
-    expect(ok).toBe(true);
+    expect(installedId).toBe('some-app-id');
     expect(bodies).toHaveLength(0);
   });
 });
