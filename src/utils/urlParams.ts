@@ -6,7 +6,7 @@ import {
 } from '../lib/mero';
 import { resolveTrustedNodeUrl } from './nodeUrl';
 
-const SINGLE_VALUE_PARAMS = ['callback-url', 'application-id', 'package-name', 'permissions', 'mode'];
+const SINGLE_VALUE_PARAMS = ['callback-url', 'application-id', 'package-name', 'permissions', 'mode', 'registry-url'];
 
 /** Flow params a URL repeats: no legitimate client does, and parsers disagree on which value wins. */
 export const repeatedFlowParams = (search: string): string[] => {

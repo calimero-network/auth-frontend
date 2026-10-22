@@ -37,9 +37,9 @@ describe('urlParams', () => {
     it('names every flow param the URL repeats', () => {
       expect(
         repeatedFlowParams(
-          '?callback-url=a&callback-url=b&application-id=x&application-id=y&package-name=p&package-name=q&permissions=a&permissions=admin&mode=m&mode=n',
+          '?callback-url=a&callback-url=b&application-id=x&application-id=y&package-name=p&package-name=q&permissions=a&permissions=admin&mode=m&mode=n&registry-url=r&registry-url=s',
         ),
-      ).toEqual(['callback-url', 'application-id', 'package-name', 'permissions', 'mode']);
+      ).toEqual(['callback-url', 'application-id', 'package-name', 'permissions', 'mode', 'registry-url']);
     });
 
     it('is empty for single values and for repeats of other params', () => {

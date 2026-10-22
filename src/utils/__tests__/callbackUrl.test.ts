@@ -694,6 +694,41 @@ describe('app-origin callbacks', () => {
     }
   });
 
+  describe('Windows desktop host (calimero-app.{label})', () => {
+    const winA = `https://calimero-app.${labelA}/index.html`;
+
+    it('accepts the label of the application the login minted for', async () => {
+      expect(await resolveTrustedCallbackUrl(winA, idA)).not.toBeNull();
+      expect(resolveSafeCallbackUrl(winA, idA)).not.toBeNull();
+    });
+
+    it("refuses another application's label", async () => {
+      expect(await resolveTrustedCallbackUrl(winA, idB)).toBeNull();
+    });
+
+    it('refuses an unbound mint', async () => {
+      expect(await resolveTrustedCallbackUrl(winA)).toBeNull();
+    });
+
+    it('refuses an explicit port', async () => {
+      expect(await resolveTrustedCallbackUrl(`https://calimero-app.${labelA}:8443/`, idA)).toBeNull();
+    });
+
+    it('refuses even when the node trusts the origin', async () => {
+      resetNodeTrustedOrigins();
+      server.use(
+        http.get(`${window.location.origin}/auth/providers`, () =>
+          HttpResponse.json({
+            data: { trusted_callback_origins: [`http://calimero-app.${labelA}`, `https://calimero-app.${labelA}`] },
+          }),
+        ),
+      );
+      expect(await resolveTrustedCallbackUrl(winA, idB)).toBeNull();
+      expect(await resolveTrustedCallbackUrl(`http://calimero-app.${labelA}/`, idB)).toBeNull();
+      resetNodeTrustedOrigins();
+    });
+  });
+
   describe('apps-port origin (loopback host, label as the first path segment)', () => {
     const portUrl = (label: string) => `http://localhost:4000/${label}/index.html`;
 

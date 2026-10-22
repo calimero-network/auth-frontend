@@ -56,9 +56,11 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     loopback node), and the label the application id the key was minted for.
 //     The apps-port origin on a loopback node (`http://localhost:<port>/<label>/`)
 //     is bound the same way by its first path segment. The apps-port origin is
-//     shared by all apps, and the Windows `calimero-app.{label}` host form is
-//     not bound (it fails closed unless allowlisted).
+//     shared by all apps. The Windows desktop host `calimero-app.{label}` is
+//     bound by its label too, with no port, and never reaches the trust lists.
 //   * everything else is rejected — the caller must NOT redirect the tokens.
+
+const WINDOWS_APP_HOST_PREFIX = 'calimero-app'; // first label of the Windows desktop app host form
 
 const allowedOrigins = (): Set<string> => {
   const origins = new Set<string>();
@@ -127,6 +129,7 @@ const checkAppOrigin = (
   applicationId: string | null | undefined,
 ): 'not-app-origin' | 'bound' | 'refused' => {
   const [label, ...rest] = url.hostname.split('.');
+  if (label === WINDOWS_APP_HOST_PREFIX && rest.length === 1) return checkWindowsAppHost(url, rest[0], applicationId);
   if (label.length !== APP_LABEL_LENGTH || rest.length === 0) return checkAppsPortPath(url, applicationId);
 
   const suffix = rest.join('.');
@@ -141,6 +144,16 @@ const checkAppOrigin = (
   const suffixOk = suffix === page.hostname || (nodeIsLoopback() && suffix === 'localhost');
   const hex = labelHex(label);
   return suffixOk && hex !== null && hex === applicationIdHex(applicationId) ? 'bound' : 'refused';
+};
+
+// The Windows desktop webview serves an app at `calimero-app.{label}` through its own scheme handler, with no port.
+const checkWindowsAppHost = (
+  url: URL,
+  label: string,
+  applicationId: string | null | undefined,
+): 'bound' | 'refused' => {
+  const hex = labelHex(label);
+  return url.port === '' && hex !== null && hex === applicationIdHex(applicationId) ? 'bound' : 'refused';
 };
 
 // The apps port routes on the first path segment and ignores the Host header.
