@@ -729,22 +729,25 @@ describe('app-origin callbacks', () => {
     });
   });
 
-  describe('apps-port origin (loopback host, label as the first path segment)', () => {
-    const portUrl = (label: string) => `http://localhost:4000/${label}/index.html`;
+  describe('label as a path segment on a loopback node (no apps port)', () => {
+    const pathUrl = (label: string) => `http://localhost:4000/${label}/index.html`;
 
-    it('accepts the label of the application the login minted for', async () => {
-      expect(await resolveTrustedCallbackUrl(portUrl(labelA), idA)).not.toBeNull();
-      expect(resolveSafeCallbackUrl(portUrl(labelA), idA)).not.toBeNull();
+    it('is plain loopback: accepted for any minted app and for an unbound mint', async () => {
+      for (const id of [idA, idB, undefined]) {
+        expect(await resolveTrustedCallbackUrl(pathUrl(labelA), id)).not.toBeNull();
+        expect(resolveSafeCallbackUrl(pathUrl(labelA), id)).not.toBeNull();
+      }
     });
 
-    it("refuses another application's label", async () => {
-      expect(await resolveTrustedCallbackUrl(portUrl(labelB), idA)).toBeNull();
-      expect(resolveSafeCallbackUrl(portUrl(labelB), idA)).toBeNull();
+    it('accepts the same path on any *.localhost host that is not an app label', async () => {
+      const url = `http://foo.localhost:4000/${labelB}/`;
+      expect(await resolveTrustedCallbackUrl(url, idA)).not.toBeNull();
     });
 
-    it('refuses any label for an unbound (admin) mint', async () => {
-      expect(await resolveTrustedCallbackUrl(portUrl(labelA))).toBeNull();
-      expect(resolveSafeCallbackUrl(portUrl(labelA))).toBeNull();
+    it('still refuses an unbound mint to an app-label host', async () => {
+      const url = `http://${labelA}.localhost:5173/`;
+      expect(await resolveTrustedCallbackUrl(url)).toBeNull();
+      expect(resolveSafeCallbackUrl(url)).toBeNull();
     });
 
     it("refuses another app's origin whose path names the minted app", async () => {
@@ -757,31 +760,6 @@ describe('app-origin callbacks', () => {
       const url = `http://${labelA}.localhost:5173/${labelB}/`;
       expect(await resolveTrustedCallbackUrl(url, idA)).not.toBeNull();
       expect(await resolveTrustedCallbackUrl(url, idB)).toBeNull();
-    });
-
-    it('binds the plain loopback apps port to the minted app only', async () => {
-      const url = `http://localhost:4000/${labelA}/`;
-      expect(await resolveTrustedCallbackUrl(url, idA)).not.toBeNull();
-      expect(await resolveTrustedCallbackUrl(url, idB)).toBeNull();
-      expect(await resolveTrustedCallbackUrl(url)).toBeNull();
-    });
-
-    it("refuses another app's label on any loopback host, not just localhost", async () => {
-      const url = `http://foo.localhost:4000/${labelB}/`;
-      expect(await resolveTrustedCallbackUrl(url, idA)).toBeNull();
-      expect(resolveSafeCallbackUrl(url, idA)).toBeNull();
-    });
-
-    it('accepts the minted label on a *.localhost apps-port host', async () => {
-      const url = `http://foo.localhost:4000/${labelA}/`;
-      expect(await resolveTrustedCallbackUrl(url, idA)).not.toBeNull();
-      expect(resolveSafeCallbackUrl(url, idA)).not.toBeNull();
-    });
-
-    it('leaves ordinary loopback paths alone', async () => {
-      expect(await resolveTrustedCallbackUrl('http://localhost:4000/', idA)).not.toBeNull();
-      expect(await resolveTrustedCallbackUrl('http://localhost:4000/dashboard/', idA)).not.toBeNull();
-      expect(await resolveTrustedCallbackUrl(`http://localhost:4000/${labelA.slice(0, 51)}/`)).not.toBeNull();
     });
   });
 });

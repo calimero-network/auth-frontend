@@ -54,9 +54,7 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     application id, is decided by that alone: the scheme and port must be the
 //     login page's, the suffix the node's own hostname (`localhost` on a
 //     loopback node), and the label the application id the key was minted for.
-//     The apps-port origin on a loopback node (`http://localhost:<port>/<label>/`)
-//     is bound the same way by its first path segment. The apps-port origin is
-//     shared by all apps. The Windows desktop host `calimero-app.{label}` is
+//     The Windows desktop host `calimero-app.{label}` is
 //     bound by its label too, with no port, and never reaches the trust lists.
 //   * everything else is rejected — the caller must NOT redirect the tokens.
 
@@ -130,7 +128,7 @@ const checkAppOrigin = (
 ): 'not-app-origin' | 'bound' | 'refused' => {
   const [label, ...rest] = url.hostname.split('.');
   if (label === WINDOWS_APP_HOST_PREFIX && rest.length === 1) return checkWindowsAppHost(url, rest[0], applicationId);
-  if (label.length !== APP_LABEL_LENGTH || rest.length === 0) return checkAppsPortPath(url, applicationId);
+  if (label.length !== APP_LABEL_LENGTH || rest.length === 0) return 'not-app-origin';
 
   const suffix = rest.join('.');
   let page: URL | null = null;
@@ -154,17 +152,6 @@ const checkWindowsAppHost = (
 ): 'bound' | 'refused' => {
   const hex = labelHex(label);
   return url.port === '' && hex !== null && hex === applicationIdHex(applicationId) ? 'bound' : 'refused';
-};
-
-// The apps port routes on the first path segment and ignores the Host header.
-const checkAppsPortPath = (
-  url: URL,
-  applicationId: string | null | undefined,
-): 'not-app-origin' | 'bound' | 'refused' => {
-  if (!isLoopbackHost(url.hostname) || !nodeIsLoopback()) return 'not-app-origin';
-  const pathHex = labelHex(url.pathname.split('/')[1] ?? '');
-  if (pathHex === null) return 'not-app-origin';
-  return pathHex === applicationIdHex(applicationId) ? 'bound' : 'refused';
 };
 
 const parseHttpUrl = (raw: string | null | undefined): URL | null => {
