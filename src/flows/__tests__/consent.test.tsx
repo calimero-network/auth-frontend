@@ -6,11 +6,11 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../../components/manifest/ManifestProcessor', () => ({
-  ManifestProcessor: ({ onComplete }: { onComplete: () => void }) => (
+  ManifestProcessor: ({ onComplete }: { onComplete: (appId: string) => void }) => (
     <button
       onClick={() => {
         sessionStorage.setItem('installed-application-id', 'app-1');
-        onComplete();
+        onComplete('app-1');
       }}
     >
       mock-install
