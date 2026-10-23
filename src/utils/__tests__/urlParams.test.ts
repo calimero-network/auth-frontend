@@ -8,7 +8,7 @@ vi.mock('../../lib/mero', () => ({
   clearAccessToken: vi.fn(),
 }));
 
-import { getStoredUrlParam, handleUrlParams } from '../urlParams';
+import { getStoredUrlParam, handleUrlParams, repeatedFlowParams } from '../urlParams';
 
 describe('urlParams', () => {
   beforeEach(() => {
@@ -23,6 +23,28 @@ describe('urlParams', () => {
       href: 'http://localhost/auth/login'
     };
     window.history.replaceState = vi.fn();
+  });
+
+  describe('installed-application-id', () => {
+    it('is never taken from the URL', () => {
+      (window as any).location.search = '?installed-application-id=FromTheUrl&package-name=x';
+      handleUrlParams();
+      expect(getStoredUrlParam('installed-application-id')).toBeNull();
+    });
+  });
+
+  describe('repeatedFlowParams', () => {
+    it('names every flow param the URL repeats', () => {
+      expect(
+        repeatedFlowParams(
+          '?callback-url=a&callback-url=b&application-id=x&application-id=y&package-name=p&package-name=q&permissions=a&permissions=admin&mode=m&mode=n&registry-url=r&registry-url=s',
+        ),
+      ).toEqual(['callback-url', 'application-id', 'package-name', 'permissions', 'mode', 'registry-url']);
+    });
+
+    it('is empty for single values and for repeats of other params', () => {
+      expect(repeatedFlowParams('?callback-url=a&permissions=b&app-url=x&app-url=y')).toEqual([]);
+    });
   });
 
   describe('getStoredUrlParam', () => {

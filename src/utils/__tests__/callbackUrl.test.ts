@@ -9,6 +9,7 @@ import {
   parseOriginList,
   resetNodeTrustedOrigins,
 } from '../callbackUrl';
+import { idBytes, toBase32, toBase58 } from './appIds';
 
 describe('resolveSafeCallbackUrl', () => {
   it('rejects a missing / empty callback', () => {
@@ -590,5 +591,175 @@ describe('parseOriginList', () => {
   it('is empty for anything that is not a list', () => {
     expect(parseOriginList(undefined).size).toBe(0);
     expect(parseOriginList('https://a.example').size).toBe(0);
+  });
+});
+
+/**
+ * App-origin callbacks: `{scheme}://{label}.{node host}:{node port}` where
+ * label is the lowercase unpadded base32 of the 32-byte application id.
+ * The login page in tests is http://localhost:5173.
+ */
+describe('app-origin callbacks', () => {
+  const idA = toBase58(idBytes(1));
+  const idB = toBase58(idBytes(2));
+  const labelA = toBase32(idBytes(1));
+  const labelB = toBase32(idBytes(2));
+  const cbA = `http://${labelA}.localhost:5173/`;
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    localStorage.clear();
+  });
+
+  it('accepts the label of the application the login minted for', async () => {
+    const url = await resolveTrustedCallbackUrl(cbA, idA);
+    expect(url?.hostname).toBe(`${labelA}.localhost`);
+    expect(resolveSafeCallbackUrl(cbA, idA)).not.toBeNull();
+  });
+
+  it("refuses another application's label", async () => {
+    expect(await resolveTrustedCallbackUrl(`http://${labelB}.localhost:5173/`, idA)).toBeNull();
+    expect(resolveSafeCallbackUrl(`http://${labelB}.localhost:5173/`, idA)).toBeNull();
+  });
+
+  it('refuses an app origin when the login minted without an application id', async () => {
+    expect(await resolveTrustedCallbackUrl(cbA)).toBeNull();
+    expect(resolveSafeCallbackUrl(cbA)).toBeNull();
+  });
+
+  it('ignores stored application ids: only the explicit argument counts', async () => {
+    sessionStorage.setItem('application-id', idA);
+    sessionStorage.setItem('installed-application-id', idA);
+    localStorage.setItem('installed-application-id', idA);
+    expect(await resolveTrustedCallbackUrl(cbA)).toBeNull();
+    expect(await resolveTrustedCallbackUrl(cbA, idB)).toBeNull();
+  });
+
+  it('refuses a 52-char label that is not base32 even when the id is a valid one', async () => {
+    const bad = '1'.repeat(52);
+    expect(await resolveTrustedCallbackUrl(`http://${bad}.localhost:5173/`, idA)).toBeNull();
+    // The same shape with a valid label is accepted, so the refusal above is the base32 check.
+    expect(await resolveTrustedCallbackUrl(cbA, idA)).not.toBeNull();
+  });
+
+  it('refuses a 52-char base32 label with non-zero padding bits (not a 32-byte id)', async () => {
+    const noncanonical = labelA.slice(0, 51) + 'b';
+    expect(await resolveTrustedCallbackUrl(`http://${noncanonical}.localhost:5173/`, idA)).toBeNull();
+  });
+
+  it('refuses the right label under a foreign suffix', async () => {
+    // Loopback hosts the loopback rule alone would accept: only the app-origin check refuses them.
+    expect(await resolveTrustedCallbackUrl(`http://${labelA}.foo.localhost:5173/`, idA)).toBeNull();
+    expect(await resolveTrustedCallbackUrl(`http://${labelA}.sub.foo.localhost:5173/`, idA)).toBeNull();
+    expect(resolveSafeCallbackUrl(`http://${labelA}.foo.localhost:5173/`, idA)).toBeNull();
+  });
+
+  it('treats a wrong-length label as an ordinary loopback host, not an app origin', async () => {
+    expect(await resolveTrustedCallbackUrl(`http://${labelA.slice(0, 51)}.localhost:5173/`, idB)).not.toBeNull();
+    expect(await resolveTrustedCallbackUrl(`http://${labelA}a.localhost:5173/`, idB)).not.toBeNull();
+  });
+
+  it('on an IPv6 loopback page binds the label under localhost to the minted id', async () => {
+    const original = window.location.origin;
+    (window.location as any).origin = 'http://[::1]:5173';
+    try {
+      expect(await resolveTrustedCallbackUrl(cbA, idA)).not.toBeNull();
+      expect(await resolveTrustedCallbackUrl(cbA, idB)).toBeNull();
+      expect(await resolveTrustedCallbackUrl(`http://${labelA}.foo.localhost:5173/`, idA)).toBeNull();
+    } finally {
+      (window.location as any).origin = original;
+    }
+  });
+
+  it('refuses https when the login page is http', async () => {
+    expect(await resolveTrustedCallbackUrl(`https://${labelA}.localhost:5173/`, idA)).toBeNull();
+  });
+
+  it('refuses another port than the login page', async () => {
+    expect(await resolveTrustedCallbackUrl(`http://${labelA}.localhost:2428/`, idA)).toBeNull();
+    expect(await resolveTrustedCallbackUrl(`http://${labelA}.localhost/`, idA)).toBeNull();
+  });
+
+  it('on a non-loopback node accepts only the node own scheme, host and port', async () => {
+    const original = window.location.origin;
+    (window.location as any).origin = 'https://node.example.org';
+    try {
+      expect(await resolveTrustedCallbackUrl(`https://${labelA}.node.example.org/`, idA)).not.toBeNull();
+      expect(await resolveTrustedCallbackUrl(`http://${labelA}.node.example.org/`, idA)).toBeNull();
+      expect(await resolveTrustedCallbackUrl(`https://${labelA}.node.example.org:8443/`, idA)).toBeNull();
+      expect(await resolveTrustedCallbackUrl(`https://${labelA}.localhost/`, idA)).toBeNull();
+      expect(await resolveTrustedCallbackUrl(`https://${labelA}.evil.com/`, idA)).toBeNull();
+    } finally {
+      (window.location as any).origin = original;
+    }
+  });
+
+  describe('Windows desktop host (calimero-app.{label})', () => {
+    const winA = `https://calimero-app.${labelA}/index.html`;
+
+    it('accepts the label of the application the login minted for', async () => {
+      expect(await resolveTrustedCallbackUrl(winA, idA)).not.toBeNull();
+      expect(resolveSafeCallbackUrl(winA, idA)).not.toBeNull();
+    });
+
+    it("refuses another application's label", async () => {
+      expect(await resolveTrustedCallbackUrl(winA, idB)).toBeNull();
+    });
+
+    it('refuses an unbound mint', async () => {
+      expect(await resolveTrustedCallbackUrl(winA)).toBeNull();
+    });
+
+    it('refuses an explicit port', async () => {
+      expect(await resolveTrustedCallbackUrl(`https://calimero-app.${labelA}:8443/`, idA)).toBeNull();
+    });
+
+    it('refuses even when the node trusts the origin', async () => {
+      resetNodeTrustedOrigins();
+      server.use(
+        http.get(`${window.location.origin}/auth/providers`, () =>
+          HttpResponse.json({
+            data: { trusted_callback_origins: [`http://calimero-app.${labelA}`, `https://calimero-app.${labelA}`] },
+          }),
+        ),
+      );
+      expect(await resolveTrustedCallbackUrl(winA, idB)).toBeNull();
+      expect(await resolveTrustedCallbackUrl(`http://calimero-app.${labelA}/`, idB)).toBeNull();
+      resetNodeTrustedOrigins();
+    });
+  });
+
+  describe('label as a path segment on a loopback node (no apps port)', () => {
+    const pathUrl = (label: string) => `http://localhost:4000/${label}/index.html`;
+
+    it('is plain loopback: accepted for any minted app and for an unbound mint', async () => {
+      for (const id of [idA, idB, undefined]) {
+        expect(await resolveTrustedCallbackUrl(pathUrl(labelA), id)).not.toBeNull();
+        expect(resolveSafeCallbackUrl(pathUrl(labelA), id)).not.toBeNull();
+      }
+    });
+
+    it('accepts the same path on any *.localhost host that is not an app label', async () => {
+      const url = `http://foo.localhost:4000/${labelB}/`;
+      expect(await resolveTrustedCallbackUrl(url, idA)).not.toBeNull();
+    });
+
+    it('still refuses an unbound mint to an app-label host', async () => {
+      const url = `http://${labelA}.localhost:5173/`;
+      expect(await resolveTrustedCallbackUrl(url)).toBeNull();
+      expect(resolveSafeCallbackUrl(url)).toBeNull();
+    });
+
+    it("refuses another app's origin whose path names the minted app", async () => {
+      const url = `http://${labelB}.localhost:5173/${labelA}/`;
+      expect(await resolveTrustedCallbackUrl(url, idA)).toBeNull();
+      expect(resolveSafeCallbackUrl(url, idA)).toBeNull();
+    });
+
+    it('lets the host label decide and ignores the path on an app origin', async () => {
+      const url = `http://${labelA}.localhost:5173/${labelB}/`;
+      expect(await resolveTrustedCallbackUrl(url, idA)).not.toBeNull();
+      expect(await resolveTrustedCallbackUrl(url, idB)).toBeNull();
+    });
   });
 });

@@ -6,6 +6,14 @@ import {
 } from '../lib/mero';
 import { resolveTrustedNodeUrl } from './nodeUrl';
 
+const SINGLE_VALUE_PARAMS = ['callback-url', 'application-id', 'package-name', 'permissions', 'mode', 'registry-url'];
+
+/** Flow params a URL repeats: no legitimate client does, and parsers disagree on which value wins. */
+export const repeatedFlowParams = (search: string): string[] => {
+  const params = new URLSearchParams(search);
+  return SINGLE_VALUE_PARAMS.filter((key) => params.getAll(key).length > 1);
+};
+
 export const handleUrlParams = () => {
   // Get URL search params
   const searchParams = new URLSearchParams(window.location.search);
@@ -69,7 +77,8 @@ export const handleUrlParams = () => {
   // EXCEPT transient params that should always come from URL
   // Note: We need to store package params temporarily to survive OAuth redirects
   // They will be cleared at the end via clearStoredUrlParams()
-  const doNotStore: string[] = ['calimero_access_token', 'calimero_refresh_token'];
+  // `installed-application-id` is written only by the install step, never taken from the URL.
+  const doNotStore: string[] = ['calimero_access_token', 'calimero_refresh_token', 'installed-application-id'];
   
   searchParams.forEach((value, key) => {
     params[key] = value;

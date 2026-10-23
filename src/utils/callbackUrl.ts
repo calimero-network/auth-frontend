@@ -1,6 +1,7 @@
 import { isLoopbackHost, nodeIsLoopback } from './nodeUrl';
 import { clearStoredUrlParams, getStoredUrlParam } from './urlParams';
 import { getAccessToken, getAppEndpointKey } from '../lib/mero';
+import { APP_LABEL_LENGTH, applicationIdHex, labelHex } from './applicationId';
 import { createRegistryClient, registryClient } from './registryClient';
 
 // Allowlist validation for the SSO `callback-url`.
@@ -49,7 +50,15 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     session. The registry knows only the latest frontend, and a node running
 //     an older bundle (the desktop opens exactly that one) still opens the app
 //     at the frontend that bundle names.
+//   * an APP ORIGIN `{label}.{suffix}`, where label is the 52-char base32 of an
+//     application id, is decided by that alone: the scheme and port must be the
+//     login page's, the suffix the node's own hostname (`localhost` on a
+//     loopback node), and the label the application id the key was minted for.
+//     The Windows desktop host `calimero-app.{label}` is
+//     bound by its label too, with no port, and never reaches the trust lists.
 //   * everything else is rejected — the caller must NOT redirect the tokens.
+
+const WINDOWS_APP_HOST_PREFIX = 'calimero-app'; // first label of the Windows desktop app host form
 
 const allowedOrigins = (): Set<string> => {
   const origins = new Set<string>();
@@ -86,11 +95,18 @@ const allowedOrigins = (): Set<string> => {
  *
  * @returns the parsed `URL` when the callback is trusted, or `null` when it is
  *   missing, malformed, uses a non-http(s) scheme, or points at an untrusted
- *   origin. On `null`, the caller MUST NOT redirect the token pair.
+ *   origin. `applicationId` is the exact id the key was minted with (none for
+ *   an unbound key); an app-origin callback is accepted only for that id. On `null`, the caller MUST NOT redirect the token pair.
  */
-export function resolveSafeCallbackUrl(raw: string | null | undefined): URL | null {
+export function resolveSafeCallbackUrl(
+  raw: string | null | undefined,
+  applicationId?: string | null,
+): URL | null {
   const url = parseHttpUrl(raw);
   if (!url) return null;
+
+  const appOrigin = checkAppOrigin(url, applicationId);
+  if (appOrigin !== 'not-app-origin') return appOrigin === 'bound' ? url : null;
 
   if (isLoopbackHost(url.hostname) && nodeIsLoopback()) {
     return url;
@@ -100,6 +116,43 @@ export function resolveSafeCallbackUrl(raw: string | null | undefined): URL | nu
 
   return null;
 }
+
+/**
+ * Verdict for a callback on an app origin. A 52-char first label is always an
+ * app origin: it is refused unless it decodes to `applicationId`, and the
+ * scheme, port and rest of the host are the login page's own.
+ */
+const checkAppOrigin = (
+  url: URL,
+  applicationId: string | null | undefined,
+): 'not-app-origin' | 'bound' | 'refused' => {
+  const [label, ...rest] = url.hostname.split('.');
+  if (label === WINDOWS_APP_HOST_PREFIX && rest.length === 1) return checkWindowsAppHost(url, rest[0], applicationId);
+  if (label.length !== APP_LABEL_LENGTH || rest.length === 0) return 'not-app-origin';
+
+  const suffix = rest.join('.');
+  let page: URL | null = null;
+  try {
+    page = new URL(window.location.origin);
+  } catch {
+    /* no window origin: nothing can match below */
+  }
+  if (!page || url.protocol !== page.protocol || url.port !== page.port) return 'refused';
+
+  const suffixOk = suffix === page.hostname || (nodeIsLoopback() && suffix === 'localhost');
+  const hex = labelHex(label);
+  return suffixOk && hex !== null && hex === applicationIdHex(applicationId) ? 'bound' : 'refused';
+};
+
+// The Windows desktop webview serves an app at `calimero-app.{label}` through its own scheme handler, with no port.
+const checkWindowsAppHost = (
+  url: URL,
+  label: string,
+  applicationId: string | null | undefined,
+): 'bound' | 'refused' => {
+  const hex = labelHex(label);
+  return url.port === '' && hex !== null && hex === applicationIdHex(applicationId) ? 'bound' : 'refused';
+};
 
 const parseHttpUrl = (raw: string | null | undefined): URL | null => {
   if (!raw) return null;
@@ -301,16 +354,28 @@ const isInstalledFrontend = async (origin: string): Promise<boolean> => {
  */
 export async function resolveTrustedCallbackUrl(
   raw: string | null | undefined,
+  applicationId?: string | null,
 ): Promise<URL | null> {
-  const staticUrl = resolveSafeCallbackUrl(raw);
+  const staticUrl = resolveSafeCallbackUrl(raw, applicationId);
   if (staticUrl) return staticUrl;
 
   const url = parseHttpUrl(raw);
-  if (!url) return null;
+  if (!url || checkAppOrigin(url, applicationId) !== 'not-app-origin') return null;
 
   if ((await loadNodeTrustedOrigins()).has(url.origin)) return url;
   if (await isInstalledFrontend(url.origin)) return url;
   return (await isRegistryDeclaredFrontend(url.origin)) ? url : null;
+}
+
+/** Why a callback would get no tokens, or null when it would. Run before minting. */
+export async function callbackRefusal(
+  raw: string | null | undefined,
+  applicationId?: string | null,
+): Promise<string | null> {
+  if (!raw) return 'Missing callback URL';
+  return (await resolveTrustedCallbackUrl(raw, applicationId))
+    ? null
+    : 'Login callback destination is not allowed.';
 }
 
 /**
@@ -323,6 +388,9 @@ export async function resolveTrustedCallbackUrl(
  * exfiltrating the tokens to an arbitrary origin. Callers must funnel through it
  * rather than building the redirect inline.
  *
+ * `applicationId` is the id the tokens were minted with, as in
+ * [`resolveSafeCallbackUrl`].
+ *
  * @returns `'ok'` after redirecting, `'missing'` when no callback was provided,
  *   or `'untrusted'` when the callback failed validation. In the non-`'ok'`
  *   cases the tokens are NOT handed out and no navigation happens; the caller
@@ -332,10 +400,11 @@ export async function redirectTokensToCallback(
   rawCallback: string | null | undefined,
   tokens: { access_token: string; refresh_token: string },
   extra: Record<string, string | null | undefined> = {},
+  applicationId?: string | null,
 ): Promise<'ok' | 'missing' | 'untrusted'> {
   if (!rawCallback) return 'missing';
 
-  const returnUrl = await resolveTrustedCallbackUrl(rawCallback);
+  const returnUrl = await resolveTrustedCallbackUrl(rawCallback, applicationId);
   if (!returnUrl) return 'untrusted';
 
   const fragmentParams = new URLSearchParams();

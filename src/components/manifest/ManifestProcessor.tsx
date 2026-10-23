@@ -44,7 +44,7 @@ interface Manifest {
 }
 
 interface ManifestProcessorProps {
-  onComplete: (contextId?: string, identity?: string) => void;
+  onComplete: (applicationId: string) => void;
   onBack: () => void;
 }
 
@@ -164,7 +164,7 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
                     setLoading(false);
                     if (!completionInProgressRef.current) {
                       completionInProgressRef.current = true;
-                      onCompleteRef.current('', '');
+                      onCompleteRef.current(app.id);
                       completionInProgressRef.current = false;
                     }
                     return;
@@ -274,7 +274,7 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
         setAlreadyInstalled(true);
         setExistingAppId(applicationId);
         localStorage.setItem('installed-application-id', applicationId);
-        onCompleteRef.current('', '');
+        onCompleteRef.current(applicationId);
         completionInProgressRef.current = false;
       }
     };
@@ -321,14 +321,10 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
       if (completionInProgressRef.current) return;
       completionInProgressRef.current = true;
 
-      const contextsResponse = await mero.admin.getContextsForApplication(applicationId);
-      const contexts = (contextsResponse as any)?.contexts || [];
-      const contextId = contexts[0]?.id || '';
-
       if (completionTimeoutRef.current) clearTimeout(completionTimeoutRef.current);
       completionTimeoutRef.current = setTimeout(() => {
         if (completionInProgressRef.current) {
-          onComplete(contextId, '');
+          onComplete(applicationId);
           completionInProgressRef.current = false;
         }
         completionTimeoutRef.current = null;
@@ -344,7 +340,7 @@ export function ManifestProcessor({ onComplete, onBack }: ManifestProcessorProps
     if (!existingAppId || completionInProgressRef.current) return;
     completionInProgressRef.current = true;
     localStorage.setItem('installed-application-id', existingAppId);
-    onComplete('', '');
+    onComplete(existingAppId);
     completionInProgressRef.current = false;
   };
 

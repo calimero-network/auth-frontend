@@ -4,7 +4,8 @@ import { AdminFlow } from './flows/AdminFlow';
 import { PackageFlow } from './flows/PackageFlow';
 import { ApplicationFlow } from './flows/ApplicationFlow';
 import { useFlowDetection } from './hooks/useFlowDetection';
-import { handleUrlParams } from './utils/urlParams';
+import { ErrorView } from './components/common/ErrorView';
+import { handleUrlParams, repeatedFlowParams } from './utils/urlParams';
 
 /**
  * App - Main entry point for auth-frontend
@@ -20,11 +21,16 @@ function App() {
   // CRITICAL: Process URL params SYNCHRONOUSLY before flow detection
   // This clears conflicting localStorage and stores new params
   // Must run before useFlowDetection() to avoid race condition
+  const repeated = repeatedFlowParams(window.location.search);
   React.useLayoutEffect(() => {
-    handleUrlParams();
+    if (repeated.length === 0) handleUrlParams();
   }, []);
   
   const flowParams = useFlowDetection();
+
+  if (repeated.length > 0) {
+    return <ErrorView message={`Login link repeats ${repeated.join(', ')}.`} hint={null} />;
+  }
 
   // Auth frontend doesn't need to set app endpoint
   // It uses auth endpoint (set in urlParams) for admin API calls

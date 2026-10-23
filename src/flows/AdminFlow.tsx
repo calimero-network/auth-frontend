@@ -4,7 +4,7 @@ import { PermissionsView } from '../components/permissions/PermissionsView';
 import { ErrorView } from '../components/common/ErrorView';
 import Loader from '../components/common/Loader';
 import { getStoredUrlParam } from '../utils/urlParams';
-import { redirectTokensToCallback } from '../utils/callbackUrl';
+import { callbackRefusal, redirectTokensToCallback } from '../utils/callbackUrl';
 import { normalizePermissions } from '../utils/permissions';
 import { describeError } from '../utils/errors';
 
@@ -29,6 +29,12 @@ export const AdminFlow: React.FC = () => {
   const handlePermissionsApprove = async () => {
     setGenerating(true);
     try {
+      const refusal = await callbackRefusal(getStoredUrlParam('callback-url'));
+      if (refusal) {
+        setError(refusal);
+        setGenerating(false);
+        return;
+      }
       const response = await generateClientKeyDirect({
         context_id: '',
         context_identity: '',

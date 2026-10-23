@@ -19,7 +19,7 @@ interface UseContextCreationReturn {
   checkAndInstallApplication: (
     applicationId?: string | null,
     coords?: { package: string; version: string } | null
-  ) => Promise<boolean>;
+  ) => Promise<string | null>;
   handleContextCreation: (
     applicationIdOverride?: string | null,
     initArgs?: string | null
@@ -106,7 +106,7 @@ export function useContextCreation(): UseContextCreationReturn {
       // which is the same assumption the old path-less branch made.
       const target = coords ?? getStoredPackageCoords();
       if (!target) {
-        return true;
+        return targetApplicationId;
       }
 
       const mero = getMero();
@@ -114,12 +114,12 @@ export function useContextCreation(): UseContextCreationReturn {
       try {
         await mero.admin.getApplication(targetApplicationId);
         // Application exists
-        return true;
+        return targetApplicationId;
       } catch {
         // Application doesn't exist, try to install
         try {
-          await mero.admin.installApplication(target);
-          return true;
+          const installed = await mero.admin.installApplication(target);
+          return installed.applicationId;
         } catch (installErr) {
           // ⚠️ `includes`, NOT `===`. The node's sentence now arrives with the
           // status in front of it (`HTTP 400: fatal: blob hash mismatch`), and
@@ -130,7 +130,7 @@ export function useContextCreation(): UseContextCreationReturn {
           if (errorMessage.includes('blob hash mismatch')) {
             setApplicationMismatch(true);
             setShowInstallPrompt(true);
-            return false;
+            return null;
           }
           throw installErr;
         }

@@ -15,22 +15,24 @@ export function useFlowDetection(): FlowDetectionResult & UrlParams {
 
   return useMemo(() => {
     const urlSearch = new URLSearchParams(search);
+    // A repeated param resolves to its last value, as handleUrlParams stores it.
+    const lastParam = (key: string) => urlSearch.getAll(key).at(-1);
       
     // Extract all params - PREFER URL over localStorage
-    const callbackUrl = urlSearch.get('callback-url') || getStoredUrlParam('callback-url') || '';
-    const appUrl = urlSearch.get('app-url') || getStoredUrlParam('app-url') || '';
-    const permissionsParam = urlSearch.get('permissions') || getStoredUrlParam('permissions') || '';
+    const callbackUrl = lastParam('callback-url') || getStoredUrlParam('callback-url') || '';
+    const appUrl = lastParam('app-url') || getStoredUrlParam('app-url') || '';
+    const permissionsParam = lastParam('permissions') || getStoredUrlParam('permissions') || '';
     const permissions = permissionsParam ? permissionsParam.split(',') : [];
     
     // Check both URL and stored params for package info
-    const packageName = urlSearch.get('package-name') || getStoredUrlParam('package-name') || undefined;
-    const packageVersion = urlSearch.get('package-version') || getStoredUrlParam('package-version') || undefined;
-    const registryUrl = urlSearch.get('registry-url') || getStoredUrlParam('registry-url') || undefined;
+    const packageName = lastParam('package-name') || getStoredUrlParam('package-name') || undefined;
+    const packageVersion = lastParam('package-version') || getStoredUrlParam('package-version') || undefined;
+    const registryUrl = lastParam('registry-url') || getStoredUrlParam('registry-url') || undefined;
     
-    const applicationId = urlSearch.get('application-id') || getStoredUrlParam('application-id') || undefined;
-    const applicationPath = urlSearch.get('application-path') || getStoredUrlParam('application-path') || undefined;
+    const applicationId = lastParam('application-id') || getStoredUrlParam('application-id') || undefined;
+    const applicationPath = lastParam('application-path') || getStoredUrlParam('application-path') || undefined;
     
-    const modeParam = urlSearch.get('mode') || getStoredUrlParam('mode');
+    const modeParam = lastParam('mode') || getStoredUrlParam('mode');
     
     console.log('🔍 FLOW DETECTION - Extracted values:', {
       packageName,
