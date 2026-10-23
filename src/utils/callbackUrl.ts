@@ -56,6 +56,9 @@ import { createRegistryClient, registryClient } from './registryClient';
 //     loopback node), and the label the application id the key was minted for.
 //     The Windows desktop host `calimero-app.{label}` is
 //     bound by its label too, with no port, and never reaches the trust lists.
+//   * a loopback frontend declared by a bundle or the registry is never trusted
+//     on a remote node: it is the user's own machine. The node's own list and
+//     the env allowlist are the operator's call and may still name loopback.
 //   * everything else is rejected — the caller must NOT redirect the tokens.
 
 const WINDOWS_APP_HOST_PREFIX = 'calimero-app'; // first label of the Windows desktop app host form
@@ -363,6 +366,7 @@ export async function resolveTrustedCallbackUrl(
   if (!url || checkAppOrigin(url, applicationId) !== 'not-app-origin') return null;
 
   if ((await loadNodeTrustedOrigins()).has(url.origin)) return url;
+  if (isLoopbackHost(url.hostname)) return null;
   if (await isInstalledFrontend(url.origin)) return url;
   return (await isRegistryDeclaredFrontend(url.origin)) ? url : null;
 }
