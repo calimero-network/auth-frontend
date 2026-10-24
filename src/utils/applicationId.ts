@@ -1,6 +1,6 @@
-const BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const BASE32 = 'abcdefghijklmnopqrstuvwxyz234567';
 const APP_ID_BYTES = 32;
+const HEX_ID = /^[0-9a-f]{64}$/;
 
 /** Length of an app origin's first label: base32 of 32 bytes, unpadded. */
 export const APP_LABEL_LENGTH = 52;
@@ -8,26 +8,9 @@ export const APP_LABEL_LENGTH = 52;
 const bytesToHex = (bytes: Uint8Array): string =>
   Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 
-/** The 32 bytes (as hex) behind a base58 application id, or null when it is not one. */
-export const applicationIdHex = (id: string | null | undefined): string | null => {
-  if (!id) return null;
-  let n = 0n;
-  for (const c of id) {
-    const digit = BASE58.indexOf(c);
-    if (digit < 0) return null;
-    n = n * 58n + BigInt(digit);
-  }
-  const hex = n.toString(16).padStart(APP_ID_BYTES * 2, '0');
-  return hex.length === APP_ID_BYTES * 2 && encodeBase58(hex) === id ? hex : null;
-};
-
-/** Canonical base58 of the bytes: one leading '1' per leading zero byte. */
-const encodeBase58 = (hex: string): string => {
-  let n = BigInt(`0x${hex}`);
-  let out = '';
-  for (; n > 0n; n /= 58n) out = BASE58[Number(n % 58n)] + out;
-  return '1'.repeat((/^(?:00)*/.exec(hex)?.[0].length ?? 0) / 2) + out;
-};
+/** The application id when it is canonical hex (64 lowercase chars, as core renders every id), else null. */
+export const applicationIdHex = (id: string | null | undefined): string | null =>
+  id && HEX_ID.test(id) ? id : null;
 
 /** The 32 bytes (as hex) behind an app-origin label (canonical lowercase base32), or null. */
 export const labelHex = (label: string): string | null => {

@@ -9,7 +9,7 @@ import {
   parseOriginList,
   resetNodeTrustedOrigins,
 } from '../callbackUrl';
-import { idBytes, toBase32, toBase58 } from './appIds';
+import { idBytes, toBase32, toHex } from './appIds';
 
 describe('resolveSafeCallbackUrl', () => {
   it('rejects a missing / empty callback', () => {
@@ -649,8 +649,8 @@ describe('parseOriginList', () => {
  * The login page in tests is http://localhost:5173.
  */
 describe('app-origin callbacks', () => {
-  const idA = toBase58(idBytes(1));
-  const idB = toBase58(idBytes(2));
+  const idA = toHex(idBytes(1));
+  const idB = toHex(idBytes(2));
   const labelA = toBase32(idBytes(1));
   const labelB = toBase32(idBytes(2));
   const cbA = `http://${labelA}.localhost:5173/`;

@@ -25,7 +25,7 @@ import { PackageFlow } from '../flows/PackageFlow';
 import { ApplicationFlow } from '../flows/ApplicationFlow';
 import { AdminFlow } from '../flows/AdminFlow';
 import { resetNodeTrustedOrigins } from '../utils/callbackUrl';
-import { idBytes, toBase32, toBase58 } from '../utils/__tests__/appIds';
+import { idBytes, toBase32, toHex } from '../utils/__tests__/appIds';
 
 // The flow steps before token generation (registry fetch, app install,
 // permission review UI) are not under test — stub them down to their
@@ -256,8 +256,8 @@ describe('application binding at mint', () => {
 });
 
 describe('app-origin callbacks follow the id the login minted for', () => {
-  const ID_A = toBase58(idBytes(1));
-  const ID_B = toBase58(idBytes(2));
+  const ID_A = toHex(idBytes(1));
+  const ID_B = toHex(idBytes(2));
   const LABEL_A = toBase32(idBytes(1));
   const LABEL_B = toBase32(idBytes(2));
   const originalHref = window.location.href;
@@ -347,7 +347,7 @@ describe('app-origin callbacks follow the id the login minted for', () => {
         return HttpResponse.json({ data: { access_token: 'access', refresh_token: 'refresh' } });
       }),
     );
-    const packageId = toBase58(idBytes(9));
+    const packageId = toHex(idBytes(9));
     sessionStorage.setItem('callback-url', appCallback(LABEL_A));
     render(<ApplicationFlow mode="multi-context" applicationId={packageId} applicationPath="" />);
     await userEvent.click(screen.getByText('app-check-complete'));
