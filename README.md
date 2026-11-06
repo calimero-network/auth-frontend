@@ -2,6 +2,14 @@
 
 A React TypeScript frontend application for authentication and context management with Calimero Network integration.
 
+> **Not used by Calimero 1.0 apps.** On core 1.0 a person's account is a passkey
+> on the cluster (`/auth/passkey/*` in `merod`). Component apps sign in with that
+> passkey directly, through mero-js `CalimeroClient.signIn` / `signUp` and
+> `@calimero-apps/connect` in the apps monorepo. There is no admin login, no app
+> install on the user's node, no permissions screen and no context picker, so this
+> flow is not in their path. This repository serves 0.x nodes only; whether it is
+> kept or archived is still open.
+
 ## Features
 
 - 🔐 **Authentication System** - User login frontend logic implementation
